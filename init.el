@@ -28,4 +28,6 @@
           (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/org-mode/doc")))
 
 (load "~/.emacs.d/rvf-settings.el")
+
+;; this is needed since LaTeX-mode has not been loaded (being an ELPA package)
 (add-hook 'LaTeX-mode-hook (lambda () (load "~/.emacs.d/rvf-latex.el")))
