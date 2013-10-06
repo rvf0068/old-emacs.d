@@ -28,3 +28,4 @@
           (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/org-mode/doc")))
 
 (load "~/.emacs.d/rvf-settings.el")
+(add-hook 'LaTeX-mode-hook (lambda () (load "~/.emacs.d/rvf-latex.el")))
