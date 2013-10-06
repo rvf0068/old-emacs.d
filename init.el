@@ -2,13 +2,23 @@
 ;; to add a directory and its subdirectories
 
 (let ((default-directory "~/.emacs.d/site-lisp/"))
-  (normal-top-level-add-subdirs-to-load-path))
+  (setq load-path
+        (append
+         (let ((load-path (copy-sequence load-path))) ;; Shadow
+           (append 
+            (copy-sequence (normal-top-level-add-to-load-path '(".")))
+            (normal-top-level-add-subdirs-to-load-path)))
+         load-path)))
 
 ;; From https://github.com/magit/magit/blob/maint/INSTALL.md#installing-from-git
 ;; to add info documentation to index
 
 (eval-after-load 'info
   '(progn (info-initialize)
-          (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/magit$")))
+          (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/magit")))
 
 (require 'magit)
+
+(eval-after-load 'info
+  '(progn (info-initialize)
+          (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/org-mode/doc")))
