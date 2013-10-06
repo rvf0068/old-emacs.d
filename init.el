@@ -26,3 +26,5 @@
 (eval-after-load 'info
   '(progn (info-initialize)
           (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/org-mode/doc")))
+
+(load "~/.emacs.d/rvf-settings.el")
