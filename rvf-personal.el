@@ -4,3 +4,43 @@
 
 (setq org-agenda-files "~/Dropbox/org/agenda/agendafiles")
 
+(global-set-key
+ (kbd "<f12> b")
+ (lambda nil (interactive)
+   (find-file "~/Dropbox/texmf/bibtex/bib/misc/rvf.bib")
+   ))
+(global-set-key
+ (kbd "<f12> c")
+ (lambda nil (interactive)
+   (find-file "~/Dropbox/org/cheatsheet/cheatsheetmisc.org")
+   ))
+(global-set-key
+ (kbd "<f12> d")
+ (lambda nil (interactive)
+   (find-file "~/Dropbox/emacs/dotemacs/dotemacs.org")
+   ))
+(global-set-key
+ (kbd "<f12> k")
+ (lambda nil (interactive)
+   (switch-to-buffer "*Bookmark List*")
+   ))
+(global-set-key
+ (kbd "<f12> l")
+ (lambda nil (interactive)
+   (find-file "~/Dropbox/org/math/lit.org")
+   ))
+(global-set-key
+ (kbd "<f12> r")
+ (lambda nil (interactive)
+   (find-file "~/Dropbox/org/remember.org")
+   ))
+(global-set-key
+ (kbd "<f12> s")
+ (lambda nil (interactive)
+   (find-file "~/Dropbox/emacs/site-lisp/scratch.el")
+   ))
+(global-set-key
+ (kbd "<f12> t")
+ (lambda nil (interactive)
+   (find-file "~/Dropbox/texmf/tex/latex/uaeh/titulacion.org")
+   ))
