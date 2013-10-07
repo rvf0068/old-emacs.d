@@ -77,4 +77,13 @@
 
 (load "~/.emacs.d/rvf-org.el")
 
+(require 'calfw)
+(require 'calfw-org) 
+
+(load "~/.emacs.d/rvf-misc.el")
+
+(load "~/.emacs.d/rvf-key-bindings.el")
+
+(load "~/.emacs.d/rvf-cosmetic.el")
+
 (load "~/.emacs.d/rvf-personal.el")
