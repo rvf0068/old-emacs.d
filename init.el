@@ -1,3 +1,5 @@
+(package-initialize)
+
 ;; From http://www.emacswiki.org/emacs/LoadPath#AddSubDirectories
 ;; to add a directory and its subdirectories
 
@@ -9,15 +11,6 @@
             (copy-sequence (normal-top-level-add-to-load-path '(".")))
             (normal-top-level-add-subdirs-to-load-path)))
          load-path)))
-
-;; From https://github.com/magit/magit/blob/maint/INSTALL.md#installing-from-git
-;; to add info documentation to index
-
-(eval-after-load 'info
-  '(progn (info-initialize)
-          (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/magit")))
-
-(require 'magit)
 
 (eval-after-load 'info
   '(progn (info-initialize)
@@ -79,6 +72,13 @@
 
 (require 'calfw)
 (require 'calfw-org) 
+(require 'cal-catholic)
+(require 'cal-benedictine)
+(require 'cal-dominican)
+(require 'cal-franciscan)
+(require 'cal-sanctoral-updates)
+(add-hook 'diary-display-hook 'fancy-diary-display)
+(setq diary-list-include-blanks t)
 
 (load "~/.emacs.d/rvf-misc.el")
 
@@ -86,4 +86,10 @@
 
 (load "~/.emacs.d/rvf-cosmetic.el")
 
+(load "~/.emacs.d/rvf-appts.el")
+
+(load "~/.emacs.d/rvf-refs.el")
+
 (load "~/.emacs.d/rvf-personal.el")
+
+(diary)
