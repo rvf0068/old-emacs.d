@@ -6,6 +6,7 @@
 (setq TeX-math-close-single-dollar t)
 
 (font-latex-add-keywords '(("alert" "{")) 'italic-command)
+(setq font-latex-fontify-sectioning 1.15)
 
 (LaTeX-add-environments
  '("definition")
