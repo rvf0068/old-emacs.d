@@ -4,6 +4,11 @@
 
 (setq org-agenda-files "~/Dropbox/org/agenda/agendafiles")
 
+(setq diary-file "~/Dropbox/emacs/diary")
+(setq calendar-latitude [20 7 north])
+(setq calendar-longitude [98 43 west])
+(setq calendar-location-name "Pachuca, Hidalgo, Mexico")
+
 (global-set-key
  (kbd "<f12> b")
  (lambda nil (interactive)
