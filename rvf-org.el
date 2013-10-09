@@ -42,4 +42,35 @@
 (setq org-src-fontify-natively t)
 (setq org-support-shift-select 'always)
 
+(setq org-tag-faces '(
+                      ("LIMA" . (:foreground "green" :weight bold :underline t))
+                      ("titulacion" . (:foreground "blue" :weight bold :underline t))
+                      ("todo" . (:foreground "orange" :weight bold :underline t))
+                      ))
+
+; the space at the beginning is useful to move the cursor
+(setq org-agenda-prefix-format 
+      '((agenda . " %i %-12:c%?-12t% s")
+	(timeline . "  % s")
+	(todo . " %-12:c")
+	(tags . " %-12:c")
+	(search . " %-12:c")))
+
+(setq org-agenda-entry-text-leaders "    ")
+(setq org-agenda-category-icon-alist
+      '(
+        ("Tasks" "/usr/share/icons/Humanity/stock/16/stock_task.svg" nil nil :ascent center)
+        ("LIMA" "/usr/share/icons/Humanity/actions/16/add.svg" nil nil :ascent center)
+        ("Math" "/usr/share/icons/gnome/16x16/apps/libreoffice-math.png" nil nil :ascent center)
+        ("Saint" "/usr/share/icons/gnome/16x16/emotes/face-angel.png" nil nil :ascent center)
+        ("Emacs" "/usr/share/emacs/24.3/etc/images/icons/hicolor/16x16/apps/emacs.png" nil nil :ascent center)
+        ))
+
+(setq org-file-apps
+      '((auto-mode . emacs)
+	("pdf" . "evince %s")
+	("djvu" . "evince %s")
+	("html" . "firefox %s")
+	))
+
 (load "~/.emacs.d/rvf-captures.el")
