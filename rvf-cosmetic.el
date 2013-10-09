@@ -6,4 +6,6 @@
 ;; blink instead of beep when an error occurs
 (setq visible-bell t)
 
+(set-face-attribute 'mode-line nil :height 0.8)
+
 (display-time)
