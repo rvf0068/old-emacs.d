@@ -1115,7 +1115,26 @@ body\n")))
 	      '((plain-text . (lambda (text contents info) "Failure"))))
 	    (org-export-define-backend 'test2
 	      '((plain-text . (lambda (text contents info) "Success"))))
-	    (org-export-with-backend 'test2 "Test")))))
+	    (org-export-with-backend 'test2 "Test"))))
+  ;; Provide correct back-end if transcoder needs to use recursive
+  ;; calls anyway.
+  (should
+   (equal "Success\n"
+	  (let ((test-back-end
+		 (org-export-create-backend
+		  :transcoders
+		  '((headline . (lambda (headline contents info)
+				  (org-export-data
+				   (org-element-property :title headline)
+				   info)))
+		    (plain-text . (lambda (text info) "Success"))))))
+	    (org-export-string-as
+	     "* Test"
+	     (org-export-create-backend
+	      :transcoders
+	      '((headline . (lambda (headline contents info)
+			      (org-export-with-backend
+			       test-back-end headline contents info))))))))))
 
 (ert-deftest test-org-export/data-with-backend ()
   "Test `org-export-data-with-backend' specifications."
