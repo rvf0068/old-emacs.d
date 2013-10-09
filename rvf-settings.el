@@ -7,8 +7,10 @@
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file)
 
+(require 'ido)
 (setq ido-everywhere t)
 (setq ido-enable-flex-matching t)
 (setq ido-max-directory-size 100000)
 (ido-mode (quote both))
 
+(show-paren-mode 1)
