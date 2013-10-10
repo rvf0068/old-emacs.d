@@ -73,6 +73,11 @@
   (sp-local-pair "$" nil :actions nil)
   (sp-local-pair "\\[" "\\]")
   )
+(sp-with-modes '(
+		 emacs-lisp-mode
+                 )
+  (sp-local-pair "'" nil :actions nil)
+  )
 
 ;; smex: https://github.com/nonsequitur/smex/
 
