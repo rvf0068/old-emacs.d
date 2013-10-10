@@ -9,6 +9,17 @@
 (setq calendar-longitude [98 43 west])
 (setq calendar-location-name "Pachuca, Hidalgo, Mexico")
 
+(add-to-list 'load-path "~/Dropbox/emacs/site-lisp/gnus/lisp")
+(setq gnus-home-directory "~/Dropbox/gnus")
+(setq gnus-directory "~/Dropbox/gnus/News")
+(setq gnus-cache-directory "~/Dropbox/gnus/News/cache/")
+(setq message-directory "~/Dropbox/gnus/Mail")
+
+(setq bbdb-file "~/Dropbox/gnus/.bbdb")
+
+(setq gnus-always-read-dribble-file t)
+
+
 (global-set-key
  (kbd "<f12> b")
  (lambda nil (interactive)
