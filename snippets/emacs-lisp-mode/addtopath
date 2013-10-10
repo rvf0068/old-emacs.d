@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name : addtopath
+# key: addtopath
+# contributor: Rafael Villarroel (rvf0068@gmail.com)
+# --
+(add-to-list 'load-path "~/Dropbox/emacs/site-lisp/$1/")
