@@ -9,6 +9,10 @@
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file)
 
+;; dragging the mouse over a stretch of text also adds the text to the
+;; kill ring.
+(setq mouse-drag-copy-region t)
+
 (require 'ido)
 (setq ido-everywhere t)
 (setq ido-enable-flex-matching t)
