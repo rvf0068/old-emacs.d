@@ -1,6 +1,8 @@
 ;; Input method for multilingual text, activated by C-\
-
 (setq default-input-method 'spanish-prefix)
+
+;; http://www.masteringemacs.org/articles/2010/11/14/disabling-prompts-emacs/
+(setq confirm-nonexistent-file-or-buffer nil)
 
 ;; from https://github.com/magnars/.emacs.d/blob/master/init.el
 ;; Keep emacs Custom-settings in separate file
