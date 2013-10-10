@@ -16,6 +16,11 @@
   '(progn (info-initialize)
           (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/org-mode/doc")))
 
+;; emacs-lisp
+
+(define-key emacs-lisp-mode-map [(tab)] 'lisp-complete-symbol)
+(add-hook 'emacs-lisp-mode-hook 'smartparens-mode)
+
 ;; cdlatex: http://staff.science.uva.nl/~dominik/Tools/cdlatex/
 
 (setq cdlatex-math-symbol-alist
@@ -30,6 +35,20 @@
      ( ?\[  ("\\subseteq" ))
      )
    )
+
+;; markdown
+
+(defun my-markdown-mode-hook()
+  (local-set-key (kbd "$")
+                 (lambda () (interactive)
+                   (insert "$$$$")
+                   (forward-char -2)))
+  (setq markdown-enable-math t)
+  )
+
+(add-hook 'markdown-mode-hook 'turn-on-org-cdlatex)
+(add-hook 'markdown-mode-hook 'smartparens-mode)
+(add-hook 'markdown-mode-hook 'my-markdown-mode-hook)
 
 ;; yasnippet: https://github.com/capitaomorte/yasnippet
 
