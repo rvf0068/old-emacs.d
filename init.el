@@ -92,4 +92,6 @@
 
 (load "~/.emacs.d/rvf-personal.el")
 
+(load "~/.emacs.d/rvf-elpa.el")
+
 (diary)
