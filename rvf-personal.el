@@ -2,7 +2,25 @@
 (setq user-full-name "Rafael Villarroel")
 (setq user-mail-address "rafaelv@uaeh.edu.mx")
 
+;; org stuff
 (setq org-agenda-files "~/Dropbox/org/agenda/agendafiles")
+
+(setq org-tag-faces '(
+                      ("LIMA" . (:foreground "green" :weight bold :underline t))
+                      ("titulacion" . (:foreground "blue" :weight bold :underline t))
+                      ("todo" . (:foreground "orange" :weight bold :underline t))
+                      ))
+
+(setq org-agenda-category-icon-alist
+      '(
+        ("Tasks" "/usr/share/icons/Humanity/stock/16/stock_task.svg" nil nil :ascent center)
+        ("LIMA" "/usr/share/icons/Humanity/actions/16/add.svg" nil nil :ascent center)
+        ("Math" "/usr/share/icons/gnome/16x16/apps/libreoffice-math.png" nil nil :ascent center)
+        ("Saint" "/usr/share/icons/gnome/16x16/emotes/face-angel.png" nil nil :ascent center)
+        ("Emacs" "/usr/share/emacs/24.3/etc/images/icons/hicolor/16x16/apps/emacs.png" nil nil :ascent center)
+        ))
+
+(load "~/.emacs.d/rvf-captures.el")
 
 (setq diary-file "~/Dropbox/emacs/diary")
 (setq calendar-latitude [20 7 north])
