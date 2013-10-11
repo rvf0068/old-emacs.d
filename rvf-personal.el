@@ -54,6 +54,11 @@
    (find-file "~/Dropbox/emacs/dotemacs/dotemacs.org")
    ))
 (global-set-key
+ (kbd "<f12> i")
+ (lambda nil (interactive)
+   (find-file "~/.emacs.d/init.el")
+   ))
+(global-set-key
  (kbd "<f12> k")
  (lambda nil (interactive)
    (switch-to-buffer "*Bookmark List*")
