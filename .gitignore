@@ -9,3 +9,4 @@ elpa
 .DS_Store
 .yas-compiled-snippets.el
 /custom.el
+/url/cookies
