@@ -9,8 +9,18 @@
 (package-initialize)
 
 (defvar prelude-packages
-  '(calfw dash helm magit markdown-mode pandoc-mode smartparens
-	  smex yasnippet zenburn-theme)
+  '(
+    bibslurp
+    calfw
+    dash
+    helm
+    magit
+    markdown-mode
+    pandoc-mode
+    smartparens
+    smex
+    yasnippet
+    zenburn-theme)
   "A list of packages to ensure are installed at launch.")
 
 (defun prelude-packages-installed-p ()
