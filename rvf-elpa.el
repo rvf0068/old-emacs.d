@@ -16,6 +16,7 @@
     helm
     magit
     markdown-mode
+    org-journal
     pandoc-mode
     smartparens
     smex
