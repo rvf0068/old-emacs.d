@@ -10,6 +10,7 @@
 
 (defvar prelude-packages
   '(
+    bibretrieve
     bibslurp
     calfw
     dash
