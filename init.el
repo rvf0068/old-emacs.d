@@ -16,10 +16,21 @@
   '(progn (info-initialize)
           (add-to-list 'Info-directory-list "~/.emacs.d/site-lisp/org-mode/doc")))
 
+(defun make-backup-file-name (file-name)
+  "Create the non-numeric backup file name for `file-name'."
+  (require 'dired)
+  (if (file-exists-p "~/backups")
+      (concat (expand-file-name "~/backups/")
+              (dired-replace-in-string "/" "-" file-name))
+    (concat file-name "~")))
+
 ;; emacs-lisp
 
 (define-key emacs-lisp-mode-map [(tab)] 'lisp-complete-symbol)
 (add-hook 'emacs-lisp-mode-hook 'smartparens-mode)
+
+;; bibretrieve
+(require 'bibretrieve)
 
 ;; cdlatex: http://staff.science.uva.nl/~dominik/Tools/cdlatex/
 
