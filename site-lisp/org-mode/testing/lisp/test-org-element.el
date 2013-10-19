@@ -1127,7 +1127,13 @@ DEADLINE: <2012-03-29 thu.>"
    (equal '(("- item"))
 	  (org-test-with-temp-text "- - item"
 	    (org-element-map
-	     (org-element-parse-buffer) 'paragraph 'org-element-contents)))))
+	     (org-element-parse-buffer) 'paragraph 'org-element-contents))))
+  ;; Block in an item: ignore indentation within the block.
+  (should
+   (org-test-with-temp-text "- item\n  #+begin_src emacs-lisp\n(+ 1 1)\n  #+end_src"
+     (forward-char)
+     (goto-char (org-element-property :end (org-element-at-point)))
+     (eobp))))
 
 
 ;;;; Keyword
@@ -1921,11 +1927,21 @@ Outside list"
      (let ((timestamp (org-element-context)))
        (or (org-element-property :hour-end timestamp)
 	   (org-element-property :minute-end timestamp)))))
-  ;; With repeater.
+  ;; With repeater, warning delay and both.
   (should
    (eq 'catch-up
        (org-test-with-temp-text "<2012-03-29 Thu ++1y>"
 	 (org-element-property :repeater-type (org-element-context)))))
+  (should
+   (eq 'first
+       (org-test-with-temp-text "<2012-03-29 Thu --1y>"
+	 (org-element-property :warning-type (org-element-context)))))
+  (should
+   (equal '(cumulate all)
+	  (org-test-with-temp-text "<2012-03-29 Thu +1y -1y>"
+	    (let ((ts (org-element-context)))
+	      (list (org-element-property :repeater-type ts)
+		    (org-element-property :warning-type ts))))))
   ;; Timestamps are not planning elements.
   (should-not
    (org-test-with-temp-text "SCHEDULED: <2012-03-29 Thu 16:40>"
@@ -2446,7 +2462,7 @@ DEADLINE: <2012-01-01> SCHEDULED: <2012-01-01> CLOSED: [2012-01-01]\n"))))
   ;; Diary.
   (should (equal (org-test-parse-and-interpret "<%%diary-float t 4 2>")
 		 "<%%diary-float t 4 2>\n"))
-  ;; Timestamp with repeater interval.
+  ;; Timestamp with repeater interval, with delay, with both.
   (should (equal (org-test-parse-and-interpret "<2012-03-29 thu. +1y>")
 		 "<2012-03-29 thu. +1y>\n"))
   (should
@@ -2455,6 +2471,23 @@ DEADLINE: <2012-01-01> SCHEDULED: <2012-01-01> CLOSED: [2012-01-01]\n"))))
     (org-element-timestamp-interpreter
      '(timestamp
        (:type active :year-start 2012 :month-start 3 :day-start 29
+	      :repeater-type cumulate :repeater-value 1 :repeater-unit year))
+     nil)))
+  (should
+   (string-match
+    "<2012-03-29 .* -1y>"
+    (org-element-timestamp-interpreter
+     '(timestamp
+       (:type active :year-start 2012 :month-start 3 :day-start 29
+	      :warning-type all :warning-value 1 :warning-unit year))
+     nil)))
+  (should
+   (string-match
+    "<2012-03-29 .* \\+1y -1y>"
+    (org-element-timestamp-interpreter
+     '(timestamp
+       (:type active :year-start 2012 :month-start 3 :day-start 29
+	      :warning-type all :warning-value 1 :warning-unit year
 	      :repeater-type cumulate :repeater-value 1 :repeater-unit year))
      nil)))
   ;; Timestamp range with repeater interval

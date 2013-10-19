@@ -1230,9 +1230,10 @@ CONTENTS is the contents of the element."
 		    (throw 'exit (sort struct 'car-less-than-car))))))
 	    ;; Skip blocks (any type) and drawers contents.
 	    (cond
-	     ((and (looking-at "#\\+BEGIN\\(:[ \t]*$\\|_\\S-\\)+")
+	     ((and (looking-at "#\\+BEGIN\\(:\\|_\\S-+\\)")
 		   (re-search-forward
-		    (format "^[ \t]*#\\+END%s[ \t]*$" (match-string 1))
+		    (format "^[ \t]*#\\+END%s[ \t]*$"
+			    (org-match-string-no-properties 1))
 		    limit t)))
 	     ((and (looking-at drawers-re)
 		   (re-search-forward "^[ \t]*:END:[ \t]*$" limit t))))
@@ -3549,7 +3550,12 @@ beginning position."
   "Parse time stamp at point.
 
 Return a list whose CAR is `timestamp', and CDR a plist with
-`:type', `:begin', `:end', `:value' and `:post-blank' keywords.
+`:type', `:raw-value', `:year-start', `:month-start',
+`:day-start', `:hour-start', `:minute-start', `:year-end',
+`:month-end', `:day-end', `:hour-end', `:minute-end',
+`:repeater-type', `:repeater-value', `:repeater-unit',
+`:warning-type', `:warning-value', `:warning-unit', `:begin',
+`:end', `:value' and `:post-blank' keywords.
 
 Assume point is at the beginning of the timestamp."
   (save-excursion
@@ -3579,7 +3585,7 @@ Assume point is at the beginning of the timestamp."
 		       (t 'inactive)))
 	   (repeater-props
 	    (and (not diaryp)
-		 (string-match "\\([.+]?\\+\\)\\([0-9]+\\)\\([hdwmy]\\)>"
+		 (string-match "\\([.+]?\\+\\)\\([0-9]+\\)\\([hdwmy]\\)"
 			       raw-value)
 		 (list
 		  :repeater-type
@@ -3589,6 +3595,15 @@ Assume point is at the beginning of the timestamp."
 			  (t 'cumulate)))
 		  :repeater-value (string-to-number (match-string 2 raw-value))
 		  :repeater-unit
+		  (case (string-to-char (match-string 3 raw-value))
+		    (?h 'hour) (?d 'day) (?w 'week) (?m 'month) (t 'year)))))
+	   (warning-props
+	    (and (not diaryp)
+		 (string-match "\\(-\\)?-\\([0-9]+\\)\\([hdwmy]\\)" raw-value)
+		 (list
+		  :warning-type (if (match-string 1 raw-value) 'first 'all)
+		  :warning-value (string-to-number (match-string 2 raw-value))
+		  :warning-unit
 		  (case (string-to-char (match-string 3 raw-value))
 		    (?h 'hour) (?d 'day) (?w 'week) (?m 'month) (t 'year)))))
 	   year-start month-start day-start hour-start minute-start year-end
@@ -3627,7 +3642,8 @@ Assume point is at the beginning of the timestamp."
 			 :begin begin
 			 :end end
 			 :post-blank post-blank)
-		   repeater-props)))))
+		   repeater-props
+		   warning-props)))))
 
 (defun org-element-timestamp-interpreter (timestamp contents)
   "Interpret TIMESTAMP object as Org syntax.
@@ -3642,6 +3658,15 @@ CONTENTS is nil."
 	       (let ((val (org-element-property :repeater-value timestamp)))
 		 (and val (number-to-string val)))
 	       (case (org-element-property :repeater-unit timestamp)
+		 (hour "h") (day "d") (week "w") (month "m") (year "y"))))
+	     (warning-string
+	      (concat
+	       (case (org-element-property :warning-type timestamp)
+		 (first "--")
+		 (all "-"))
+	       (let ((val (org-element-property :warning-value timestamp)))
+		 (and val (number-to-string val)))
+	       (case (org-element-property :warning-unit timestamp)
 		 (hour "h") (day "d") (week "w") (month "m") (year "y"))))
 	     (build-ts-string
 	      ;; Build an Org timestamp string from TIME.  ACTIVEP is
@@ -3661,11 +3686,12 @@ CONTENTS is nil."
 			   (format "\\&-%02d:%02d" hour-end minute-end)
 			   nil nil ts)))
 		  (unless activep (setq ts (format "[%s]" (substring ts 1 -1))))
-		  (when (org-string-nw-p repeat-string)
-		    (setq ts (concat (substring ts 0 -1)
-				     " "
-				     repeat-string
-				     (substring ts -1))))
+		  (dolist (s (list repeat-string warning-string))
+		    (when (org-string-nw-p s)
+		      (setq ts (concat (substring ts 0 -1)
+				       " "
+				       s
+				       (substring ts -1)))))
 		  ;; Return value.
 		  ts)))
 	     (type (org-element-property :type timestamp)))
