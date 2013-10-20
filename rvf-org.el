@@ -56,6 +56,7 @@
       '((auto-mode . emacs)
 	("pdf" . "evince %s")
 	("djvu" . "evince %s")
+	("epub" . "fbreader %s")
 	("html" . "firefox %s")
 	))
 

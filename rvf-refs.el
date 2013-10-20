@@ -51,18 +51,24 @@
 
 (defun org-reflibrary-determine-link (tag)
   "Map the bibtex key to a file"
-  (if
-      (and (>= (length tag) 5) (equal (substring tag -5 nil) "-djvu"))
-      (if
-          (and (>= (length tag) 9) (equal (substring tag -9 -4) "-big-"))
-          (concat "~/Documents/References/" tag ".djvu")
-          (concat "~/Dropbox/References/" tag ".djvu"))
-      (if
-          (and (>= (length tag) 4) (equal (substring tag -4 nil) "-big"))
-          (concat "~/Documents/References/" tag ".pdf")
-          (concat "~/Dropbox/References/" tag ".pdf"))
-      )
-)
+  (cond
+   ((and (>= (length tag) 5) (equal (substring tag -5 nil) "-djvu"))
+    (if
+	(and (>= (length tag) 9) (equal (substring tag -9 -4) "-big-"))
+	(concat "~/Documents/References/" tag ".djvu")
+      (concat "~/Dropbox/References/" tag ".djvu")))
+
+   ((and (>= (length tag) 5) (equal (substring tag -5 nil) "-epub"))
+    (if
+	(and (>= (length tag) 9) (equal (substring tag -9 -4) "-big-"))
+	(concat "~/Documents/References/" tag ".epub")
+      (concat "~/Dropbox/References/" tag ".epub")))
+   
+   ((and (>= (length tag) 4) (equal (substring tag -4 nil) "-big"))
+    (concat "~/Documents/References/" tag ".pdf"))
+   (t (concat "~/Dropbox/References/" tag ".pdf"))
+   )
+  )
 
 (defun org-reflibrary-movebibsnarf()
   (interactive)
