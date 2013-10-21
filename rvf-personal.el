@@ -2,6 +2,11 @@
 (setq user-full-name "Rafael Villarroel")
 (setq user-mail-address "rafaelv@uaeh.edu.mx")
 
+;; from https://github.com/magnars/.emacs.d/blob/master/init.el
+;; Keep emacs Custom-settings in separate file
+;; (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
+;; (load custom-file)
+
 ;; org stuff
 (setq org-agenda-files "~/Dropbox/org/agenda/agendafiles")
 
