@@ -2,6 +2,8 @@
 ;; https://github.com/bbatsov/prelude
 
 (require 'package)
+(require 'cl)
+
 (add-to-list 'package-archives
              '("melpa" . "http://melpa.milkbox.net/packages/") t)
 ;; set package-user-dir to be relative to Prelude install path
