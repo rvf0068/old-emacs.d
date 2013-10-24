@@ -1,4 +1,4 @@
-(package-initialize)
+(load "~/.emacs.d/rvf-elpa.el")
 
 ;; From http://www.emacswiki.org/emacs/LoadPath#AddSubDirectories
 ;; to add a directory and its subdirectories
@@ -127,6 +127,5 @@
 
 (load "~/.emacs.d/rvf-personal.el")
 
-(load "~/.emacs.d/rvf-elpa.el")
 
 (diary)
