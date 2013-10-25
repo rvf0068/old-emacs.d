@@ -125,7 +125,8 @@
 
 (load "~/.emacs.d/rvf-refs.el")
 
-(load "~/.emacs.d/rvf-personal.el")
-
+(if (equal system-name "lahp")
+    (load "~/.emacs.d/rvf-personal.el")
+  )
 
 (diary)
