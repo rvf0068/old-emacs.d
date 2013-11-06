@@ -14,4 +14,3 @@
 (setq ido-max-directory-size 100000)
 (ido-mode (quote both))
 
-(show-paren-mode 1)

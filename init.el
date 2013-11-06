@@ -95,6 +95,7 @@
                  )
   (sp-local-pair "'" nil :actions nil)
   )
+(show-smartparens-global-mode +1)
 
 ;; smex: https://github.com/nonsequitur/smex/
 
