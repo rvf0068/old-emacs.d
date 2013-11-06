@@ -14,3 +14,4 @@
 (setq ido-max-directory-size 100000)
 (ido-mode (quote both))
 
+(add-hook 'text-mode-hook 'turn-on-auto-fill)
