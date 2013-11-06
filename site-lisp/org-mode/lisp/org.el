@@ -7060,11 +7060,19 @@ specifying which drawers should not be hidden."
 	    (org-flag-drawer t)))))))
 
 (defun org-cycle-hide-inline-tasks (state)
-  "Re-hide inline task when switching to 'contents visibility state."
-  (when (and (eq state 'contents)
-	     (boundp 'org-inlinetask-min-level)
-	     org-inlinetask-min-level)
-    (hide-sublevels (1- org-inlinetask-min-level))))
+  "Re-hide inline tasks when switching to 'contents or 'children
+visibility state."
+  (case state
+    (contents
+     (when (org-bound-and-true-p org-inlinetask-min-level)
+       (hide-sublevels (1- org-inlinetask-min-level))))
+    (children
+     (when (featurep 'org-inlinetask)
+       (save-excursion
+	 (while (and (outline-next-heading)
+		     (org-inlinetask-at-task-p))
+	   (org-inlinetask-toggle-visibility)
+	   (org-inlinetask-goto-end)))))))
 
 (defun org-flag-drawer (flag &optional element)
   "When FLAG is non-nil, hide the drawer we are at.
@@ -18027,10 +18035,10 @@ When a buffer is unmodified, it is just killed.  When modified, it is saved
 	(inhibit-read-only t)
 	(org-inhibit-startup org-agenda-inhibit-startup)
 	(rea (concat ":" org-archive-tag ":"))
-	file re)
+	file re pos)
     (setq org-tag-alist-for-agenda nil
 	  org-tag-groups-alist-for-agenda nil)
-    (save-excursion
+    (save-window-excursion
       (save-restriction
 	(while (setq file (pop files))
 	  (catch 'nextfile
@@ -18040,6 +18048,7 @@ When a buffer is unmodified, it is just killed.  When modified, it is saved
 	      (set-buffer (org-get-agenda-file-buffer file)))
 	    (widen)
 	    (org-set-regexps-and-options-for-tags)
+	    (setq pos (point))
 	    (goto-char (point-min))
 	    (let ((case-fold-search t))
 	      (when (search-forward "#+setupfile" nil t)
@@ -18081,7 +18090,8 @@ When a buffer is unmodified, it is just killed.  When modified, it is saved
 				org-comment-string))
 	       (while (re-search-forward re nil t)
 		 (add-text-properties
-		  (match-beginning 0) (org-end-of-subtree t) pc))))))))
+		  (match-beginning 0) (org-end-of-subtree t) pc))))
+	    (goto-char pos)))))
     (setq org-todo-keywords-for-agenda
           (org-uniquify org-todo-keywords-for-agenda))
     (setq org-todo-keyword-alist-for-agenda
