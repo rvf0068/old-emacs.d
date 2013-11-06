@@ -38,6 +38,7 @@
 (declare-function org-back-to-heading "org" (invisible-ok))
 (declare-function org-fill-template "org" (template alist))
 (declare-function org-babel-update-block-body "org" (new-body))
+(declare-function org-up-heading-safe "org" ())
 (declare-function make-directory "files" (dir &optional parents))
 
 (defcustom org-babel-tangle-lang-exts
@@ -149,16 +150,18 @@ evaluating BODY."
 Source code blocks are extracted with `org-babel-tangle'.
 Optional argument TARGET-FILE can be used to specify a default
 export file for all source blocks.  Optional argument LANG can be
-used to limit the exported source code blocks by language."
+used to limit the exported source code blocks by language.
+Return a list whose CAR is the tangled file name."
   (interactive "fFile to tangle: \nP")
   (let ((visited-p (get-file-buffer (expand-file-name file)))
 	to-be-removed)
-    (save-window-excursion
-      (find-file file)
-      (setq to-be-removed (current-buffer))
-      (org-babel-tangle nil target-file lang))
-    (unless visited-p
-      (kill-buffer to-be-removed))))
+    (prog1
+	(save-window-excursion
+	  (find-file file)
+	  (setq to-be-removed (current-buffer))
+	  (org-babel-tangle nil target-file lang))
+      (unless visited-p
+	(kill-buffer to-be-removed)))))
 
 (defun org-babel-tangle-publish (_ filename pub-dir)
   "Tangle FILENAME and place the results in PUB-DIR."
@@ -179,12 +182,12 @@ used to limit the exported source code blocks by language."
   (run-hooks 'org-babel-pre-tangle-hook)
   ;; Possibly Restrict the buffer to the current code block
   (save-restriction
-    (when (equal arg '(4))
-      (let ((head (org-babel-where-is-src-block-head)))
+    (save-excursion
+      (when (equal arg '(4))
+	(let ((head (org-babel-where-is-src-block-head)))
 	  (if head
 	      (goto-char head)
 	    (user-error "Point is not in a source code block"))))
-    (save-excursion
       (let ((block-counter 0)
 	    (org-babel-default-header-args
 	     (if target-file
@@ -355,6 +358,7 @@ that the appropriate major-mode is set.  SPEC has the form:
        insert-comment
        (org-fill-template org-babel-tangle-comment-format-end link-data)))))
 
+(defvar org-comment-string) ;; Defined in org.el
 (defun org-babel-under-commented-heading-p ()
   "Return t if currently under a commented heading."
   (if (string-match (concat "^" org-comment-string)
@@ -364,7 +368,6 @@ that the appropriate major-mode is set.  SPEC has the form:
       (and (org-up-heading-safe)
 	   (org-babel-under-commented-heading-p)))))
 
-(defvar org-comment-string) ;; Defined in org.el
 (defun org-babel-tangle-collect-blocks (&optional language tangle-file)
   "Collect source blocks in the current Org-mode file.
 Return an association list of source-code block specifications of

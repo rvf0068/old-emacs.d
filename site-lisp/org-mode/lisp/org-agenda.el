@@ -3642,7 +3642,6 @@ generating a new one."
 	(or org-agenda-multi (org-agenda-fit-window-to-buffer))
 	(throw 'exit "Sticky Agenda buffer, use `r' to refresh"))
     (setq org-todo-keywords-for-agenda nil)
-    (setq org-drawers-for-agenda nil)
     (unless org-agenda-persistent-filter
       (setq org-agenda-tag-filter nil
 	    org-agenda-category-filter nil
@@ -3682,7 +3681,6 @@ generating a new one."
 	    (org-uniquify org-todo-keywords-for-agenda))
       (setq org-done-keywords-for-agenda
 	    (org-uniquify org-done-keywords-for-agenda))
-      (setq org-drawers-for-agenda (org-uniquify org-drawers-for-agenda))
       (setq org-agenda-last-prefix-arg current-prefix-arg)
       (setq org-agenda-this-buffer-name org-agenda-buffer-name)
       (and name (not org-agenda-name)
@@ -7532,9 +7530,11 @@ to switch to narrowing."
 		 (if notgroup
 		     (push (cons 'and nf0) f)
 		   (push (cons (or op 'or) nf0) f)))))
-	  (if (equal nfilter filter)
-	      (funcall ffunc f1 f filter t nil)
-	    (funcall ffunc nf1 nf nfilter nil nil)))))
+	  (cond ((equal filter '("+"))
+		 (setq f (list (list 'not 'tags))))
+		((equal nfilter filter)
+		 (funcall ffunc f1 f filter t nil))
+		(t (funcall ffunc nf1 nf nfilter nil nil))))))
      ;; Category filter
      ((eq type 'category)
       (setq filter
@@ -8627,15 +8627,10 @@ if it was hidden in the outline."
 	(run-hook-with-args 'org-cycle-hook 'subtree))
       (message "Remote: SUBTREE"))
      ((= more 4)
-      (let* ((org-drawers (delete "LOGBOOK" (copy-sequence org-drawers)))
-	     (org-drawer-regexp
-	      (concat "^[ \t]*:\\("
-		      (mapconcat 'regexp-quote org-drawers "\\|")
-		      "\\):[ \t]*$")))
-	(show-subtree)
-	(save-excursion
-	  (org-back-to-heading)
-	  (org-cycle-hide-drawers 'subtree)))
+      (show-subtree)
+      (save-excursion
+	(org-back-to-heading)
+	(org-cycle-hide-drawers 'subtree '("LOGBOOK")))
       (message "Remote: SUBTREE AND LOGBOOK"))
      ((> more 4)
       (show-subtree)
@@ -9916,11 +9911,12 @@ current HH:MM time."
   "Drag an agenda line forward by ARG lines."
   (interactive "p")
   (let ((inhibit-read-only t) lst)
-    (if (save-excursion
-	  (dotimes (n arg)
-	    (beginning-of-line 2)
-	    (push (not (get-text-property (point) 'txt)) lst))
-	  (delq nil lst))
+    (if (or (not (get-text-property (point) 'txt))
+	    (save-excursion
+	      (dotimes (n arg)
+		(move-beginning-of-line 2)
+		(push (not (get-text-property (point) 'txt)) lst))
+	      (delq nil lst)))
 	(message "Cannot move line forward")
       (org-drag-line-forward arg))))
 
@@ -9928,11 +9924,12 @@ current HH:MM time."
   "Drag an agenda line backward by ARG lines."
   (interactive "p")
   (let ((inhibit-read-only t) lst)
-    (if (save-excursion
-	  (dotimes (n arg)
-	    (beginning-of-line 0)
-	    (push (not (get-text-property (point) 'txt)) lst))
-	  (delq nil lst))
+    (if (or (not (get-text-property (point) 'txt))
+	    (save-excursion
+	      (dotimes (n arg)
+		(move-beginning-of-line 0)
+		(push (not (get-text-property (point) 'txt)) lst))
+	      (delq nil lst)))
 	(message "Cannot move line backward")
       (org-drag-line-backward arg))))
 

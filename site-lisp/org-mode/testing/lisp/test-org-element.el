@@ -415,21 +415,18 @@ Some other text
   "Test `drawer' parser."
   ;; Standard test.
   (should
-   (let ((org-drawers '("TEST")))
-     (org-test-with-temp-text ":TEST:\nText\n:END:"
-       (org-element-map (org-element-parse-buffer) 'drawer 'identity))))
+   (org-test-with-temp-text ":TEST:\nText\n:END:"
+     (org-element-map (org-element-parse-buffer) 'drawer 'identity)))
   ;; Do not mix regular drawers and property drawers.
   (should-not
-   (let ((org-drawers '("PROPERTIES")))
-     (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:"
-       (org-element-map
-	(org-element-parse-buffer) 'drawer 'identity nil t))))
+   (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:"
+     (org-element-map
+	 (org-element-parse-buffer) 'drawer 'identity nil t)))
   ;; Ignore incomplete drawer.
   (should-not
-   (let ((org-drawers '("TEST")))
-     (org-test-with-temp-text ":TEST:"
-       (org-element-map
-	(org-element-parse-buffer) 'drawer 'identity nil t)))))
+   (org-test-with-temp-text ":TEST:"
+     (org-element-map
+	 (org-element-parse-buffer) 'drawer 'identity nil t))))
 
 
 ;;;; Dynamic Block
@@ -504,16 +501,8 @@ Some other text
 	  (org-test-with-temp-text
 	      "#+BEGIN_EXAMPLE\n,* Headline\n ,#+keyword\nText\n#+END_EXAMPLE"
 	    (org-element-property :value (org-element-at-point)))))
-  ;; Nil `org-src-preserve-indentation': Remove maximum common
-  ;; indentation.
-  (should
-   (equal " L1\nL2\n"
-	  (org-test-with-temp-text "#+BEGIN_EXAMPLE\n  L1\n L2\n#+END_EXAMPLE"
-	    (let ((org-src-preserve-indentation nil))
-	      (org-element-property :value (org-element-at-point))))))
-  ;; Non-nil `org-src-preserve-indentation': Remove block indentation
-  ;; only, unless block contents are less indented than block
-  ;; boundaries.
+  ;; Remove block indentation according to block boundaries, unless
+  ;; block contents are less indented than block boundaries.
   (should
    (equal " L1\nL2\n"
 	  (org-test-with-temp-text " #+BEGIN_EXAMPLE\n  L1\n L2\n #+END_EXAMPLE"
@@ -858,25 +847,29 @@ Some other text
 (ert-deftest test-org-element/headline-archive-tag ()
   "Test ARCHIVE tag recognition."
   ;; Reference test.
-  (org-test-with-temp-text "* Headline"
-    (let ((org-archive-tag "ARCHIVE"))
-      (should-not (org-element-property :archivedp (org-element-at-point)))))
+  (should-not
+   (org-test-with-temp-text "* Headline"
+     (let ((org-archive-tag "ARCHIVE"))
+       (org-element-property :archivedp (org-element-at-point)))))
   ;; Single tag.
   (org-test-with-temp-text "* Headline :ARCHIVE:"
     (let ((org-archive-tag "ARCHIVE"))
       (let ((headline (org-element-at-point)))
 	(should (org-element-property :archivedp headline))
 	;; Test tag removal.
-	(should-not (org-element-property :tags headline))))
-    (let ((org-archive-tag "Archive"))
-      (should-not (org-element-property :archivedp (org-element-at-point)))))
+	(should-not (org-element-property :tags headline)))))
   ;; Multiple tags.
   (org-test-with-temp-text "* Headline :test:ARCHIVE:"
     (let ((org-archive-tag "ARCHIVE"))
       (let ((headline (org-element-at-point)))
 	(should (org-element-property :archivedp headline))
 	;; Test tag removal.
-	(should (equal (org-element-property :tags headline) '("test")))))))
+	(should (equal (org-element-property :tags headline) '("test"))))))
+  ;; Tag is case-sensitive.
+  (should-not
+   (org-test-with-temp-text "* Headline :ARCHIVE:"
+     (let ((org-archive-tag "Archive"))
+       (org-element-property :archivedp (org-element-at-point))))))
 
 (ert-deftest test-org-element/headline-properties ()
   "Test properties from property drawer."
@@ -1411,16 +1404,10 @@ e^{i\\pi}+1=0
      (org-element-map (org-element-parse-buffer) 'paragraph 'identity)))
   ;; Include incomplete-drawers.
   (should
-   (let ((org-drawers '("TEST")))
-     (org-test-with-temp-text ":TEST:\nParagraph"
-       (let ((elem (org-element-at-point)))
-	 (and (eq (org-element-type elem) 'paragraph)
-	      (= (point-max) (org-element-property :end elem)))))))
-  ;; Include non-existent drawers.
-  (should
-   (let ((org-drawers '("TEST")))
-     (org-test-with-temp-text ":NONAME:"
-       (org-element-map (org-element-parse-buffer) 'paragraph 'identity))))
+   (org-test-with-temp-text ":TEST:\nParagraph"
+     (let ((elem (org-element-at-point)))
+       (and (eq (org-element-type elem) 'paragraph)
+	    (= (point-max) (org-element-property :end elem))))))
   ;; Include incomplete blocks.
   (should
    (org-test-with-temp-text "#+BEGIN_CENTER\nParagraph"
@@ -1513,22 +1500,19 @@ Outside list"
   "Test `property-drawer' parser."
   ;; Standard test.
   (should
-   (let ((org-drawers '("PROPERTIES")))
-     (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:"
-       (org-element-map
-	(org-element-parse-buffer) 'property-drawer 'identity nil t))))
+   (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:"
+     (org-element-map
+	 (org-element-parse-buffer) 'property-drawer 'identity nil t)))
   ;; Do not mix property drawers and regular drawers.
   (should-not
-   (let ((org-drawers '("TEST")))
-     (org-test-with-temp-text ":TEST:\n:prop: value\n:END:"
-       (org-element-map
-	(org-element-parse-buffer) 'property-drawer 'identity nil t))))
+   (org-test-with-temp-text ":TEST:\n:prop: value\n:END:"
+     (org-element-map
+	 (org-element-parse-buffer) 'property-drawer 'identity nil t)))
   ;; Ignore incomplete drawer.
   (should-not
-   (let ((org-drawers '("PROPERTIES")))
-     (org-test-with-temp-text ":PROPERTIES:\n:prop: value"
-       (org-element-map
-	(org-element-parse-buffer) 'property-drawer 'identity nil t)))))
+   (org-test-with-temp-text ":PROPERTIES:\n:prop: value"
+     (org-element-map
+	 (org-element-parse-buffer) 'property-drawer 'identity nil t))))
 
 
 ;;;; Quote Block
@@ -1645,16 +1629,8 @@ Outside list"
 	  (org-test-with-temp-text
 	      "#+BEGIN_SRC org\n,* Headline\n ,#+keyword\nText\n#+END_SRC"
 	    (org-element-property :value (org-element-at-point)))))
-  ;; Nil `org-src-preserve-indentation': Remove maximum common
-  ;; indentation.
-  (should
-   (equal " L1\nL2\n"
-	  (org-test-with-temp-text "#+BEGIN_SRC org\n  L1\n L2\n#+END_SRC"
-	    (let ((org-src-preserve-indentation nil))
-	      (org-element-property :value (org-element-at-point))))))
-  ;; Non-nil `org-src-preserve-indentation': Remove block indentation
-  ;; only, unless block contents are less indented than block
-  ;; boundaries.
+  ;; Remove block indentation according to block boundaries, unless
+  ;; block contents are less indented than block boundaries.
   (should
    (equal " L1\nL2\n"
 	  (org-test-with-temp-text " #+BEGIN_SRC org\n  L1\n L2\n #+END_SRC"
@@ -1981,8 +1957,7 @@ Outside list"
 (ert-deftest test-org-element/drawer-interpreter ()
   "Test drawer interpreter."
   (should
-   (equal (let ((org-drawers '("TEST")))
-	    (org-test-parse-and-interpret ":TEST:\nTest\n:END:"))
+   (equal (org-test-parse-and-interpret ":TEST:\nTest\n:END:")
 	  ":TEST:\nTest\n:END:\n")))
 
 (ert-deftest test-org-element/dynamic-block-interpreter ()
@@ -2883,6 +2858,11 @@ Paragraph \\alpha."
    (eq 'macro
        (org-test-with-temp-text "#+CAPTION: {{{macro}}}\n| a | b |."
 	 (progn (search-forward "{")
+		(org-element-type (org-element-context))))))
+  (should
+   (eq 'bold
+       (org-test-with-temp-text "#+caption: *bold*\nParagraph"
+	 (progn (search-forward "*")
 		(org-element-type (org-element-context))))))
   ;; Correctly set `:parent' property.
   (should
