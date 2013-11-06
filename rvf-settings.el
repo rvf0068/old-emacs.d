@@ -15,3 +15,11 @@
 (ido-mode (quote both))
 
 (add-hook 'text-mode-hook 'turn-on-auto-fill)
+
+;; fix scroll
+;; from http://zeekat.nl/articles/making-emacs-work-for-me.html
+(setq redisplay-dont-pause t
+      scroll-margin 1
+      scroll-step 1
+      scroll-conservatively 10000
+      scroll-preserve-screen-position 1)
