@@ -23,3 +23,13 @@
       (end-of-line)
       (insert ?\n contents)))
   (next-line 1))
+
+;; from
+;; http://stackoverflow.com/questions/6845005/how-can-i-open-files-externally-in-emacs-dired-mode
+(defun dired-open-file ()
+  "In dired, open the file named on this line."
+  (interactive)
+  (let* ((file (dired-get-filename nil t)))
+    (message "Opening %s..." file)
+    (call-process "gnome-open" nil 0 nil file)
+    (message "Opening %s done" file)))

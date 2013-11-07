@@ -1,3 +1,6 @@
+(require 'dired)
+(define-key dired-mode-map (kbd "r") 'dired-open-file)
+
 (global-set-key "\C-xk" 'kill-this-buffer)
 
 (global-set-key "\C-ca" 'org-agenda)
