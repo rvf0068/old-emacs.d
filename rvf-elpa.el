@@ -21,6 +21,7 @@
     markdown-mode
     org-journal
     pandoc-mode
+    smart-mode-line
     smartparens
     smex
     yasnippet
