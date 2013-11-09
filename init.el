@@ -74,7 +74,6 @@
 
 ;; smart-mode-line: https://github.com/Bruce-Connor/smart-mode-line
 
-(setq org-directory "~/Dropbox/org")
 (setq sml/theme 'dark)
 (require 'smart-mode-line)
 (sml/setup)
