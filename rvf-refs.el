@@ -24,7 +24,7 @@
 	 (reftex-set-cite-format
 	  '((?b . "[[bib:%l][%l-bib]]")
 	    (?p . "[[ref:%l][%l]]")
-	    (?q . "[[ref:%l][%l]] (%2a, %y - %t)")
+	    (?q . "[[ref:%l][%2a, %y - %t]]")
 	    (?n . "[[notes:%l][%l-notes]]")
 	    (?t . "%t")
 	    (?h . "*** %2a, %y - %t\n%j, %v%u, pp. %p\n\n:PROPERTIES:\n:Custom_ID: %l\n:END:\n[[ref:%l][%l]]")
