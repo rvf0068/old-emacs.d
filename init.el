@@ -64,10 +64,6 @@
 ;; yasnippet: https://github.com/capitaomorte/yasnippet
 
 (require 'yasnippet) 
-;; (setq yas-snippet-dirs '(
-;;                          "~/Dropbox/emacs/site-lisp/yasnippet-rvf/yasnippets/"
-;;                          "~/Dropbox/emacs/site-lisp/yasnippet/snippets"
-;;                          ))
 (yas--load-snippet-dirs)
 ;; otherwise some lines are indented after expansion of a snippet
 (setq yas/indent-line 'fixed)
