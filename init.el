@@ -72,6 +72,9 @@
 ;; otherwise some lines are indented after expansion of a snippet
 (setq yas/indent-line 'fixed)
 
+;; octopress
+(require 'octopress)
+
 ;; smart-mode-line: https://github.com/Bruce-Connor/smart-mode-line
 
 (setq sml/theme 'dark)
