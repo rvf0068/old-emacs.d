@@ -217,7 +217,7 @@ not match KEY should be returned."
 	 (lambda (p) (when (funcall (if others #'not #'identity) (eq (car p) key)) p))
 	 params)))
 
-(defun org-babel-get-inline-src-block-matches()
+(defun org-babel-get-inline-src-block-matches ()
   "Set match data if within body of an inline source block.
 Returns non-nil if match-data set"
   (let ((src-at-0-p (save-excursion
@@ -240,7 +240,7 @@ Returns non-nil if match-data set"
 	    t ))))))
 
 (defvar org-babel-inline-lob-one-liner-regexp)
-(defun org-babel-get-lob-one-liner-matches()
+(defun org-babel-get-lob-one-liner-matches ()
   "Set match data if on line of an lob one liner.
 Returns non-nil if match-data set"
   (save-excursion
@@ -277,6 +277,7 @@ Returns a list
 	    (setq name (org-no-properties (match-string 3)))))
       ;; inline source block
       (when (org-babel-get-inline-src-block-matches)
+	(setq head (match-beginning 0))
 	(setq info (org-babel-parse-inline-src-block-match))))
     ;; resolve variable references and add summary parameters
     (when (and info (not light))
@@ -615,7 +616,10 @@ block."
   (let* ((org-babel-current-src-block-location
 	  (or org-babel-current-src-block-location
 	      (nth 6 info)
-	      (org-babel-where-is-src-block-head)))
+	      (org-babel-where-is-src-block-head)
+	      ;; inline src block
+	      (and (org-babel-get-inline-src-block-matches)
+		   (match-beginning 0))))
 	 (info (if info
 		   (copy-tree info)
 		 (org-babel-get-src-block-info)))
@@ -1450,7 +1454,8 @@ specified in the properties of the current outline entry."
 		 (append
 		  (org-babel-params-from-properties lang)
 		  (list (org-babel-parse-header-arguments
-			 (org-no-properties (or (match-string 4) "")))))))))
+			 (org-no-properties (or (match-string 4) ""))))))
+	  nil)))
 
 (defun org-babel-balanced-split (string alts)
   "Split STRING on instances of ALTS.
