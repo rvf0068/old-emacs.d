@@ -31,6 +31,7 @@
 
 ;; bibretrieve
 (require 'bibretrieve)
+(setq bibretrieve-backends ' (("mrl" . 10)))
 
 ;; cdlatex: http://staff.science.uva.nl/~dominik/Tools/cdlatex/
 
