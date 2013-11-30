@@ -37,7 +37,7 @@
 
 (declare-function org-entry-get "org"
 		  (pom property &optional inherit literal-nil))
-
+(declare-function org-remove-indentation "org" (code &optional n))
 
 (defvar org-babel-tangle-lang-exts)
 (add-to-list 'org-babel-tangle-lang-exts '("C++" . "cpp"))
@@ -107,8 +107,9 @@ or `org-babel-execute:C++'."
 		     (org-babel-process-file-name tmp-src-file)) ""))))
     (let ((results
            (org-babel-trim
-            (org-babel-eval
-             (concat tmp-bin-file (if cmdline (concat " " cmdline) "")) ""))))
+	    (org-remove-indentation
+	     (org-babel-eval
+	      (concat tmp-bin-file (if cmdline (concat " " cmdline) "")) "")))))
       (org-babel-reassemble-table
        (org-babel-result-cond (cdr (assoc :result-params params))
 	 (org-babel-read results t)

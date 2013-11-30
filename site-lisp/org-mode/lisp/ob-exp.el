@@ -43,7 +43,7 @@
 (declare-function org-link-search "org" (s &optional type avoid-pos stealth))
 (declare-function org-fill-template "org" (template alist))
 (declare-function org-split-string "org" (string &optional separators))
-(declare-function org-element-at-point "org-element" (&optional keep-trail))
+(declare-function org-element-at-point "org-element" ())
 (declare-function org-element-context "org-element" ())
 (declare-function org-element-property "org-element" (property element))
 (declare-function org-element-type "org-element" (element))
@@ -178,7 +178,9 @@ this template."
 		    (end-el (org-element-property :end element)))
 		(case type
 		  (inline-src-block
-		   (let* ((info (org-babel-parse-inline-src-block-match))
+		   (let* ((head (match-beginning 0))
+			  (info (append (org-babel-parse-inline-src-block-match)
+					(list nil nil head)))
 			  (params (nth 2 info)))
 		     (setf (nth 1 info)
 			   (if (and (cdr (assoc :noweb params))
