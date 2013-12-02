@@ -64,3 +64,32 @@
              '("Shell escape"
                "pdflatex -shell-escape %s"
                TeX-run-command t t) t)
+
+;; some functions
+
+(defun split-for-tikz2pdf ()
+  (interactive)
+  (TeX-run-style-hooks "tikz")
+  (TeX-run-style-hooks "tkz-berge")
+  (TeX-run-style-hooks "tkz-berge-add")
+  (split-window-horizontally 60)
+  (other-window 1)
+  (split-window-vertically 15)
+  (sit-for 4)
+  (find-file "tikz2pdf_temp.pdf")
+  ;;(doc-view-mode 1)
+  (auto-revert-mode 1)
+  (other-window 1)
+  (let ((file-path (buffer-file-name)))
+    (when file-path
+      (shell)
+      (comint-send-string (get-buffer-process (current-buffer))
+                          (format "tikz2pdf -v %S \n" file-path))))
+  )
+
+(defun load-tikz ()
+  (interactive)
+  (TeX-run-style-hooks "tikz")
+  (TeX-run-style-hooks "tkz-berge")
+  (TeX-run-style-hooks "tkz-berge-add")
+  )
