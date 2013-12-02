@@ -1,6 +1,11 @@
 ;; Input method for multilingual text, activated by C-\
 (setq default-input-method 'spanish-prefix)
 
+;; http://www.emacswiki.org/emacs-en/InputMethods
+(setq input-activate nil)
+(add-hook 'find-file-hook
+	  (lambda ()(if (eq input-activate t) (toggle-input-method))))
+
 ;; http://www.masteringemacs.org/articles/2010/11/14/disabling-prompts-emacs/
 (setq confirm-nonexistent-file-or-buffer nil)
 
