@@ -361,10 +361,15 @@ These variables are copied to the temporary buffer created by
 ;; `org-element-contents' and `org-element-restriction'.
 ;;
 ;; Setter functions allow to modify elements by side effect.  There is
-;; `org-element-put-property', `org-element-set-contents',
-;; `org-element-set-element' and `org-element-adopt-element'.  Note
-;; that `org-element-set-element' and `org-element-adopt-elements' are
-;; higher level functions since also update `:parent' property.
+;; `org-element-put-property', `org-element-set-contents'.  These
+;; low-level functions are useful to build a parse tree.
+;;
+;; `org-element-adopt-element', `org-element-set-element',
+;; `org-element-extract-element' and `org-element-insert-before' are
+;; high-level functions useful to modify a parse tree.
+;;
+;; `org-element-secondary-p' is a predicate used to know if a given
+;; object belongs to a secondary string.
 
 (defsubst org-element-type (element)
   "Return type of ELEMENT.
@@ -411,22 +416,15 @@ Return modified element."
 	((cdr element) (setcdr (cdr element) contents))
 	(t (nconc element contents))))
 
-(defsubst org-element-set-element (old new)
-  "Replace element or object OLD with element or object NEW.
-The function takes care of setting `:parent' property for NEW."
-  ;; Since OLD is going to be changed into NEW by side-effect, first
-  ;; make sure that every element or object within NEW has OLD as
-  ;; parent.
-  (mapc (lambda (blob) (org-element-put-property blob :parent old))
-	(org-element-contents new))
-  ;; Transfer contents.
-  (apply 'org-element-set-contents old (org-element-contents new))
-  ;; Ensure NEW has same parent as OLD, then overwrite OLD properties
-  ;; with NEW's.
-  (org-element-put-property new :parent (org-element-property :parent old))
-  (setcar (cdr old) (nth 1 new))
-  ;; Transfer type.
-  (setcar old (car new)))
+(defun org-element-secondary-p (object)
+  "Non-nil when OBJECT belongs to a secondary string.
+Return value is the property name, as a keyword, or nil."
+  (let* ((parent (org-element-property :parent object))
+	 (property (cdr (assq (org-element-type parent)
+			      org-element-secondary-value-alist))))
+    (and property
+	 (memq object (org-element-property property parent))
+	 property)))
 
 (defsubst org-element-adopt-elements (parent &rest children)
   "Append elements to the contents of another element.
@@ -448,6 +446,68 @@ Return parent element."
 	   (nconc (org-element-contents parent) children)))
   ;; Return modified PARENT element.
   (or parent children))
+
+(defun org-element-extract-element (element)
+  "Extract ELEMENT from parse tree.
+Remove element from the parse tree by side-effect, and return it
+with its `:parent' property stripped out."
+  (let ((parent (org-element-property :parent element))
+	(secondary (org-element-secondary-p element)))
+    (if secondary
+        (org-element-put-property
+	 parent secondary
+	 (delq element (org-element-property secondary parent)))
+      (apply #'org-element-set-contents
+	     parent
+	     (delq element (org-element-contents parent))))
+    ;; Return ELEMENT with its :parent removed.
+    (org-element-put-property element :parent nil)))
+
+(defun org-element-insert-before (element location)
+  "Insert ELEMENT before LOCATION in parse tree.
+LOCATION is an element, object or string within the parse tree.
+Parse tree is modified by side effect."
+  (let* ((parent (org-element-property :parent location))
+	 (property (org-element-secondary-p location))
+	 (siblings (if property (org-element-property property parent)
+		     (org-element-contents parent))))
+    ;; Install ELEMENT at the appropriate POSITION within SIBLINGS.
+    (cond ((or (null siblings) (eq (car siblings) location))
+	   (push element siblings))
+	  ((null location) (nconc siblings (list element)))
+	  (t (let ((previous (cadr (memq location (reverse siblings)))))
+	       (if (not previous)
+		   (error "No location found to insert element")
+		 (let ((next (memq previous siblings)))
+		   (setcdr next (cons element (cdr next))))))))
+    ;; Store SIBLINGS at appropriate place in parse tree.
+    (if property (org-element-put-property parent property siblings)
+      (apply #'org-element-set-contents parent siblings))
+    ;; Set appropriate :parent property.
+    (org-element-put-property element :parent parent)))
+
+(defun org-element-set-element (old new)
+  "Replace element or object OLD with element or object NEW.
+The function takes care of setting `:parent' property for NEW."
+  ;; Ensure OLD and NEW have the same parent.
+  (org-element-put-property new :parent (org-element-property :parent old))
+  (if (or (memq (org-element-type old) '(plain-text nil))
+	  (memq (org-element-type new) '(plain-text nil)))
+      ;; We cannot replace OLD with NEW since one of them is not an
+      ;; object or element.  We take the long path.
+      (progn (org-element-insert-before new old)
+	     (org-element-extract-element old))
+    ;; Since OLD is going to be changed into NEW by side-effect, first
+    ;; make sure that every element or object within NEW has OLD as
+    ;; parent.
+    (dolist (blob (org-element-contents new))
+      (org-element-put-property blob :parent old))
+    ;; Transfer contents.
+    (apply #'org-element-set-contents old (org-element-contents new))
+    ;; Overwrite OLD's properties with NEW's.
+    (setcar (cdr old) (nth 1 new))
+    ;; Transfer type.
+    (setcar old (car new))))
 
 
 
