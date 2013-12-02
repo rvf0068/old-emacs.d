@@ -3,4 +3,5 @@ To use this configuration one must:
 - run ~git clone git@github.com:rvf0068/emacs.d.git .emacs.d~
 - create a blank file called ~diary~ in the home directory
 - create a directory =~/backups= in the home directory
-- go to =~/.emacs.d/site-lisp/org-mode= and run =make=.
+- go to =~/.emacs.d/site-lisp/org-mode= and run =make= (In ubuntu, one has
+  to install the package =texinfo=).
