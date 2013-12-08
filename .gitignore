@@ -10,3 +10,4 @@ elpa
 .yas-compiled-snippets.el
 /custom.el
 /url/cookies
+/request/curl-cookie-jar

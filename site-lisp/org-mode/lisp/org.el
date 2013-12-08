@@ -124,6 +124,7 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-clock-sum-current-item "org-clock" (&optional tstart))
 
 (declare-function org-babel-tangle-file "ob-tangle" (file &optional target-file lang))
+(declare-function org-babel-do-in-edit-buffer "ob-core" (&rest body))
 (declare-function orgtbl-mode "org-table" (&optional arg))
 (declare-function org-clock-out "org-clock" (&optional switch-to-state fail-quietly at-time))
 (declare-function org-beamer-mode "ox-beamer" ())
@@ -201,7 +202,6 @@ and then loads the resulting file using `load-file'.  With prefix
 arg (noninteractively: 2nd arg) COMPILE the tangled Emacs Lisp
 file to byte-code before it is loaded."
   (interactive "fFile to load: \nP")
-  (require 'ob-core)
   (let* ((age (lambda (file)
 		(float-time
 		 (time-subtract (current-time)
@@ -19215,6 +19215,7 @@ boundaries."
 (org-defkey org-mode-map "\C-c\C-k" 'org-kill-note-or-show-branches)
 (org-defkey org-mode-map "\C-c#"    'org-update-statistics-cookies)
 (org-defkey org-mode-map [remap open-line] 'org-open-line)
+(org-defkey org-mode-map [remap comment-dwim] 'org-comment-dwim)
 (org-defkey org-mode-map [remap forward-paragraph] 'org-forward-paragraph)
 (org-defkey org-mode-map [remap backward-paragraph] 'org-backward-paragraph)
 (org-defkey org-mode-map "\C-m"     'org-return)
@@ -19599,8 +19600,14 @@ because, in this case the deletion might narrow the column."
       (org-fix-tags-on-the-fly))))
 
 ;; Make `delete-selection-mode' work with org-mode and orgtbl-mode
-(put 'org-self-insert-command 'delete-selection t)
-(put 'orgtbl-self-insert-command 'delete-selection t)
+(put 'org-self-insert-command 'delete-selection
+     (lambda ()
+       (not (run-hook-with-args-until-success
+             'self-insert-uses-region-functions))))
+(put 'orgtbl-self-insert-command 'delete-selection
+     (lambda ()
+       (not (run-hook-with-args-until-success
+             'self-insert-uses-region-functions))))
 (put 'org-delete-char 'delete-selection 'supersede)
 (put 'org-delete-backward-char 'delete-selection 'supersede)
 (put 'org-yank 'delete-selection 'yank)
@@ -22602,9 +22609,7 @@ major mode."
 		  (skip-chars-backward " \r\t\n")
 		  (line-beginning-position))
 		(point))))
-      (progn
-	(require 'ob-core)
-	(org-babel-do-in-edit-buffer (call-interactively #'comment-dwim)))
+      (org-babel-do-in-edit-buffer (call-interactively #'comment-dwim))
     (beginning-of-line)
     (if (looking-at "\\s-*$") (delete-region (point) (point-at-eol))
       (open-line 1))
@@ -22628,9 +22633,7 @@ strictly within a source block, use appropriate comment syntax."
 		   (skip-chars-backward " \r\t\n")
 		   (line-beginning-position))
 		 end)))
-      (progn
-	(require 'ob-core)
-	(org-babel-do-in-edit-buffer (call-interactively #'comment-dwim)))
+      (org-babel-do-in-edit-buffer (call-interactively #'comment-dwim))
     (save-restriction
       ;; Restrict region
       (narrow-to-region (save-excursion (goto-char beg)
@@ -22679,6 +22682,13 @@ strictly within a source block, use appropriate comment syntax."
 		    (org-move-to-column min-indent t))
 		  (insert comment-start))
 		(forward-line)))))))))
+
+(defun org-comment-dwim (arg)
+  (interactive "*P")
+  "Call `comment-dwim' within a source edit buffer if needed."
+  (if (org-in-src-block-p)
+      (org-babel-do-in-edit-buffer (call-interactively #'comment-dwim))
+    (call-interactively #'comment-dwim)))
 
 
 ;;; Planning
