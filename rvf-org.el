@@ -1,4 +1,5 @@
 (require 'org-protocol)
+(require 'org-beamer)
 
 (require 'ob-latex)
 
@@ -15,6 +16,10 @@
                ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
 
 (add-to-list 'org-latex-packages-alist '("" "listings"))
+
+;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
+(add-to-list 'org-beamer-environments-extra
+             '("onlyenv" "O" "\\begin{onlyenv}%a" "\\end{onlyenv}"))
 
 (add-hook 'org-mode-hook 'turn-on-auto-revert-mode)
 
