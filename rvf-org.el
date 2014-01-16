@@ -4,6 +4,7 @@
 (require 'ob-latex)
 
 (require 'ox-latex)
+(require 'ox-beamer)
 (require 'ox-md)
 
 (add-to-list 'org-latex-classes
