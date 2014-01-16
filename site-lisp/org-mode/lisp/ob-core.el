@@ -1,6 +1,6 @@
 ;;; ob-core.el --- working with code blocks in org-mode
 
-;; Copyright (C) 2009-2013  Free Software Foundation, Inc.
+;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
 ;; Authors: Eric Schulte
 ;;	Dan Davison
@@ -224,7 +224,7 @@ Returns non-nil if match-data set"
   (let ((src-at-0-p (save-excursion
 		      (beginning-of-line 1)
 		      (string= "src" (thing-at-point 'word))))
-	(first-line-p (= 1 (line-number-at-pos)))
+	(first-line-p (= (line-beginning-position) (point-min)))
 	(orig (point)))
     (let ((search-for (cond ((and src-at-0-p first-line-p  "src_"))
 			    (first-line-p "[[:punct:] \t]src_")
@@ -1219,7 +1219,20 @@ the current subtree."
 			      (member (car arg) '(:results :exports)))
 			 (mapconcat #'identity (sort (funcall rm (split-string v))
 						     #'string<) " "))
-			(t v)))))))
+			(t v))))))
+	   ;; expanded body
+	   (lang (nth 0 info))
+	   (params (nth 2 info))
+	   (body (if (org-babel-noweb-p params :eval)
+			   (org-babel-expand-noweb-references info) (nth 1 info)))
+	   (expand-cmd (intern (concat "org-babel-expand-body:" lang)))
+	   (assignments-cmd (intern (concat "org-babel-variable-assignments:"
+					    lang)))
+	   (expanded
+	    (if (fboundp expand-cmd) (funcall expand-cmd body params)
+	      (org-babel-expand-body:generic
+	       body params (and (fboundp assignments-cmd)
+				(funcall assignments-cmd params))))))
       (let* ((it (format "%s-%s"
                          (mapconcat
                           #'identity
@@ -1228,7 +1241,7 @@ the current subtree."
                                                 (when normalized
                                                   (format "%S" normalized))))
                                             (nth 2 info))) ":")
-                         (nth 1 info)))
+                         expanded))
              (hash (sha1 it)))
         (when (org-called-interactively-p 'interactive) (message hash))
         hash))))
@@ -1927,29 +1940,30 @@ following the source block."
 	  (progn (end-of-line 1)
 		 (if (eobp) (insert "\n") (forward-char 1))
 		 (setq end (point))
-		 (or (and
-		      (not name)
-		      (progn ;; unnamed results line already exists
-			(catch 'non-comment
-			  (while (re-search-forward "[^ \f\t\n\r\v]" nil t)
-			    (beginning-of-line 1)
-			    (cond
-			     ((looking-at (concat org-babel-result-regexp "\n"))
-			      (throw 'non-comment t))
-			     ((and (looking-at "^[ \t]*#")
-				   (not (looking-at
-					 org-babel-lob-one-liner-regexp)))
-			      (end-of-line 1))
-			     (t (throw 'non-comment nil))))))
-		      (let ((this-hash (match-string 5)))
-			(prog1 (point)
-			  ;; must remove and rebuild if hash!=old-hash
-			  (if (and hash (not (string= hash this-hash)))
-			      (prog1 nil
-				(forward-line 1)
-				(delete-region
-				 end (org-babel-result-end)))
-			    (setq end nil)))))))))))
+		 (and
+		  (not name)
+		  (progn ;; unnamed results line already exists
+		    (catch 'non-comment
+		      (while (re-search-forward "[^ \f\t\n\r\v]" nil t)
+			(beginning-of-line 1)
+			(cond
+			 ((looking-at (concat org-babel-result-regexp "\n"))
+			  (throw 'non-comment t))
+			 ((and (looking-at "^[ \t]*#")
+			       (not (looking-at
+				     org-babel-lob-one-liner-regexp)))
+			  (end-of-line 1))
+			 (t (throw 'non-comment nil))))))
+		  (let ((this-hash (match-string 5)))
+		    (prog1 (point)
+		      ;; must remove and rebuild if hash!=old-hash
+		      (if (and hash (not (string= hash this-hash)))
+			  (progn
+			    (setq end (point-at-bol))
+			    (forward-line 1)
+			    (delete-region end (org-babel-result-end))
+			    (setq beg end))
+			(setq end nil))))))))))
       (if (not (and insert end)) found
 	(goto-char end)
 	(unless beg

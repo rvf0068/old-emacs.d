@@ -1,6 +1,6 @@
 ;;; ob-clojure.el --- org-babel functions for clojure evaluation
 
-;; Copyright (C) 2009-2013 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
 
 ;; Author: Joel Boehland, Eric Schulte, Oleh Krehel
 ;;
@@ -63,7 +63,10 @@
 (defvar org-babel-default-header-args:clojure '())
 (defvar org-babel-header-args:clojure '((package . :any)))
 
-(defcustom org-babel-clojure-backend 'nrepl
+(defcustom org-babel-clojure-backend
+  (cond ((featurep 'cider) 'cider)
+	((featurep 'nrepl) 'nrepl)
+	(t 'slime))
   "Backend used to evaluate Clojure code blocks."
   :group 'org-babel
   :type '(choice
@@ -103,7 +106,7 @@
       (cider
        (require 'cider)
        (or (nth 1 (nrepl-send-string-sync
-		   (format "(clojure.pprint/pprint %s)" expanded)
+		   expanded
 		   (cider-current-ns)
 		   (nrepl-current-tooling-session)))
 	   (error "nREPL not connected!  Use M-x cider-jack-in RET")))
