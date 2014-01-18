@@ -129,16 +129,20 @@
   :group 'org-export)
 
 (defcustom org-koma-letter-class-option-file "NF"
-  "Letter Class Option File."
+  "Letter Class Option File.
+This option can also be set with the LCO keyword."
   :group 'org-export-koma-letter
   :type 'string)
 
 (defcustom org-koma-letter-author 'user-full-name
   "Sender's name.
+
 This variable defaults to calling the function `user-full-name'
 which just returns the current function `user-full-name'.
 Alternatively a string, nil or a function may be given.
-Functions must return a string."
+Functions must return a string.
+
+This option can also be set with the AUTHOR keyword."
   :group 'org-export-koma-letter
   :type '(radio (function-item user-full-name)
 		(string)
@@ -147,9 +151,12 @@ Functions must return a string."
 
 (defcustom org-koma-letter-email 'org-koma-letter-email
   "Sender's email address.
+
 This variable defaults to the value `org-koma-letter-email' which
 returns `user-mail-address'.  Alternatively a string, nil or
-a function may be given.  Functions must return a string."
+a function may be given.  Functions must return a string.
+
+This option can also be set with the EMAIL keyword."
   :group 'org-export-koma-letter
   :type '(radio (function-item org-koma-letter-email)
 		(string)
@@ -157,40 +164,54 @@ a function may be given.  Functions must return a string."
 		(const :tag "Do not export email" nil)))
 
 (defcustom org-koma-letter-from-address ""
-  "Sender's address, as a string."
+  "Sender's address, as a string.
+This option can also be set with one or more FROM_ADDRESS
+keywords."
   :group 'org-export-koma-letter
   :type 'string)
 
 (defcustom org-koma-letter-phone-number ""
-  "Sender's phone number, as a string."
+  "Sender's phone number, as a string.
+This option can also be set with the PHONE_NUMBER keyword."
   :group 'org-export-koma-letter
   :type 'string)
 
 (defcustom org-koma-letter-place ""
-  "Place from which the letter is sent, as a string."
+  "Place from which the letter is sent, as a string.
+This option can also be set with the PLACE keyword."
   :group 'org-export-koma-letter
   :type 'string)
 
 (defcustom org-koma-letter-opening ""
   "Letter's opening, as a string.
-If (1) this value is nil; (2) the letter is started with a
-headline; and (3) `org-koma-letter-headline-is-opening-maybe' is
-t the value opening will be implicit set as the headline title."
+
+This option can also be set with the OPENING keyword.  Moreover,
+when:
+  (1) this value is the empty string;
+  (2) there's no OPENING keyword or it is empty;
+  (3) `org-koma-letter-headline-is-opening-maybe' is non-nil;
+  (4) the letter contains a headline without a special
+      tag (e.g. \"to\" or \"ps\");
+then the opening will be implicitly set as the headline title."
   :group 'org-export-koma-letter
   :type 'string)
 
 (defcustom org-koma-letter-closing ""
-  "Letter's closing, as a string."
+  "Letter's closing, as a string.
+This option can also be set with the CLOSING keyword."
   :group 'org-export-koma-letter
   :type 'string)
 
 (defcustom org-koma-letter-signature ""
-  "Signature, as a string."
+  "Signature, as a string.
+This option can also be set with the SIGNATURE keyword."
   :group 'org-export-koma-letter
   :type 'string)
 
 (defcustom org-koma-letter-prefer-special-headings nil
-  "Non-nil means prefer headlines over keywords for TO and FROM."
+  "Non-nil means prefer headlines over keywords for TO and FROM.
+This option can also be set with the OPTIONS keyword, e.g.:
+\"special-headings:t\"."
   :group 'org-export-koma-letter
   :type 'boolean)
 
@@ -231,7 +252,9 @@ This option can also be set with the OPTIONS keyword, e.g.:
   :group 'org-export-koma-letter)
 
 (defcustom org-koma-letter-use-backaddress nil
-  "Non-nil prints return address in small line above to address."
+  "Non-nil prints return address in small line above to address.
+This option can also be set with the OPTIONS keyword, e.g.:
+\"backaddress:t\"."
   :group 'org-export-koma-letter
   :type 'boolean)
 
@@ -287,17 +310,23 @@ This option can also be set with the OPTIONS keyword, e.g.:
 	   (const :tag "Deactivate all vertical marks on upper paper edge" v))))
 
 (defcustom org-koma-letter-use-phone nil
-  "Non-nil prints sender's phone number."
+  "Non-nil prints sender's phone number.
+This option can also be set with the OPTIONS keyword, e.g.:
+\"phone:t\"."
   :group 'org-export-koma-letter
   :type 'boolean)
 
 (defcustom org-koma-letter-use-email nil
-  "Non-nil prints sender's email address."
+  "Non-nil prints sender's email address.
+This option can also be set with the OPTIONS keyword, e.g.:
+\"email:t\"."
   :group 'org-export-koma-letter
   :type 'boolean)
 
 (defcustom org-koma-letter-use-place t
-  "Non-nil prints the letter's place next to the date."
+  "Non-nil prints the letter's place next to the date.
+This option can also be set with the OPTIONS keyword, e.g.:
+\"place:nil\"."
   :group 'org-export-koma-letter
   :type 'boolean)
 
@@ -413,73 +442,50 @@ return a string or nil."
 	  ((symbolp value) (symbol-name value))
 	  (t value))))
 
+(defun org-koma-letter--special-contents-as-macro
+  (keywords &optional keep-newlines no-tag)
+  "Process KEYWORDS  members of `org-koma-letter-special-contents'.
+KEYWORDS is a list of symbols.  Return them as a string to be
+formatted.
 
-(defun org-koma-letter--special-contents-as-macro (a-list &optional keep-newlines no-tag)
-  "Find members of `org-koma-letter-special-contents' corresponding to A-LIST.
-Return them as a string to be formatted.
-
-The function is used for inserting content of speciall headings
+The function is used for inserting content of special headings
 such as PS.
 
 If KEEP-NEWLINES is t newlines will not be removed.  If NO-TAG is
-is t the content in `org-koma-letter-special-contents' will not
-be wrapped in a macro named whatever the members of A-LIST are
+t the content in `org-koma-letter-special-contents' will not be
+wrapped in a macro named whatever the members of KEYWORDS are
 called."
-  (let (output)
-    (dolist (ac* a-list output)
-      (let*
-	  ((ac (org-koma-letter--get-value ac*))
-	   (x (org-koma-letter--get-tagged-contents ac)))
-	(when x
-	  (setq output
-		(concat
-		 output "\n"
-		 ;; sometimes LaTeX complains about newlines
-		 ;; at the end or beginning of macros.  Remove them.
-		 (org-koma-letter--format-string-as-macro
-		  (if keep-newlines x (org-koma-letter--normalize-string x))
-		  (unless no-tag  ac)))))))))
-
-(defun org-koma-letter--format-string-as-macro (string &optional macro)
-  "Format STRING as \"string\".
-If optional argument MACRO is provided, format it as
-\"\\macro{string}\" instead."
-  (if macro
-      (format "\\%s{%s}" macro string)
-    (format "%s" string)))
-
-(defun org-koma-letter--normalize-string (string)
-  "Remove new lines in the beginning and end of STRING."
-  (replace-regexp-in-string "\\`[ \n\t]+\\|[\n\t ]*\\'" "" string))
+  (mapconcat
+   #'(lambda (keyword)
+       (let* ((name (org-koma-letter--get-value keyword))
+	      (value (org-koma-letter--get-tagged-contents name)))
+	 (when value
+	   (if no-tag (if keep-newlines value (org-trim value))
+	     (format "\\%s{%s}\n"
+		     name
+		     (if keep-newlines value (org-trim value)))))))
+   keywords
+   ""))
 
 (defun org-koma-letter--determine-to-and-from (info key)
   "Given INFO determine KEY for the letter.
 KEY should be `to' or `from'.
 
-`ox-koma-letter' allows two ways to specify to and from.  If both
+`ox-koma-letter' allows two ways to specify TO and FROM.  If both
 are present return the preferred one as determined by
 `org-koma-letter-prefer-special-headings'."
-  (let* ((plist-alist '((from . :from-address)
-		       (to . :to-address)))
-	 (default-alist  `((from  ,org-koma-letter-from-address)
-			   (to  "\\mbox{}")))
-	 (option-value (plist-get info (cdr-safe (assoc key plist-alist))))
-	 (head-value (org-koma-letter--get-tagged-contents key))
-	 (order (append
-		 (funcall
-		  (if (plist-get info :special-headings)
-		      'reverse 'identity)
-		  `(,option-value ,head-value))
-		 (cdr-safe (assoc key default-alist))))
-	 tmp
-	 (adr (dolist (x order tmp)
-		(when (and (not tmp) x)
-		  (setq tmp x)))))
-  (when adr
+  (let ((option (plist-get info (if (eq key 'to) :to-address :from-address)))
+	(headline (org-koma-letter--get-tagged-contents key)))
     (replace-regexp-in-string
      "\n" "\\\\\\\\\n"
-     (org-koma-letter--normalize-string adr)))))
+     (org-trim
+      (or (if (plist-get info :special-headings) (or headline option)
+	    (or option headline))
+	  ;; Fallback values.
+	  (if (eq key 'to) "\\mbox{}" org-koma-letter-from-address))))))
 
+
+
 ;;; Transcode Functions
 
 ;;;; Export Block
@@ -508,11 +514,10 @@ CONTENTS is nil.  INFO is a plist used as a communication
 channel."
   (let ((key (org-element-property :key keyword))
 	(value (org-element-property :value keyword)))
-    ;; Handle specifically BEAMER and TOC (headlines only) keywords.
-    ;; Otherwise, fallback to `latex' back-end.
+    ;; Handle specifically KOMA-LETTER keywords.  Otherwise, fallback
+    ;; to `latex' back-end.
     (if (equal key "KOMA-LETTER") value
       (org-export-with-backend 'latex keyword contents info))))
-
 
 ;; Headline
 
@@ -525,24 +530,19 @@ Note that if a headline is tagged with a tag from
 `org-koma-letter-special-tags' it will not be exported, but
 stored in `org-koma-letter-special-contents' and included at the
 appropriate place."
-  (let*
-      ((tags (org-export-get-tags headline info))
-       (tag* (car tags))
-       (tag  (when tag*
-	       (car (member-ignore-case
-		     tag*
-		     (mapcar 'symbol-name (plist-get info :special-tags)))))))
-    (if tag
-	(progn
-	  (push (cons tag contents)
-		org-koma-letter-special-contents)
-	  nil)
-      (unless (or (plist-get info :opening)
-		  (not org-koma-letter-headline-is-opening-maybe))
-	(plist-put info :opening
-		   (org-export-data (org-element-property :title headline) info)))
-      contents)))
-
+  (unless (let ((tag (car (org-export-get-tags headline info))))
+	    (and tag
+		 (member-ignore-case
+		  tag (mapcar #'symbol-name (plist-get info :special-tags)))
+		 ;; Store association for later use and bail out.
+		 (push (cons tag contents) org-koma-letter-special-contents)))
+    ;; Opening is not defined yet: use headline's title.
+    (when (and org-koma-letter-headline-is-opening-maybe
+	       (not (org-string-nw-p (plist-get info :opening))))
+      (plist-put info :opening
+		 (org-export-data (org-element-property :title headline) info)))
+    ;; In any case, insert contents in letter's body.
+    contents))
 
 ;;;; Template
 
