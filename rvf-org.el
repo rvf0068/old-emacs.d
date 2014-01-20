@@ -40,6 +40,15 @@
             (add-to-list 'org-tab-first-hook 'yas/org-very-safe-expand)
             (define-key yas/keymap [tab] 'yas/next-field)))
 
+;; useful for math in org-mode
+(add-hook 'org-mode-hook
+	  (lambda ()
+	    (local-set-key (kbd "$")
+			   (lambda () (interactive)
+			     (insert "\\(\\)")
+			     (forward-char -2)))
+	    ))
+
 (setq org-hide-emphasis-markers t)
 (setq org-latex-listings t)
 (setq org-latex-pdf-process '("texi2dvi -p -b -V %f"))
