@@ -2567,6 +2567,9 @@ ALL-HEADLINES means update todo statistics by including headlines
 with no TODO keyword as well, counting them as not done.
 A list of TODO keywords means the same, but skip keywords that are
 not in this list.
+When set to a list of two lists, the first list contains keywords
+to consider as TODO keywords, the second list contains keywords
+to consider as DONE keywords.
 
 When this is set, todo statistics is updated in the parent of the
 current entry each time a todo state is changed."
@@ -2576,6 +2579,9 @@ current entry each time a todo state is changed."
 	  (const :tag "Yes, including all entries" all-headlines)
 	  (repeat :tag "Yes, for TODOs in this list"
 		  (string :tag "TODO keyword"))
+	  (list :tag "Yes, for TODOs and DONEs in these lists"
+		(repeat (string :tag "TODO keyword"))
+		(repeat (string :tag "DONE keyword")))
 	  (other :tag "No TODO statistics" nil)))
 
 (defcustom org-hierarchical-todo-statistics t
@@ -3841,12 +3847,12 @@ This is a property list with the following properties:
              the same numbers for HTML export.
 :matchers    a list indicating which matchers should be used to
              find LaTeX fragments.  Valid members of this list are:
-             \"begin\"  find environments
-             \"$1\"     find single characters surrounded by $.$
-             \"$\"      find math expressions surrounded by $...$
-             \"$$\"     find math expressions surrounded by $$....$$
-             \"\\(\"     find math expressions surrounded by \\(...\\)
-             \"\\ [\"    find math expressions surrounded by \\ [...\\]"
+             \"begin\" find environments
+             \"$1\"    find single characters surrounded by $.$
+             \"$\"     find math expressions surrounded by $...$
+             \"$$\"    find math expressions surrounded by $$....$$
+             \"\\(\"    find math expressions surrounded by \\(...\\)
+             \"\\=\\[\"    find math expressions surrounded by \\=\\[...\\]"
   :group 'org-latex
   :type 'plist)
 
@@ -7184,8 +7190,8 @@ If USE-MARKERS is set, return the positions as markers."
 				end (overlay-end o))
 			  (and beg end (> end beg)
 			       (if use-markers
-				   (cons (move-marker (make-marker) beg)
-					 (move-marker (make-marker) end))
+				   (cons (copy-marker beg)
+					 (copy-marker end t))
 				 (cons beg end)))))
 		      (overlays-in (point-min) (point-max))))))))
 
@@ -9923,14 +9929,33 @@ This command can be called in any mode to insert a link in Org-mode syntax."
   (org-load-modules-maybe)
   (org-run-like-in-org-mode 'org-insert-link))
 
-(defun org-insert-all-links (&optional keep)
-  "Insert all links in `org-stored-links'."
+(defun org-insert-all-links (arg &optional pre post)
+  "Insert all links in `org-stored-links'.
+When a universal prefix, do not delete the links from `org-stored-links'.
+When `ARG' is a number, insert the last N link(s).
+`PRE' and `POST' are optional arguments to define a string to
+prepend or to append."
   (interactive "P")
-  (let ((links (copy-sequence org-stored-links)) l)
-    (while (setq l (if keep (pop links) (pop org-stored-links)))
-      (insert "- ")
+  (let ((org-keep-stored-link-after-insertion (equal arg '(4)))
+	(links (copy-seq org-stored-links))
+	(pr (or pre "- "))
+	(po (or post "\n"))
+	(cnt 1) l)
+    (if (null org-stored-links)
+	(message "No link to insert")
+    (while (and (or (listp arg) (>= arg cnt))
+		(setq l (if (listp arg)
+			    (pop links)
+		      	(pop org-stored-links))))
+      (setq cnt (1+ cnt))
+      (insert pr)
       (org-insert-link nil (car l) (or (cadr l) "<no description>"))
-      (insert "\n"))))
+      (insert po)))))
+
+(defun org-insert-last-stored-link (arg)
+  "Insert the last link stored in `org-stored-links'."
+  (interactive "p")
+  (org-insert-all-links arg "" "\n"))
 
 (defun org-link-fontify-links-to-this-file ()
   "Fontify links to the current file in `org-stored-links'."
@@ -12691,13 +12716,25 @@ statistics everywhere."
 	    		       (match-string 2)))
 	    	(if (or (eq org-provide-todo-statistics 'all-headlines)
 	    		(and (listp org-provide-todo-statistics)
+			     (stringp (car org-provide-todo-statistics))
 	    		     (or (member kwd org-provide-todo-statistics)
-	    			 (member kwd org-done-keywords))))
+	    			 (member kwd org-done-keywords)))
+			(and (listp org-provide-todo-statistics)
+			     (listp (car org-provide-todo-statistics))
+			     (or (member kwd (car org-provide-todo-statistics))
+				 (and (member kwd org-done-keywords)
+				      (member kwd (cadr org-provide-todo-statistics))))))
 	    	    (setq cnt-all (1+ cnt-all))
 	    	  (if (eq org-provide-todo-statistics t)
 	    	      (and kwd (setq cnt-all (1+ cnt-all)))))
-	    	(and (member kwd org-done-keywords)
-	    	     (setq cnt-done (1+ cnt-done)))
+	    	(when (or (and (listp org-provide-todo-statistics)
+			       (listp (car org-provide-todo-statistics))
+			       (member kwd org-done-keywords)
+			       (member kwd (cadr org-provide-todo-statistics)))
+			  (and (listp org-provide-todo-statistics)
+			       (stringp (car org-provide-todo-statistics))
+			       (member kwd org-done-keywords)))
+		  (setq cnt-done (1+ cnt-done)))
 	    	(outline-next-heading)))
 	    (setq new
 	    	  (if is-percent
@@ -13845,7 +13882,7 @@ ACTION can be `set', `up', `down', or a character."
 		(insert " [#" news "]"))
 	    (goto-char (match-beginning 3))
 	    (insert "[#" news "] "))))
-      (org-preserve-lc (org-set-tags nil 'align)))
+      (org-set-tags nil 'align))
     (if remove
 	(message "Priority removed")
       (message "Priority of current item set to %s" news)))))
@@ -19191,6 +19228,7 @@ boundaries."
 (org-defkey org-mode-map "\C-c\C-x\C-n" 'org-next-link)
 (org-defkey org-mode-map "\C-c\C-x\C-p" 'org-previous-link)
 (org-defkey org-mode-map "\C-c\C-l" 'org-insert-link)
+(org-defkey org-mode-map "\C-c\M-l" 'org-insert-last-stored-link)
 (org-defkey org-mode-map "\C-c\C-\M-l" 'org-insert-all-links)
 (org-defkey org-mode-map "\C-c\C-o" 'org-open-at-point)
 (org-defkey org-mode-map "\C-c%"    'org-mark-ring-push)
@@ -20680,10 +20718,14 @@ With a prefix argument ARG, change the region in a single item."
 	       (replace-match bul t t)
 	       (org-indent-line-to (+ start-ind (* delta bul-len)))
 	       (when (or done todo)
-		 (let ((struct (org-list-struct)))
-		   (org-list-set-checkbox (point) struct (if done "[X]" "[ ]"))
+		 (let* ((struct (org-list-struct))
+			(old (copy-tree struct)))
+		   (org-list-set-checkbox (line-beginning-position)
+					  struct
+					  (if done "[X]" "[ ]"))
 		   (org-list-write-struct struct
-					  (org-list-parents-alist struct))))
+					  (org-list-parents-alist struct)
+					  old)))
 	       ;; Ensure all text down to END (or SECTION-END) belongs
 	       ;; to the newly created item.
 	       (let ((section-end (save-excursion
