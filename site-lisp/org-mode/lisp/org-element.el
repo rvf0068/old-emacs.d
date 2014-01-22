@@ -4800,8 +4800,7 @@ element ending there."
 		   ((eobp) (setq element up))
 		   (t (setq element up next (point))))))))
        ;; Parse successively each element until we reach ORIGIN.
-       (let ((end (or (org-element-property
-                       :contents-end (org-element-property :parent element))
+       (let ((end (or (org-element-property :end element)
                       (save-excursion
                         (org-with-limited-levels (outline-next-heading))
                         (point))))
@@ -5437,6 +5436,16 @@ Properties are modified by side-effect.  Return ELEMENT."
 	(and value (plist-put properties key (+ offset value))))))
   element)
 
+(defun org-element--cache-mapc (__map-function__ &optional reverse)
+  "Apply FUNCTION to all elements in cache.
+FUNCTION is applied to the elements in ascending order, or
+descending order if REVERSE is non-nil."
+  (avl-tree--mapc
+   #'(lambda (node)
+       (funcall __map-function__ (avl-tree--node-data node)))
+   (org-element--cache-root)
+   (if reverse 1 0)))
+
 (defun org-element--cache-sync (buffer)
   "Synchronize cache with recent modification in BUFFER.
 Elements ending before modification area are kept in cache.
@@ -5538,7 +5547,8 @@ removed from the cache."
 			(t
 			 (setq end
 			       (max (1- (org-element-property :end data)) end))
-			 (avl-tree-delete org-element--cache data nil t))))))
+			 (avl-tree-delete org-element--cache data)
+			 t)))))
 	    ;; Phase 2.
 	    ;;
 	    ;; Shift all elements starting after END by OFFSET (for an
@@ -5553,7 +5563,7 @@ removed from the cache."
 	    ;; before END.
 	    (unless (zerop offset)
 	      (catch 'exit
-		(avl-tree-mapc
+		(org-element--cache-mapc
 		 #'(lambda (data)
 		     (if (<= (org-element-property :begin data) end)
 			 (throw 'exit t)
@@ -5568,7 +5578,7 @@ removed from the cache."
 			 (dolist (object (cddr object-data))
 			   (org-element--cache-shift-positions
 			    object offset)))))
-		 org-element--cache 'reverse)))))
+		 'reverse)))))
 	;; Eventually signal cache as up-to-date.
 	(org-element--cache-cancel-changes)))))
 
