@@ -48,6 +48,13 @@
      )
    )
 
+(setq cdlatex-math-modify-alist
+      '(
+	( ?B    "\\mathbb"           nil        t   nil nil )
+	)
+      )
+
+
 ;; markdown
 
 (defun my-markdown-mode-hook()
