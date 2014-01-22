@@ -49,6 +49,8 @@
 			     (forward-char -2)))
 	    ))
 
+
+(setq org-export-with-tags nil)
 (setq org-hide-emphasis-markers t)
 (setq org-latex-listings t)
 (setq org-latex-pdf-process '("texi2dvi -p -b -V %f"))
