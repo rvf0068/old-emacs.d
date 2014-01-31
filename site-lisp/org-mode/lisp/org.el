@@ -15104,7 +15104,7 @@ a *different* entry, you cannot use these techniques."
        ((eq match nil) (setq matcher t))
        (t (setq matcher (if match (cdr (org-make-tags-matcher match)) t))))
 
-      (save-window-excursion
+      (save-excursion
 	(save-restriction
 	  (cond ((eq scope 'tree)
 		 (org-back-to-heading t)
@@ -20378,9 +20378,12 @@ This command does many different things, depending on context:
 	  ((bold code entity export-snippet inline-babel-call inline-src-block
 		 italic latex-fragment line-break macro strike-through subscript
 		 superscript underline verbatim)
-	   (while (and (setq context (org-element-property :parent context))
-		       (not (memq (setq type (org-element-type context))
-				  '(paragraph verse-block)))))))
+	   (while (and (not (memq (setq type (org-element-type context))
+				  '(paragraph verse-block)))
+		       (org-element-property
+			:parent
+			(org-element-property :parent context)))
+	     (setq context (org-element-property :parent context)))))
 	;; For convenience: at the first line of a paragraph on the
 	;; same line as an item, apply function on that item instead.
 	(when (eq type 'paragraph)
@@ -24103,6 +24106,7 @@ To get rid of the restriction, use \\[org-agenda-remove-restriction-lock]."
        (fboundp 'flyspell-delete-region-overlays)
        (flyspell-delete-region-overlays beg end)))
 
+(defvar flyspell-delayed-commands)
 (eval-after-load "flyspell"
   '(add-to-list 'flyspell-delayed-commands 'org-self-insert-command))
 
