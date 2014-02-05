@@ -1,0 +1,27 @@
+# -*- mode: snippet -*-
+# name: clase
+# key: clase
+# contributor: Rafael Villarroel (rvf0068@gmail.com)
+# --
+#+title: $1
+#+author:  
+#+date: $2
+
+#+setupfile: opciones.org
+
+#+beamer: \setbeamertemplate{frametitle}{}
+#+beamer: \setbeamertemplate{navigation symbols}{}
+#+beamer: \languagepath{spanish}
+
+#+COLUMNS: %45ITEM %10BEAMER_env(Env) %10BEAMER_act(Act) %4BEAMER_col(Col) %8BEAMER_opt(Opt)
+#+PROPERTY: BEAMER_col_ALL 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.0 :ETC
+
+* $0
+
+* COMMENT Maintenance
+
+# Local Variables:
+# eval: (set-input-method "spanish-prefix")  
+# org-hide-emphasis-markers: nil
+# End:
+
