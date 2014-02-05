@@ -34,14 +34,14 @@
 ;; On top of buffer keywords supported by `latex' back-end (see
 ;; `org-latex-options-alist'), this back-end introduces the following
 ;; keywords:
-;;   - "CLOSING" (see `org-koma-letter-closing'),
-;;   - "FROM_ADDRESS" (see `org-koma-letter-from-address'),
-;;   - "LCO" (see `org-koma-letter-class-option-file'),
-;;   - "OPENING" (see `org-koma-letter-opening'),
-;;   - "PHONE_NUMBER" (see `org-koma-letter-phone-number'),
-;;   - "SIGNATURE" (see `org-koma-letter-signature')
-;;   - "PLACE" (see `org-koma-letter-place')
-;;   - and "TO_ADDRESS".  If unspecified this is set to "\mbox{}".
+;;   - CLOSING: see `org-koma-letter-closing',
+;;   - FROM_ADDRESS: see `org-koma-letter-from-address',
+;;   - LCO: see `org-koma-letter-class-option-file',
+;;   - OPENING: see `org-koma-letter-opening',
+;;   - PHONE_NUMBER: see `org-koma-letter-phone-number',
+;;   - SIGNATURE: see `org-koma-letter-signature',
+;;   - PLACE: see `org-koma-letter-place',
+;;   - TO_ADDRESS:  If unspecified this is set to "\mbox{}".
 ;;
 ;; TO_ADDRESS and FROM_ADDRESS can also be specified using heading
 ;; with the special tags specified in
@@ -67,8 +67,9 @@
 ;;     (see `org-koma-letter-special-tags-after-letter').
 ;;
 ;; The following variables works differently from the main LaTeX class
-;;   - "AUTHOR": default to user-full-name but may be disabled.  (see org-koma-letter-author),
-;;   - "EMAIL": same as AUTHOR, (see org-koma-letter-email),
+;;   - AUTHOR: Default to user-full-name but may be disabled.
+;;     (See also `org-koma-letter-author'),
+;;   - EMAIL: Same as AUTHOR. (see also `org-koma-letter-email'),
 ;;
 ;; Headlines are in general ignored.  However, headlines with special
 ;; tags can be used for specified contents like postscript (ps),
@@ -105,11 +106,16 @@
 ;;   \[EXTRA]"))
 ;;
 ;; Then, in your Org document, be sure to require the proper class
-;; with :
+;; with:
 ;;
 ;;    #+LATEX_CLASS: my-letter
 ;;
 ;; Or by setting `org-koma-letter-default-class'.
+;;
+;; You may have to load (LaTeX) Babel as well, e.g., by adding
+;; it to `org-latex-packages-alist',
+;;
+;;    (add-to-list 'org-latex-packages-alist '("AUTO" "babel" nil))
 
 ;;; Code:
 
@@ -252,7 +258,7 @@ This option can also be set with the OPTIONS keyword, e.g.:
   :group 'org-export-koma-letter)
 
 (defcustom org-koma-letter-use-backaddress nil
-  "Non-nil prints return address in small line above to address.
+  "Non-nil prints return address in line above to address.
 This option can also be set with the OPTIONS keyword, e.g.:
 \"backaddress:t\"."
   :group 'org-export-koma-letter
@@ -330,6 +336,16 @@ This option can also be set with the OPTIONS keyword, e.g.:
   :group 'org-export-koma-letter
   :type 'boolean)
 
+(defcustom org-koma-letter-use-title t
+  "Non-nil means use a title in the letter if present.
+This option can also be set with the OPTIONS keyword,
+e.g. \"with-title:nil\".
+
+See also `org-koma-letter-prefer-subject' for the handling of
+title versus subject."
+  :group 'org-export-koma-letter
+  :type 'boolean)
+
 (defcustom org-koma-letter-default-class "default-koma-letter"
   "Default class for `org-koma-letter'.
 The value must be a member of `org-latex-classes'."
@@ -342,6 +358,16 @@ A headline is only used if #+OPENING is not set.  See also
 `org-koma-letter-opening'."
   :group 'org-export-koma-letter
   :type 'boolean)
+
+(defcustom org-koma-letter-prefer-subject nil
+  "Non-nil means title should be interpret as subject if subject is missing.
+This option can also be set with the OPTIONS keyword,
+e.g. \"title-subject:t\".
+
+This may be useful for older documents where the SUBJECT keyword
+was not present."
+    :group 'org-export-koma-letter
+    :type 'boolean)
 
 (defconst org-koma-letter-special-tags-in-letter '(to from)
   "Header tags related to the letter itself.")
@@ -369,6 +395,7 @@ A headline is only used if #+OPENING is not set.  See also
     (:email "EMAIL" nil (org-koma-letter--get-value org-koma-letter-email) t)
     (:to-address "TO_ADDRESS" nil nil newline)
     (:place "PLACE" nil org-koma-letter-place)
+    (:subject "SUBJECT" nil nil space)
     (:opening "OPENING" nil org-koma-letter-opening)
     (:closing "CLOSING" nil org-koma-letter-closing)
     (:signature "SIGNATURE" nil org-koma-letter-signature newline)
@@ -388,6 +415,8 @@ A headline is only used if #+OPENING is not set.  See also
     (:with-phone nil "phone" org-koma-letter-use-phone)
     (:with-place nil "place" org-koma-letter-use-place)
     (:with-subject nil "subject" org-koma-letter-subject-format)
+    (:with-title nil "title" org-koma-letter-use-title)
+    (:with-title-as-subject nil "title-subject" org-koma-letter-prefer-subject)
     ;; Special properties non-nil when a setting happened in buffer.
     ;; They are used to prioritize in-buffer settings over "lco"
     ;; files.  See `org-koma-letter-template'.
@@ -593,7 +622,7 @@ holding export options."
    (format "\\date{%s}\n" (org-export-data (org-export-get-date info) info))
    ;; Document start
    "\\begin{document}\n\n"
-   ;; Subject
+   ;; Subject and title
    (let ((with-subject (plist-get info :with-subject)))
      (when with-subject
        (concat
@@ -601,9 +630,18 @@ holding export options."
 	  (format "\\KOMAoption{subject}{%s}\n"
 		  (if (symbolp with-subject) with-subject
 		    (mapconcat #'symbol-name with-subject ","))))
-	(let ((subject (org-export-data (plist-get info :title) info)))
-	  (and (org-string-nw-p subject)
-	       (format "\\setkomavar{subject}{%s}\n\n" subject))))))
+	(let* ((title-as-subject (plist-get info :with-title-as-subject))
+	       (subject* (org-string-nw-p
+			  (org-export-data (plist-get info :subject) info)))
+	       (title* (and (plist-get info :with-title)
+			    (org-string-nw-p
+			     (org-export-data (plist-get info :title) info))))
+	       (subject (if title-as-subject (or subject* title*) subject*))
+	       (title (if title-as-subject (and subject* title*) title*)))
+	  (concat
+	   (and subject (format "\\setkomavar{subject}{%s}\n" subject))
+	   (and title (format "\\setkomavar{title}{%s}\n" title))
+	   (when (or (org-string-nw-p title) (org-string-nw-p subject)) "\n"))))))
    ;; Letter start.
    (format "\\begin{letter}{%%\n%s}\n\n"
 	   (org-koma-letter--determine-to-and-from info 'to))

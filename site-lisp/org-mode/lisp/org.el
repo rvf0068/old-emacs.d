@@ -275,7 +275,7 @@ requirements) is loaded."
 		 (const :tag "Scala" scala)
 		 (const :tag "Scheme" scheme)
 		 (const :tag "Screen" screen)
-		 (const :tag "Shell Script" sh)
+		 (const :tag "Shell Script" shell)
 		 (const :tag "Shen" shen)
 		 (const :tag "Sql" sql)
 		 (const :tag "Sqlite" sqlite)
@@ -4145,6 +4145,11 @@ following symbols:
   :group 'org-appearance
   :type 'boolean)
 
+(defcustom org-hide-macro-markers nil
+  "Non-nil mean font-lock should hide the brackets marking macro calls."
+  :group 'org-appearance
+  :type 'boolean)
+
 (defcustom org-pretty-entities nil
   "Non-nil means show entities as UTF8 characters.
 When nil, the \\name form remains in the buffer."
@@ -5225,11 +5230,11 @@ Support for group tags is controlled by the option
 
 (defun org-file-contents (file &optional noerror)
   "Return the contents of FILE, as a string."
-  (if (or (not file)
-	  (not (file-readable-p file)))
-      (if noerror
-	  (message "Cannot read file \"%s\"" file)
-	(error "Cannot read file \"%s\"" file))
+  (if (or (not file) (not (file-readable-p file)))
+      (if (not noerror)
+	  (error "Cannot read file \"%s\"" file)
+	(message "Cannot read file \"%s\"" file)
+	"")
     (with-temp-buffer
       (insert-file-contents file)
       (buffer-string))))
@@ -5949,6 +5954,20 @@ by a #."
     (org-remove-flyspell-overlays-in (match-beginning 0) (match-end 0))
     t))
 
+  (defun org-fontify-macros (limit)
+    "Fontify macros."
+    (when (re-search-forward "\\({{{\\).+?\\(}}}\\)" limit t)
+      (add-text-properties
+       (match-beginning 0) (match-end 0)
+       '(font-lock-fontified t face org-macro))
+      (when org-hide-macro-markers
+        (add-text-properties (match-end 2) (match-beginning 2)
+                             '(invisible t))
+        (add-text-properties (match-beginning 1) (match-end 1)
+                             '(invisible t)))
+      (org-remove-flyspell-overlays-in (match-beginning 0) (match-end 0))
+      t))
+
 (defun org-activate-angle-links (limit)
   "Run through the buffer and add overlays to links."
   (if (and (re-search-forward org-angle-link-re limit t)
@@ -6260,7 +6279,7 @@ needs to be inserted at a specific position in the font-lock sequence.")
 	   ;; Diary sexps.
 	   '("^&?%%(.*\\|<%%([^>\n]*?>" (0 'org-sexp-date t))
 	   ;; Macro
-	   '("{{{.+?}}}" (0 'org-macro t))
+	   '(org-fontify-macros)
 	   '(org-hide-wide-columns (0 nil append))
 	   ;; TODO keyword
 	   (list (format org-heading-keyword-regexp-format
@@ -10446,7 +10465,8 @@ application the system uses for this file type."
       (let (type path link line search (pos (point)))
 	(catch 'match
 	  (save-excursion
-	    (skip-chars-forward "^]\n\r")
+	    (or (org-in-regexp org-plain-link-re)
+		(skip-chars-forward "^]\n\r"))
 	    (when (org-in-regexp org-bracket-link-regexp 1)
 	      (setq link (org-extract-attributes
 			  (org-link-unescape (org-match-string-no-properties 1))))
@@ -10484,9 +10504,10 @@ application the system uses for this file type."
 			;; Check a plain link is not within a bracket link
 			(and match
 			     (save-excursion
-			       (progn
-				 (goto-char (car match))
-				 (not (org-in-regexp org-bracket-link-regexp))))))
+			       (save-match-data
+				 (progn
+				   (goto-char (car match))
+				   (not (org-in-regexp org-bracket-link-regexp)))))))
 		      (let ((line_ending (save-excursion (end-of-line) (point))))
 			;; We are in a line before a plain or bracket link
 			(or (re-search-forward org-plain-link-re line_ending t)
@@ -20378,12 +20399,9 @@ This command does many different things, depending on context:
 	  ((bold code entity export-snippet inline-babel-call inline-src-block
 		 italic latex-fragment line-break macro strike-through subscript
 		 superscript underline verbatim)
-	   (while (and (not (memq (setq type (org-element-type context))
-				  '(paragraph verse-block)))
-		       (org-element-property
-			:parent
-			(org-element-property :parent context)))
-	     (setq context (org-element-property :parent context)))))
+	   (while (and (setq context (org-element-property :parent context))
+		       (not (memq (setq type (org-element-type context))
+				  '(paragraph verse-block table-cell)))))))
 	;; For convenience: at the first line of a paragraph on the
 	;; same line as an item, apply function on that item instead.
 	(when (eq type 'paragraph)
