@@ -3,6 +3,8 @@
 
 (define-abbrev-table 'bibtex-mode-abbrev-table '())
 
+(define-abbrev-table 'bookmark-bmenu-mode-abbrev-table '())
+
 (define-abbrev-table 'calendar-mode-abbrev-table '())
 
 (define-abbrev-table 'change-log-mode-abbrev-table '())
@@ -16,6 +18,8 @@
 (define-abbrev-table 'diary-mode-abbrev-table '())
 
 (define-abbrev-table 'diff-mode-abbrev-table '())
+
+(define-abbrev-table 'dig-mode-abbrev-table '())
 
 (define-abbrev-table 'display-time-world-mode-abbrev-table '())
 
@@ -34,6 +38,10 @@
 (define-abbrev-table 'git-rebase-mode-abbrev-table '())
 
 (define-abbrev-table 'global-abbrev-table '())
+
+(define-abbrev-table 'gnus-article-edit-mode-abbrev-table '())
+
+(define-abbrev-table 'gnus-sticky-article-mode-abbrev-table '())
 
 (define-abbrev-table 'grep-mode-abbrev-table '())
 
@@ -67,6 +75,8 @@
 
 (define-abbrev-table 'markdown-mode-abbrev-table '())
 
+(define-abbrev-table 'message-mode-abbrev-table '())
+
 (define-abbrev-table 'occur-edit-mode-abbrev-table '())
 
 (define-abbrev-table 'occur-mode-abbrev-table '())
@@ -77,6 +87,7 @@
   '(
     ("iff" "if an only if" nil 0)
     ("mcd" "máximo común divisor" nil 3)
+    ("ssi" "si y solo si" nil 0)
     ("ts" "topological space" nil 1)
    ))
 
@@ -89,6 +100,8 @@
 (define-abbrev-table 'prog-mode-abbrev-table '())
 
 (define-abbrev-table 'shell-mode-abbrev-table '())
+
+(define-abbrev-table 'smime-mode-abbrev-table '())
 
 (define-abbrev-table 'snippet-mode-abbrev-table '())
 

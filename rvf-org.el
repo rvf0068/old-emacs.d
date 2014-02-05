@@ -28,6 +28,8 @@
 
 (add-hook 'org-mode-hook 'smartparens-mode)
 
+(add-hook 'org-mode-hook 'abbrev-mode)
+
 ;; from the info documentation
 (defun yas/org-very-safe-expand ()
   (let ((yas/fallback-behavior 'return-nil)) (yas/expand)))
