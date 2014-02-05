@@ -27,6 +27,8 @@
 
 (define-abbrev-table 'fundamental-mode-abbrev-table '())
 
+(define-abbrev-table 'gfm-mode-abbrev-table '())
+
 (define-abbrev-table 'git-commit-mode-abbrev-table '())
 
 (define-abbrev-table 'git-rebase-mode-abbrev-table '())
@@ -63,6 +65,8 @@
 
 (define-abbrev-table 'magit-wazzup-mode-abbrev-table '())
 
+(define-abbrev-table 'markdown-mode-abbrev-table '())
+
 (define-abbrev-table 'occur-edit-mode-abbrev-table '())
 
 (define-abbrev-table 'occur-mode-abbrev-table '())
@@ -71,7 +75,9 @@
 
 (define-abbrev-table 'org-mode-abbrev-table
   '(
-    ("mcd" "máximo común divisor" nil 2)
+    ("iff" "if an only if" nil 0)
+    ("mcd" "máximo común divisor" nil 3)
+    ("ts" "topological space" nil 1)
    ))
 
 (define-abbrev-table 'outline-mode-abbrev-table '())
