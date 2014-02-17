@@ -1,6 +1,8 @@
 ;;-*-coding: utf-8;-*-
 (define-abbrev-table 'Buffer-menu-mode-abbrev-table '())
 
+(define-abbrev-table 'Custom-mode-abbrev-table '())
+
 (define-abbrev-table 'bibtex-mode-abbrev-table '())
 
 (define-abbrev-table 'bookmark-bmenu-mode-abbrev-table '())
@@ -53,7 +55,10 @@
 
 (define-abbrev-table 'image-dired-thumbnail-mode-abbrev-table '())
 
-(define-abbrev-table 'latex-mode-abbrev-table '())
+(define-abbrev-table 'latex-mode-abbrev-table
+  '(
+    ("tc" "triangular clique" nil 0)
+   ))
 
 (define-abbrev-table 'lisp-mode-abbrev-table '())
 
