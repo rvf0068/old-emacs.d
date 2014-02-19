@@ -28,3 +28,6 @@
       scroll-step 1
       scroll-conservatively 10000
       scroll-preserve-screen-position 1)
+
+;; see http://stackoverflow.com/questions/8524490/emacs-as-finder-explorer-copy-files
+(setq dired-dwim-target t)
