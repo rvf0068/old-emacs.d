@@ -11,7 +11,12 @@
 
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (add-to-list 'org-beamer-environments-extra
-             '("onlyenv" "O" "\\begin{onlyenv}%a" "\\end{onlyenv}"))
+             '("onlyenv"   "O" "\\begin{onlyenv}%a"     "\\end{onlyenv}"))
+
+(add-to-list 'org-beamer-environments-extra
+	     '("corollary" "r" "\\begin{corollary}%a%U" "\\end{corollary}"))
+(add-to-list 'org-beamer-environments-extra
+	     '("lemma"     "l" "\\begin{lemma}%a%U"     "\\end{lemma}"))
 
 (add-hook 'org-mode-hook 'turn-on-auto-revert-mode)
 
