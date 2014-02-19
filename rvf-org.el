@@ -7,15 +7,6 @@
 (require 'ox-beamer)
 (require 'ox-md)
 
-(add-to-list 'org-latex-classes
-             '("beamer" "\\documentclass[presentation]{beamer}
-\[DEFAULT-PACKAGES]
-\[PACKAGES]
-\[EXTRA]"
-               ("\\section{%s}" . "\\section*{%s}")
-               ("\\subsection{%s}" . "\\subsection*{%s}")
-               ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
-
 (add-to-list 'org-latex-packages-alist '("" "listings"))
 
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
