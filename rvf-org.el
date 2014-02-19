@@ -47,6 +47,8 @@
 			     (forward-char -2)))
 	    ))
 
+;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
+(add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
 
 (setq org-export-with-tags nil)
 (setq org-hide-emphasis-markers t)
