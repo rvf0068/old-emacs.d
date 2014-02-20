@@ -3,8 +3,9 @@
 
 (require 'ob-latex)
 
-(require 'ox-latex)
 (require 'ox-beamer)
+(require 'ox-bibtex)
+(require 'ox-latex)
 (require 'ox-md)
 
 (add-to-list 'org-latex-packages-alist '("" "listings"))
@@ -77,4 +78,22 @@
 	("html" . "firefox %s")
 	))
 
-
+;; this overwrites the definition in org.el
+(defun org-reftex-citation ()
+  (interactive)
+  (let ((reftex-docstruct-symbol 'rds)
+	;; the next line was modified
+	(reftex-cite-format "[[cite:%l]]")
+	rds bib)
+    (save-excursion
+      (save-restriction
+	(widen)
+	(let ((case-fold-search t)
+	      (re "^#\\+bibliography:[ \t]+\\([^ \t\n]+\\)"))
+	  (if (not (save-excursion
+		     (or (re-search-forward re nil t)
+			 (re-search-backward re nil t))))
+	      (error "No bibliography defined in file")
+	    (setq bib (concat (match-string 1) ".bib")
+		  rds (list (list 'bib bib)))))))
+    (call-interactively 'reftex-citation)))
