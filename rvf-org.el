@@ -2,6 +2,8 @@
 (require 'org-beamer)
 
 (require 'ob-latex)
+(require 'ob-org)
+(require 'ob-R)
 
 (require 'ox-beamer)
 (require 'ox-bibtex)
