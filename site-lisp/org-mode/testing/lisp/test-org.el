@@ -546,6 +546,17 @@
 
 ;;; Links
 
+;;;; Custom ID
+
+(ert-deftest test-org/custom-id ()
+  "Test custom ID links specifications."
+  (should
+   (org-test-with-temp-text
+       "* H1\n:PROPERTIES:\n:CUSTOM_ID: custom\n:END:\n* H2\n[[#custom]]"
+     (goto-char (point-max))
+     (org-open-at-point)
+     (org-looking-at-p "\\* H1"))))
+
 ;;;; Fuzzy Links
 
 ;; Fuzzy links [[text]] encompass links to a target (<<text>>), to
@@ -655,12 +666,15 @@ http://article.gmane.org/gmane.emacs.orgmode/21459/"
      (org-link-escape "http://some.host.com/form?&id=blah%2Bblah25")))))
 
 (ert-deftest test-org/org-link-escape-chars-browser ()
-  "Escape a URL to pass to `browse-url'."
+  "Test of the constant `org-link-escape-chars-browser'.
+See there why this test is a candidate to be removed once Org
+drops support for Emacs 24.1 and 24.2."
   (should
    (string=
     (concat "http://lists.gnu.org/archive/cgi-bin/namazu.cgi?query="
 	    "%22Release%208.2%22&idxname=emacs-orgmode")
-    (org-link-escape-browser
+    (org-link-escape-browser ; Do not replace with `url-encode-url',
+			     ; see docstring above.
      (concat "http://lists.gnu.org/archive/cgi-bin/namazu.cgi?query="
 	     "\"Release 8.2\"&idxname=emacs-orgmode")))))
 
