@@ -54,6 +54,7 @@
 	)
       )
 
+(setq cdlatex-simplify-sub-super-scripts nil)
 
 ;; markdown
 
