@@ -5766,14 +5766,26 @@ Providing it allows for quicker computation."
 	   (if (and (>= origin (point)) (< origin (line-end-position)))
 	       (narrow-to-region (point) (line-end-position))
 	     (throw 'objects-forbidden element))))
-	;; All other locations cannot contain objects: bail out.
+	;; At a planning line, if point is at a timestamp, return it,
+	;; otherwise, return element.
+	((eq type 'planning)
+	 (dolist (p '(:closed :deadline :scheduled))
+	   (let ((timestamp (org-element-property p element)))
+	     (when (and timestamp
+			(<= (org-element-property :begin timestamp) origin)
+			(> (org-element-property :end timestamp) origin))
+	       (throw 'objects-forbidden timestamp))))
+	 ;; All other locations cannot contain objects: bail out.
+	 (throw 'objects-forbidden element))
 	(t (throw 'objects-forbidden element)))
        (goto-char (point-min))
        (let* ((restriction (org-element-restriction type))
 	      (parent element)
 	      (candidates 'initial)
-	      (cache (and (org-element--cache-active-p)
-			  (gethash element org-element--cache-objects)))
+	      (cache (cond ((not (org-element--cache-active-p)) nil)
+			   (org-element--cache-objects
+			    (gethash element org-element--cache-objects))
+			   (t (org-element-cache-reset) nil)))
 	      objects-data next)
 	 (prog1
 	     (catch 'exit
