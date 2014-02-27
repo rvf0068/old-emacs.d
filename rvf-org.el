@@ -100,3 +100,9 @@
 	    (setq bib (concat (match-string 1) ".bib")
 		  rds (list (list 'bib bib)))))))
     (call-interactively 'reftex-citation)))
+
+;; for exporting images according to backend
+;; see https://lists.gnu.org/archive/html/emacs-orgmode/2014-02/msg00296.html
+(defmacro by-backend (&rest body)
+  `(case (if (boundp 'backend) (org-export-backend-name backend) nil) ,@body))
+
