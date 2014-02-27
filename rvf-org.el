@@ -54,6 +54,7 @@
 (add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
 
 (setq org-export-with-tags nil)
+(setq org-export-allow-bind-keywords t)
 (setq org-hide-emphasis-markers t)
 (setq org-latex-listings t)
 (setq org-latex-pdf-process '("texi2dvi -p -b -V %f"))
