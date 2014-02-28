@@ -95,7 +95,7 @@
                  )
   (sp-local-pair "`" nil :actions nil)
   (sp-local-pair "'" nil :actions nil)
-  (sp-local-pair "\\[" "\n\n    \\]")
+;  (sp-local-pair "\\[" "\n\n    \\]")
   (sp-local-pair "\\{" "\\}")
   )
 (sp-with-modes '(
