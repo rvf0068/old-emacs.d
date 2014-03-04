@@ -9946,8 +9946,8 @@ Note: this function also decodes single byte encodings like
 
 (defun org-link-prettify (link)
   "Return a human-readable representation of LINK.
-The car of LINK must be a raw link the cdr of LINK must be either
-a link description or nil."
+The car of LINK must be a raw link.
+The cdr of LINK must be either a link description or nil."
   (let ((desc (or (cadr link) "<no description>")))
     (concat (format "%-45s" (substring desc 0 (min (length desc) 40)))
 	    "<" (car link) ">")))
@@ -10406,7 +10406,7 @@ See the docstring of `org-open-file' for details."
 This is saved in case the need arises to restore it.")
 
 (defvar org-open-link-marker (make-marker)
-  "Marker pointing to the location where `org-open-at-point; was called.")
+  "Marker pointing to the location where `org-open-at-point' was called.")
 
 ;;;###autoload
 (defun org-open-at-point-global ()
@@ -10442,12 +10442,24 @@ they must return nil.")
 (defvar org-link-search-inhibit-query nil) ;; dynamically scoped
 (defvar clean-buffer-list-kill-buffer-names) ; Defined in midnight.el
 (defun org-open-at-point (&optional arg reference-buffer)
-  "Open link at point.
+  "Open link, timestamp, footnote or tags at point.
 
-Normally, files will be opened by an appropriate application. If
-the optional prefix argument ARG is non-nil, Emacs will visit the
-file.  With a double prefix argument, try to open outside of
-Emacs, in the application the system uses for this file type.
+When point is on a link, follow it.  Normally, files will be
+opened by an appropriate application.  If the optional prefix
+argument ARG is non-nil, Emacs will visit the file.  With
+a double prefix argument, try to open outside of Emacs, in the
+application the system uses for this file type.
+
+When point is on a timestamp, open the agenda at the day
+specified.
+
+When point is a footnote definition, move to the first reference
+found.  If it is on a reference, move to the associated
+definition.
+
+When point is on a headline, display a list of every link in the
+entry, so it is possible to pick one, or all, of them.  If point
+is on a tag, call `org-tags-view' instead.
 
 When optional argument REFERENCE-BUFFER is non-nil, it should
 specify a buffer from where the link search should happen.  This
@@ -10460,30 +10472,24 @@ is used internally by `org-open-link-from-string'."
     (setq org-window-config-before-follow-link (current-window-configuration))
     (org-remove-occur-highlights nil nil t)
     (unless (run-hook-with-args-until-success 'org-open-at-point-functions)
-      (let* ((context (org-element-context))
-	     (type (org-element-type context)))
-	;; On an unsupported object type, check if it is contained
-	;; within a support one.  Bail out if we find an element
-	;; instead.
-	(when (memq type '(bold code entity export-snippet inline-babel-call
-				inline-src-block italic line-break
-				latex-fragment macro radio-target
-				statistics-cookie strike-through subscript
-				superscript table-cell underline verbatim))
-	  (while (and (setq context (org-element-property :parent context))
-		      (not (memq (setq type (org-element-type context))
-				 '(link footnote-reference paragraph verse-block
-					table-cell))))))
+      (let* ((context (org-element-context)) type)
+	;; On an unsupported type, check if point is contained within
+	;; a support one.
+	(while (and (not (memq (setq type (org-element-type context))
+			       '(headline inlinetask link footnote-definition
+					  footnote-reference timestamp)))
+		    (setq context (org-element-property :parent context))))
 	(cond
+	 ;; Unsupported context: return an error.
+	 ((not context) (user-error "No link found"))
 	 ;; On a headline or an inlinetask, but not on a timestamp,
-	 ;; a link or on tags.
-	 ((and (org-at-heading-p)
-	       (not (memq type '(timestamp link)))
+	 ;; a link, a footnote reference or on tags.
+	 ((and (memq type '(headline inlinetask))
 	       ;; Not on tags.
-	       (save-excursion (beginning-of-line)
-			       (looking-at org-complex-heading-regexp)
-			       (or (not (match-beginning 5))
-				   (< (point) (match-beginning 5)))))
+	       (progn (save-excursion (beginning-of-line)
+				      (looking-at org-complex-heading-regexp))
+		      (or (not (match-beginning 5))
+			  (< (point) (match-beginning 5)))))
 	  (let* ((data (org-offer-links-in-entry (current-buffer) (point) arg))
 		 (links (car data))
 		 (links-end (cdr data)))
@@ -10494,27 +10500,25 @@ is used internally by `org-open-link-from-string'."
 		  (org-open-at-point))
 	      (require 'org-attach)
 	      (org-attach-reveal 'if-exists))))
-	 ;; Do nothing on white spaces after an object.
-	 ((let ((end (org-element-property :end context)))
-	    (= (save-excursion
-		 ;; Make sure we're not on invisible text, as it would
-		 ;; make the check unpredictable on object's borders.
-		 (when (invisible-p (point))
-		   (goto-char
-		    (next-single-property-change (point) 'invisible nil end)))
-		 (skip-chars-forward " \t" end) (point))
-	       end))
+	 ;; Do nothing on white spaces after an object, unless point
+	 ;; is right after it.
+	 ((> (point)
+	     (save-excursion
+	       (goto-char (org-element-property :end context))
+	       (skip-chars-backward " \t")
+	       (point)))
 	  (user-error "No link found"))
 	 ((eq type 'timestamp) (org-follow-timestamp-link))
 	 ;; On tags within a headline or an inlinetask.
-	 ((save-excursion (beginning-of-line)
-			  (and (looking-at org-complex-heading-regexp)
-			       (match-beginning 5)
-			       (>= (point) (match-beginning 5))))
+	 ((and (memq type '(headline inlinetask))
+	       (progn (save-excursion (beginning-of-line)
+				      (looking-at org-complex-heading-regexp))
+		      (and (match-beginning 5)
+			   (>= (point) (match-beginning 5)))))
 	  (org-tags-view arg (substring (match-string 5) 0 -1)))
 	 ((eq type 'link)
 	  (let ((type (org-element-property :type context))
-		(path (org-element-property :path context)))
+		(path (org-link-unescape (org-element-property :path context))))
 	    ;; Switch back to REFERENCE-BUFFER needed when called in
 	    ;; a temporary buffer through `org-open-link-from-string'.
 	    (with-current-buffer (or reference-buffer (current-buffer))
@@ -10621,8 +10625,8 @@ is used internally by `org-open-link-from-string'."
 	      (and (eq type 'footnote-definition)
 		   (save-excursion
 		     ;; Do not validate action when point is on the
-		     ;; spaces right after the footnote label, in order
-		     ;; to be on par with behaviour on links.
+		     ;; spaces right after the footnote label, in
+		     ;; order to be on par with behaviour on links.
 		     (skip-chars-forward " \t")
 		     (let ((begin
 			    (org-element-property :contents-begin context)))
