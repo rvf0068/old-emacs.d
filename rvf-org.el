@@ -63,6 +63,20 @@
 		'org-cdlatex-real-numbers
 	    )))
 
+(defun org-cdlatex-rational-numbers ()
+  (interactive)
+  (if (org-inside-LaTeX-fragment-p)
+      (insert "\\mathbb{Q}")
+      (insert "Q")
+     ))
+
+(add-hook 'org-mode-hook
+	  (lambda ()
+	    (local-set-key (kbd "Q")
+		'org-cdlatex-rational-numbers
+	    )))
+
+
 ;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
 (add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
 
