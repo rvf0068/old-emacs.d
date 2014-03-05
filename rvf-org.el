@@ -50,6 +50,19 @@
 			     (forward-char -2)))
 	    ))
 
+(defun org-cdlatex-real-numbers ()
+  (interactive)
+  (if (org-inside-LaTeX-fragment-p)
+      (insert "\\mathbb{R}")
+      (insert "R")
+     ))
+
+(add-hook 'org-mode-hook
+	  (lambda ()
+	    (local-set-key (kbd "R")
+		'org-cdlatex-real-numbers
+	    )))
+
 ;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
 (add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
 
