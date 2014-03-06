@@ -31,3 +31,5 @@
 
 ;; see http://stackoverflow.com/questions/8524490/emacs-as-finder-explorer-copy-files
 (setq dired-dwim-target t)
+
+(setq magit-turn-on-auto-revert-mode t)
