@@ -33,3 +33,4 @@
 (setq dired-dwim-target t)
 
 (setq magit-turn-on-auto-revert-mode t)
+(setq magit-set-upstream-on-push t)
