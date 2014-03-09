@@ -15,6 +15,8 @@
 
 (LaTeX-math-mode)
 
+(abbrev-mode)
+
 ;; reftex
 
 (turn-on-reftex)
