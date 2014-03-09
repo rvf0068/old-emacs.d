@@ -145,3 +145,5 @@
   )
 
 (diary)
+
+(display-battery-mode)
