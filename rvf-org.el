@@ -108,6 +108,15 @@
 	("html" . "firefox %s")
 	))
 
+(setq org-latex-listings-options
+  '(("basicstyle" "\\ttfamily")
+    ("commentstyle" "\\itshape\\ttfamily")
+    ("keywordstyle" "\\bfseries")
+    ("showspaces" "false")
+    ("showstringspaces" "false")
+    ("breaklines" "true")
+    ("breakautoindent" "true")))
+
 ;; this overwrites the definition in org.el
 (defun org-reftex-citation ()
   (interactive)
