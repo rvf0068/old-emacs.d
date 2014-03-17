@@ -5,11 +5,6 @@
 
 @include org-version.inc
 
-@c Use proper quote and backtick for code sections in PDF output
-@c Cf. Texinfo manual 14.2
-@set txicodequoteundirected
-@set txicodequotebacktick
-
 @c Version and Contact Info
 @set MAINTAINERSITE @uref{http://orgmode.org,maintainers web page}
 @set AUTHOR Carsten Dominik
@@ -13804,8 +13799,13 @@ can be used to map arbitrary language names to existing major modes.
 @item org-src-window-setup
 Controls the way Emacs windows are rearranged when the edit buffer is created.
 @item org-src-preserve-indentation
-This variable is especially useful for tangling languages such as
-Python, in which whitespace indentation in the output is critical.
+By default, the value is @code{nil}, which means that when code blocks are
+evaluated during export or tangled, they are re-inserted into the code block,
+which may replace sequences of spaces with tab characters.  When non-nil,
+whitespace in code blocks will be preserved during export or tangling,
+exactly as it appears.  This variable is especially useful for tangling
+languages such as Python, in which whitespace indentation in the output is
+critical.
 @item org-src-ask-before-returning-to-edit-buffer
 By default, Org will ask before returning to an open edit buffer.  Set this
 variable to @code{nil} to switch without asking.
@@ -13957,10 +13957,13 @@ its results into the Org mode buffer.
 @cindex #+CALL
 
 It is also possible to evaluate named code blocks from anywhere in an Org
-mode buffer or an Org mode table.  Live code blocks located in the current
-Org mode buffer or in the ``Library of Babel'' (see @ref{Library of Babel})
-can be executed.  Named code blocks can be executed with a separate
-@code{#+CALL:} line or inline within a block of text.
+mode buffer or an Org mode table.  These named code blocks can be located in
+the current Org mode buffer or in the ``Library of Babel'' (see @ref{Library
+of Babel}).  Named code blocks can be evaluated with a separate
+@code{#+CALL:} line or inline within a block of text. In both cases
+the result is wrapped according to the value of
+@var{org-babel-inline-result-wrap}, which by default is @code{"=%s="} for
+markup that produces verbatim text.
 
 The syntax of the @code{#+CALL:} line is
 

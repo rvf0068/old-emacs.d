@@ -741,7 +741,8 @@ captured item after finalizing."
 	      (pos (org-capture-get :initial-target-position))
 	      (ipt (org-capture-get :insertion-point))
 	      (size (org-capture-get :captured-entry-size)))
-	  (when reg
+	  (if (not reg)
+	      (widen)
 	    (cond ((< ipt (car reg))
 		   ;; insertion point is before the narrowed region
 		   (narrow-to-region (+ size (car reg)) (+ size (cdr reg))))
@@ -822,7 +823,7 @@ already gone.  Any prefix argument will be passed to the refile command."
   (org-capture-put
    :initial-target-region
    ;; Check if the buffer is currently narrowed
-   (when (/= (buffer-size) (- (point-max) (point-min)))
+   (when (org-buffer-narrowed-p)
      (cons (point-min) (point-max))))
   ;; store the current point
   (org-capture-put :initial-target-position (point)))

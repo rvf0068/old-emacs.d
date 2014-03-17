@@ -1284,7 +1284,7 @@ CONTENTS is the contents of the element."
 		    (throw 'exit (sort struct 'car-less-than-car))))))
 	    ;; Skip blocks (any type) and drawers contents.
 	    (cond
-	     ((and (looking-at "#\\+BEGIN\\(:\\|_\\S-+\\)")
+	     ((and (looking-at "\\(?:[ \t]*\\)?#\\+BEGIN\\(:\\|_\\S-+\\)")
 		   (re-search-forward
 		    (format "^[ \t]*#\\+END%s[ \t]*$"
 			    (org-match-string-no-properties 1))
@@ -5011,22 +5011,25 @@ the cache."
   "Store ELEMENT in current buffer's cache, if allowed.
 When optional argument DATA is non-nil, assume is it object data
 relative to ELEMENT and store it in the objects cache."
-  (when (org-element--cache-active-p)
-    (if data (puthash element data org-element--cache-objects)
-      (when org-element--cache-sync-requests
-	;; During synchronization, first build an appropriate key for
-	;; the new element so `avl-tree-enter' can insert it at the
-	;; right spot in the cache.
-	(let ((keys (org-element--cache-find
-		     (org-element-property :begin element) 'both)))
-	  (puthash element
-		   (org-element--cache-generate-key
-		    (and (car keys) (org-element--cache-key (car keys)))
-		    (cond ((cdr keys) (org-element--cache-key (cdr keys)))
-			  (org-element--cache-sync-requests
-			   (aref (car org-element--cache-sync-requests) 0))))
-		   org-element--cache-sync-keys)))
-      (avl-tree-enter org-element--cache element))))
+  (cond ((not (org-element--cache-active-p)) nil)
+	((not data)
+	 (when org-element--cache-sync-requests
+	   ;; During synchronization, first build an appropriate key
+	   ;; for the new element so `avl-tree-enter' can insert it at
+	   ;; the right spot in the cache.
+	   (let ((keys (org-element--cache-find
+			(org-element-property :begin element) 'both)))
+	     (puthash element
+		      (org-element--cache-generate-key
+		       (and (car keys) (org-element--cache-key (car keys)))
+		       (cond ((cdr keys) (org-element--cache-key (cdr keys)))
+			     (org-element--cache-sync-requests
+			      (aref (car org-element--cache-sync-requests) 0))))
+		      org-element--cache-sync-keys))))
+	;; Headlines are not stored in cache, so objects in titles are
+	;; not stored either.
+	((eq (org-element-type element) 'headline) nil)
+	(t (puthash element data org-element--cache-objects))))
 
 
 ;;;; Synchronization
@@ -5742,8 +5745,8 @@ Providing it allows for quicker computation."
 	;; At an headline or inlinetask, objects are in title.
 	((memq type '(headline inlinetask))
 	 (goto-char (org-element-property :begin element))
-	 (skip-chars-forward "* ")
-	 (if (and (>= origin (point)) (< origin (line-end-position)))
+	 (skip-chars-forward "*")
+	 (if (and (> origin (point)) (< origin (line-end-position)))
 	     (narrow-to-region (point) (line-end-position))
 	   (throw 'objects-forbidden element)))
 	;; At a paragraph, a table-row or a verse block, objects are
