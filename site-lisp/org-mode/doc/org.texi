@@ -9751,14 +9751,17 @@ a horizontal line.
 
 Lines starting with zero or more whitespace characters followed by one
 @samp{#} and a whitespace are treated as comments and will never be exported.
-Also entire subtrees starting with the word @samp{COMMENT} will never be
-exported.  Finally, regions surrounded by @samp{#+BEGIN_COMMENT}
+
+Also entire subtrees starting with the keyword @samp{COMMENT} will never be
+exported (and included code blocks will not be executed on export).
+
+Finally, regions surrounded by @samp{#+BEGIN_COMMENT}
 ... @samp{#+END_COMMENT} will not be exported.
 
 @table @kbd
 @kindex C-c ;
 @item C-c ;
-Toggle the COMMENT keyword at the beginning of an entry.
+Toggle the @samp{COMMENT} keyword at the beginning of an entry.
 @end table
 
 
@@ -9888,6 +9891,10 @@ Here is an example:
 In line [[(sc)]] we remember the current position.  [[(jump)][Line (jump)]]
 jumps to point-min.
 @end example
+
+@cindex indentation, in source blocks
+Finally, you can use @code{-i} to preserve the indentation of a specific code
+block (@pxref{Editing source code}).
 
 @vindex org-coderef-label-format
 If the syntax for the label format conflicts with the language syntax, use a
@@ -10543,7 +10550,8 @@ anywhere in a file, text before the first headline is ignored.
 The tags that exclude a tree from export (@code{org-export-exclude-tags}).
 The default value is @code{:noexport:}.  Entries with the @code{:noexport:}
 tag will be unconditionally excluded from the export, even if they have an
-@code{:export:} tag.
+@code{:export:} tag.  Code blocks contained in excluded subtrees will still
+be executed during export even though the subtree is not exported.
 
 @item TITLE
 @cindex #+TITLE
@@ -13799,6 +13807,7 @@ can be used to map arbitrary language names to existing major modes.
 @item org-src-window-setup
 Controls the way Emacs windows are rearranged when the edit buffer is created.
 @item org-src-preserve-indentation
+@cindex indentation, in source blocks
 By default, the value is @code{nil}, which means that when code blocks are
 evaluated during export or tangled, they are re-inserted into the code block,
 which may replace sequences of spaces with tab characters.  When non-nil,
@@ -13828,7 +13837,8 @@ results of code block evaluation.  For information on exporting code block
 bodies, see @ref{Literal examples}.
 
 The @code{:exports} header argument can be used to specify export
-behavior:
+behavior (note that these arguments are only relevant for code blocks, not
+inline code):
 
 @subsubheading Header arguments:
 
@@ -13855,12 +13865,15 @@ ensure that no code blocks are evaluated as part of the export process.  This
 can be useful in situations where potentially untrusted Org mode files are
 exported in an automated fashion, for example when Org mode is used as the
 markup language for a wiki.  It is also possible to set this variable to
-@code{'inline-only}.  In that case, only inline code blocks will be
+@code{inline-only}.  In that case, only inline code blocks will be
 evaluated, in order to insert their results.  Non-inline code blocks are
 assumed to have their results already inserted in the buffer by manual
 evaluation.  This setting is useful to avoid expensive recalculations during
 export, not to provide security.
 
+Code blocks in commented subtrees (@pxref{Comment lines}) are never evaluated
+on export.  However, code blocks in subtrees excluded from export
+(@pxref{Export settings}) may be evaluated on export.
 
 @node Extracting source code
 @section Extracting source code
@@ -14831,7 +14844,8 @@ which the link does not point.
 @cindex @code{:exports}, src header argument
 
 The @code{:exports} header argument specifies what should be included in HTML
-or @LaTeX{} exports of the Org mode file.
+or @LaTeX{} exports of the Org mode file.  Note that the @code{:exports}
+option is only relevant for code blocks, not inline code.
 
 @itemize @bullet
 @item @code{code}
