@@ -15432,7 +15432,13 @@ when a \"nil\" value can supersede a non-nil value higher up the hierarchy."
 	  (cdr (assoc property (org-entry-properties nil 'special property)))
 	(org-with-wide-buffer
 	 (let ((range (org-get-property-block)))
-	   (when (and range (not (eq (car range) (cdr range))))
+	   (when (and range (not (eq (car range) (cdr range)))
+		      (save-excursion
+		      	(goto-char (car range))
+		      	(re-search-forward
+		      	 (concat (org-re-property property) "\\|"
+				 (org-re-property (concat property "+")))
+			 (cdr range) t)))
 	     (let* ((props
 		     (list (or (assoc property org-file-properties)
 			       (assoc property org-global-properties)
@@ -15559,7 +15565,7 @@ However, if LITERAL-NIL is set, return the string value \"nil\" instead."
 	(widen)
 	(catch 'ex
 	  (while t
-	    (when (setq tmp (org-entry-get nil property nil 'literal-nil))
+	    (when (setq tmp (org-entry-get nil property nil literal-nil))
 	      (or (ignore-errors (org-back-to-heading t))
 		  (goto-char (point-min)))
 	      (move-marker org-entry-property-inherited-from (point))
