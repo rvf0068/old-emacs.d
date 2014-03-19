@@ -109,13 +109,22 @@
 	))
 
 (setq org-latex-listings-options
-  '(("basicstyle" "\\ttfamily")
-    ("commentstyle" "\\itshape\\ttfamily")
-    ("keywordstyle" "\\bfseries")
-    ("showspaces" "false")
-    ("showstringspaces" "false")
-    ("breaklines" "true")
-    ("breakautoindent" "true")))
+      '(("basicstyle" "\\ttfamily")
+	("commentstyle" "\\itshape\\ttfamily")
+	("keywordstyle" "\\bfseries")
+	("showspaces" "false")
+	("showstringspaces" "false")
+	("breaklines" "true")
+	("breakautoindent" "true")))
+
+;; remove strike-through emphasis, see
+;; http://stackoverflow.com/a/22498697/577007
+(setq org-emphasis-alist
+      '(("*" bold)
+	("/" italic)
+	("_" underline)
+	("=" org-verbatim verbatim)
+	("~" org-code verbatim)))
 
 ;; this overwrites the definition in org.el
 (defun org-reftex-citation ()
