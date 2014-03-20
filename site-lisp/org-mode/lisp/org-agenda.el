@@ -7664,8 +7664,8 @@ When NO-OPERATOR is non-nil, do not add the + operator to returned tags."
 (defun org-agenda-filter-hide-line (type)
   "Hide lines with TYPE in the agenda buffer."
   (let (ov)
-    (setq ov (make-overlay (max (point-min) (1- (point-at-bol)))
-			   (point-at-eol)))
+    (setq ov (make-overlay (max (point-min) (point-at-bol))
+			   (1+ (point-at-eol))))
     (overlay-put ov 'invisible t)
     (overlay-put ov 'type type)
     (cond ((eq type 'tag) (push ov org-agenda-tag-filter-overlays))
@@ -8294,7 +8294,7 @@ When called with a prefix argument, include all archive files as well."
       (when (next-single-property-change (point-at-eol) 'org-marker)
 	(move-end-of-line 1)
 	(goto-char (next-single-property-change (point) 'org-marker))))
-    (org-move-to-column col nil nil t))
+    (org-move-to-column col))
   (org-agenda-do-context-action))
 
 (defun org-agenda-previous-item (n)
@@ -8306,7 +8306,7 @@ When called with a prefix argument, include all archive files as well."
 		  (move-end-of-line 0)
 		  (previous-single-property-change (point) 'org-marker))))
       (if goto (goto-char goto))
-      (org-move-to-column col nil nil t)))
+      (org-move-to-column col)))
   (org-agenda-do-context-action))
 
 (defun org-agenda-do-context-action ()
@@ -8813,7 +8813,7 @@ the same tree node, and the headline of the tree node in the Org-mode file."
       	(string-match (concat "^" (regexp-opt org-done-keywords-for-agenda))
 		      newhead)
 	(org-agenda-unmark-clocking-task))
-      (org-move-to-column col nil nil t))))
+      (org-move-to-column col))))
 
 (defun org-agenda-add-note (&optional arg)
   "Add a time-stamped note to the entry at point."
@@ -8969,7 +8969,7 @@ Called with a universal prefix arg, show the priority instead of setting it."
 	  (end-of-line 1)
 	  (setq newhead (org-get-heading)))
 	(org-agenda-change-all-lines newhead hdmarker)
-	(org-move-to-column col nil nil t)))))
+	(org-move-to-column col)))))
 
 ;; FIXME: should fix the tags property of the agenda line.
 (defun org-agenda-set-tags (&optional tag onoff)
@@ -9178,7 +9178,7 @@ Called with a universal prefix arg, show the priority instead of setting it."
       (goto-char (point-max))
       (while (not (bobp))
 	(when (equal marker (org-get-at-bol 'org-marker))
-	  (org-move-to-column (- (window-width) (length stamp)) t nil t)
+	  (org-move-to-column (- (window-width) (length stamp)) t)
 	  (org-agenda-fix-tags-filter-overlays-at (point))
           (if (featurep 'xemacs)
 	      ;; Use `duplicable' property to trigger undo recording
@@ -9192,8 +9192,8 @@ Called with a universal prefix arg, show the priority instead of setting it."
              (1- (point)) (point-at-eol)
 	     (list 'display (org-add-props stamp nil
 			      'face 'secondary-selection))))
-	  (beginning-of-line 1))
-	(beginning-of-line 0)))))
+	  (move-beginning-of-line 1))
+	(move-beginning-of-line 0)))))
 
 (defun org-agenda-date-prompt (arg)
   "Change the date of this item.  Date is prompted for, with default today.
@@ -9280,7 +9280,7 @@ ARG is passed through to `org-deadline'."
 	  (org-clock-in arg)
 	  (setq newhead (org-get-heading)))
 	(org-agenda-change-all-lines newhead hdmarker))
-      (org-move-to-column col nil nil t))))
+      (org-move-to-column col))))
 
 (defun org-agenda-clock-out ()
   "Stop the currently running clock."
@@ -9300,7 +9300,7 @@ ARG is passed through to `org-deadline'."
 	    (setq newhead (org-get-heading))))))
     (org-agenda-change-all-lines newhead marker)
     (move-marker marker nil)
-    (org-move-to-column col nil nil t)
+    (org-move-to-column col)
     (org-agenda-unmark-clocking-task)))
 
 (defun org-agenda-clock-cancel (&optional arg)
@@ -9955,23 +9955,25 @@ current HH:MM time."
   "Drag an agenda line forward by ARG lines.
 When the optional argument `backward' is non-nil, move backward."
   (interactive "p")
-  (let ((inhibit-read-only t) lst line)
+  (let ((inhibit-read-only t) lst)
     (if (or (not (get-text-property (point) 'txt))
 	    (save-excursion
 	      (dotimes (n arg)
 		(move-beginning-of-line (if backward 0 2))
+		(forward-char 1)
 		(push (not (get-text-property (point) 'txt)) lst))
 	      (delq nil lst)))
-	(message "Cannot move line forward")
-      (let ((end (save-excursion (move-beginning-of-line 2) (point))))
+	(message "Cannot move line %s" (if backward "backward" "forward"))
+      (let ((end (save-excursion (move-end-of-line 1) (point)))
+	    (col (current-column)) line)
 	(move-beginning-of-line 1)
 	(setq line (buffer-substring (point) end))
-	(delete-region (point) end)
-	(move-beginning-of-line (funcall (if backward '1- '1+) arg))
-	(insert line)
+	(delete-region (point) (1+ end))
+	(move-end-of-line (funcall (if backward '1- '1+) (1- arg)))
+	(insert "\n" line)
+	(org-move-to-column col)
 	(org-agenda-reapply-filters)
-	(org-agenda-mark-clocking-task)
-	(move-beginning-of-line 0)))))
+	(org-agenda-mark-clocking-task)))))
 
 (defun org-agenda-drag-line-backward (arg)
   "Drag an agenda line backward by ARG lines."
