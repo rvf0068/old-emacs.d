@@ -50,6 +50,21 @@
 			     (forward-char -2)))
 	    ))
 
+
+(defun org-cdlatex-complex-numbers ()
+  (interactive)
+  (if (org-inside-LaTeX-fragment-p)
+      (insert "\\mathbb{C}")
+      (insert "C")
+     ))
+
+(add-hook 'org-mode-hook
+	  (lambda ()
+	    (local-set-key (kbd "C")
+		'org-cdlatex-complex-numbers
+	    )))
+
+
 (defun org-cdlatex-real-numbers ()
   (interactive)
   (if (org-inside-LaTeX-fragment-p)
