@@ -94,4 +94,7 @@
 (require 'helm)
 (require 'anything-books)
 (setq abks:books-dir '("~/Dropbox/References" "~/Documents/References"))
+<<<<<<< HEAD
 (setq abks:open-command "evince")
+=======
+>>>>>>> b1007b06f550f7cda1e4e33b45dab65871a3fe95
