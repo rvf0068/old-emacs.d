@@ -1067,11 +1067,13 @@ See `org-latex-text-markup-alist' for details."
     (cond
      ;; No format string: Return raw text.
      ((not fmt) text)
-     ;; Handle the `verb' special case: Find and appropriate separator
+     ;; Handle the `verb' special case: Find an appropriate separator
      ;; and use "\\verb" command.
      ((eq 'verb fmt)
       (let ((separator (org-latex--find-verb-separator text)))
-	(concat "\\verb" separator text separator)))
+	(concat "\\verb" separator
+		(replace-regexp-in-string "\n" " " text)
+		separator)))
      ;; Handle the `protectedtexttt' special case: Protect some
      ;; special chars and use "\texttt{%s}" format string.
      ((eq 'protectedtexttt fmt)

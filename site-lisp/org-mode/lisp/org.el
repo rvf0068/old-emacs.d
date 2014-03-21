@@ -9377,7 +9377,7 @@ property to set."
 	   (save-excursion
 	     (org-back-to-heading t)
 	     (put-text-property
-	      (point-at-bol) (org-end-of-subtree t t) tprop p))))))))
+	      (point-at-bol) (outline-next-heading) tprop p))))))))
 
 
 ;;;; Link Stuff
@@ -10641,9 +10641,11 @@ is used internally by `org-open-link-from-string'."
 		    (switch-to-buffer-other-window
 		     (org-get-buffer-for-internal-link (current-buffer))))
 		  (let ((cmd `(org-link-search
-			       ,(org-element-property :raw-link context)
-			       ,(cond ((equal arg '(4)) ''occur)
-				      ((equal arg '(16)) ''org-occur))
+			       ,(if (member type '("custom-id" "coderef"))
+				    (org-element-property :raw-link context)
+				  path)
+			       ,(cond ((equal arg '(4)) 'occur)
+				      ((equal arg '(16)) 'org-occur))
 			       ,(org-element-property :begin context))))
 		    (condition-case nil
 			(let ((org-link-search-inhibit-query t))
