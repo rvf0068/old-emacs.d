@@ -88,3 +88,10 @@
  (lambda nil (interactive)
    (find-file "~/Dropbox/texmf/tex/latex/uaeh/titulacion.org")
    ))
+
+;; anything-books
+;; the entry point is M-x helm-books-command
+(require 'helm)
+(require 'anything-books)
+(setq abks:books-dir '("~/Dropbox/References" "~/Documents/References"))
+(setq abks:open-command "evince")
