@@ -10,12 +10,15 @@
 
 (package-initialize)
 
+;; concurrent, deferred, used for anything-books
 (defvar prelude-packages
   '(
     bibretrieve
     bibslurp
     calfw
+    concurrent
     dash
+    deferred
     helm
     magit
     markdown-mode
