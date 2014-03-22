@@ -25,6 +25,24 @@
         ("Emacs" "/usr/share/emacs/24.3/etc/images/icons/hicolor/16x16/apps/emacs.png" nil nil :ascent center)
         ))
 
+(setq org-publish-project-alist
+      '(("topology-org" .  (
+			    :base-directory "~/Dropbox/paginas/topology/source/org"
+					    :base-extension "org"
+					    :exclude "options.org\\|exercises.org"
+					    :publishing-directory "~/Dropbox/paginas/topology/source/_posts/"
+					    :publishing-function org-md-publish-to-md
+					    ))
+        ;; ("blog-extra" . (:base-directory "~/git/blog/source/org_posts/"
+        ;;                                  :publishing-directory "~/git/blog/source/"
+        ;;                                  :base-extension "css\\|pdf\\|png\\|jpg\\|gif\\|svg"
+        ;;                                  :publishing-function org-publish-attachment
+        ;;                                  :recursive t
+        ;;                                  :author nil
+        ;;                                  ))
+        ("topology" . (:components ("topology-org")))
+        ))
+
 (load "~/.emacs.d/rvf-captures.el")
 
 (setq diary-file "~/Dropbox/emacs/diary")
