@@ -166,3 +166,19 @@
 (defmacro by-backend (&rest body)
   `(case (if (boundp 'backend) (org-export-backend-name backend) nil) ,@body))
 
+;; filters for octopress
+(defun my-math-replacement (contents backend info)
+  (when (eq backend 'md)
+    (replace-regexp-in-string "\\\\(\\|\\\\)\\|\\\\\\[\\|\\\\\\]" "$$" contents)
+    ))
+
+(add-to-list 'org-export-filter-latex-fragment-functions
+	     'my-math-replacement)
+
+(defun my-space-replacement (contents backend info)
+  (when (eq backend 'md)
+    (replace-regexp-in-string "\n\s *" " " contents)
+    ))
+
+(add-to-list 'org-export-filter-latex-fragment-functions
+	     'my-space-replacement)
