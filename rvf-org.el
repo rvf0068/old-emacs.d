@@ -182,3 +182,25 @@
 
 (add-to-list 'org-export-filter-latex-fragment-functions
 	     'my-space-replacement)
+
+;; modified from https://github.com/spacemanaki/octorgopress
+(defun org-octopress-template (contents backend info)
+  (when (eq backend 'md)
+  (let ((title (car (plist-get info :title)))
+        (date (car (plist-get info :date)))
+        (time "")
+        (frontmatter
+         "---
+layout: post
+title: %s
+date: %s %s
+comments: true
+categories:
+---
+"))
+        (concat (format frontmatter title date time) contents)
+    )))
+
+
+(add-to-list 'org-export-filter-final-output-functions
+	     'org-octopress-template)
