@@ -26,12 +26,20 @@
         ))
 
 (setq org-publish-project-alist
-      '(("topology-org" .  (
+      '(
+	("topology-org" .  (
 			    :base-directory "~/Dropbox/paginas/topology/source/org"
 					    :base-extension "org"
 					    :exclude "options.org\\|exercises.org"
 					    :publishing-directory "~/Dropbox/paginas/topology/source/_posts/"
 					    :publishing-function org-md-publish-to-md
+					    ))
+	("topology-pdf" .  (
+			    :base-directory "~/Dropbox/paginas/topology/source/org"
+					    :base-extension "org"
+					    :exclude "options.org\\|exercises.org"
+					    :publishing-directory "~/Dropbox/paginas/topology/source/org/"
+					    :publishing-function org-beamer-publish-to-pdf
 					    ))
         ;; ("blog-extra" . (:base-directory "~/git/blog/source/org_posts/"
         ;;                                  :publishing-directory "~/git/blog/source/"
@@ -40,7 +48,22 @@
         ;;                                  :recursive t
         ;;                                  :author nil
         ;;                                  ))
-        ("topology" . (:components ("topology-org")))
+        ("topology" . (:components ("topology-org" "topology-pdf")))
+	("galois-org" .  (
+			    :base-directory "~/Dropbox/paginas/galois/source/org"
+					    :base-extension "org"
+					    :exclude "opciones.org\\|ejercicios.org"
+					    :publishing-directory "~/Dropbox/paginas/galois/source/_posts/"
+					    :publishing-function org-md-publish-to-md
+					    ))
+	("galois-pdf" .  (
+			    :base-directory "~/Dropbox/paginas/galois/source/org"
+					    :base-extension "org"
+					    :exclude "opciones.org\\|ejercicios.org"
+					    :publishing-directory "~/Dropbox/paginas/galois/source/org/"
+					    :publishing-function org-beamer-publish-to-pdf
+					    ))
+        ("galois" . (:components ("galois-org" "galois-pdf")))
         ))
 
 (load "~/.emacs.d/rvf-captures.el")
