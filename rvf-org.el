@@ -205,12 +205,3 @@ categories:
 
 (add-to-list 'org-export-filter-final-output-functions
 	     'org-octopress-template)
-
-(defun org-beamer-publish-to-pdf (plist filename pub-dir)
-  (org-publish-attachment
-   plist
-   (org-latex-compile (concat
-		       (plist-get plist :base-directory)
-		       (substring (org-publish-org-to 'beamer filename ".tex" plist) 1 nil)
-		       ))
-   pub-dir))
