@@ -19,6 +19,7 @@
     concurrent
     dash
     deferred
+    gap-mode
     helm
     magit
     markdown-mode
