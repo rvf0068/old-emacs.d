@@ -100,6 +100,11 @@
    (find-file "~/Dropbox/emacs/dotemacs/dotemacs.org")
    ))
 (global-set-key
+ (kbd "<f12> g")
+ (lambda nil (interactive)
+   (dired "~/Dropbox/paginas/galois/source/org/")
+   ))
+(global-set-key
  (kbd "<f12> i")
  (lambda nil (interactive)
    (find-file "~/.emacs.d/init.el")
@@ -127,8 +132,13 @@
 (global-set-key
  (kbd "<f12> t")
  (lambda nil (interactive)
-   (find-file "~/Dropbox/texmf/tex/latex/uaeh/titulacion.org")
+   (dired "~/Dropbox/paginas/topology/source/org/")
    ))
+;; (global-set-key
+;;  (kbd "<f12> t")
+;;  (lambda nil (interactive)
+;;    (find-file "~/Dropbox/texmf/tex/latex/uaeh/titulacion.org")
+;;    ))
 
 ;; anything-books
 ;; the entry point is M-x helm-books-command
