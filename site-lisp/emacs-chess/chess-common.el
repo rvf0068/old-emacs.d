@@ -6,6 +6,7 @@
 ;;   http://www.tim-mann.org/xboard/engine-intf.html
 ;;
 
+(require 'chess)
 (require 'chess-engine)
 (require 'chess-message)
 
@@ -39,7 +40,7 @@
 	   (path (intern (concat "chess-" name "-path")))
 	   proc)
       (chess-message 'starting-engine name)
-      (unless (boundp path)
+      (unless (and (boundp path) (symbol-value path))
 	(chess-error 'could-not-find-engine name path))
       (setq proc (start-process (concat "chess-" name)
 				(current-buffer) (symbol-value path)))
