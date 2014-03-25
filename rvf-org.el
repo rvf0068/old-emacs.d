@@ -101,7 +101,7 @@
 (setq org-latex-listings t)
 (setq org-latex-pdf-process '("texi2dvi -p -b -V %f"))
 (setq org-log-done 'note)
-(setq org-publish-timestamp-directory "~/Dropbox/org/org-timestamps")
+(setq org-publish-timestamp-directory "~/Dropbox/org/org-timestamps/")
 (setq org-return-follows-link t)
 (setq org-src-fontify-natively t)
 (setq org-support-shift-select 'always)
