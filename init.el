@@ -38,6 +38,7 @@
 (setq cdlatex-math-symbol-alist
    '(
      ( ?c  ("\\colon"))
+     ( ?m  ("\\mu" "\\mapsto"))
      ( ?-  ("\\cap" "\\leftrightarrow" "\\longleftrightarrow" ))
      ( ?.  ("\\ldots" "\\cdots" "\\cdot" ))
      ( ?<  ("\\leq" ))
