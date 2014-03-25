@@ -190,16 +190,17 @@
   (let ((title (car (plist-get info :title)))
         (date (car (plist-get info :date)))
         (time "")
+        (keywords (plist-get info :keywords))
         (frontmatter
          "---
 layout: post
 title: %s
 date: %s %s
 comments: true
-categories:
+categories: %s
 ---
 "))
-        (concat (format frontmatter title date time) contents)
+        (concat (format frontmatter title date time keywords) contents)
     )))
 
 
