@@ -306,7 +306,8 @@ Optionally supply a new RESPONSE-HANDLER."
 	  (when (and proc (processp proc))
 	    (unless (memq (process-status proc) '(run open listen))
 	      (chess-error 'failed-start))
-	    (unless (process-filter proc)
+	    (if (or (not (process-filter proc))
+		    (eq (process-filter proc) 'internal-default-process-filter))
 	      (set-process-filter proc 'chess-engine-filter)))
 	  (setq chess-engine-current-marker (point-marker))
 	  (chess-game-set-data game 'engine (current-buffer)))))))
@@ -399,10 +400,8 @@ event handler can take care of the data."
 ;; Primary event handler
 ;;
 
-(defun chess-engine-sentinal (proc event)
-  (when (buffer-live-p (process-buffer proc))
-    (set-buffer (process-buffer proc))
-    (chess-engine-destroy nil)))
+(defun chess-engine-sentinel (proc event)
+  (chess-engine-destroy (process-buffer proc)))
 
 (defun chess-engine-filter (proc &optional string)
   "Filter for receiving text for an engine from an outside source."

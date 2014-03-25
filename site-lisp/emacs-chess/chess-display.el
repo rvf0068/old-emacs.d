@@ -121,7 +121,7 @@ of the board, if non-nil, the board is viewed from White's perspective."
       (let* ((chess-display-style style)
 	     (display (chess-module-create 'chess-display game "*Chessboard*"
 			     perspective)))
-	(if (interactive-p)
+	(if (called-interactively-p 'any)
 	    (progn
 	      (chess-display-update display)
 	      (chess-display-popup display))
@@ -702,7 +702,7 @@ Basically, it means we are playing, not editing or reviewing."
       (insert text)
       (goto-char (point-max))
       (while (and (bolp) (not (bobp)))
-	(delete-backward-char 1))
+	(delete-char -1))
       (goto-char (point-min))
       (cond
        ((search-forward "[Event " nil t)
@@ -955,7 +955,7 @@ Basically, it means we are playing, not editing or reviewing."
 	      (ibuffer-maybe-show-regexps nil))
 	  (fset 'buffer-list
 		(function
-		 (lambda ()
+		 (lambda (&optional frame)
 		   (delq nil
 			 (mapcar (function
 				  (lambda (cell)
@@ -1100,9 +1100,9 @@ to the end or beginning."
   (if (or (null piece) (characterp piece))
       (let ((index (get-text-property (point) 'chess-coord)))
 	(chess-pos-set-piece chess-display-edit-position index
-			     (or piece last-command-char))
+			     (or piece last-command-event))
 	(funcall chess-display-event-handler 'draw-square
-		 (point) (or piece last-command-char) index))))
+		 (point) (or piece last-command-event) index))))
 
 (unless (fboundp 'event-window)
   (defalias 'event-point 'ignore))

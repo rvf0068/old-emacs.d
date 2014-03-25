@@ -6179,17 +6179,13 @@ targets."
 The regular expression finds the targets also if there is a line break
 between words."
   (and targets
-       (concat
-	"\\_<\\("
-	(mapconcat
-	 (lambda (x)
-	   (setq x (regexp-quote x))
-	   (while (string-match " +" x)
-	     (setq x (replace-match "\\s-+" t t x)))
-	   x)
-	 targets
-	 "\\|")
-	"\\)\\_>")))
+       (concat "\\("
+	       (mapconcat
+		(lambda (x)
+		  (replace-regexp-in-string " +" "\\s-+" (regexp-quote x) t t))
+		targets
+		"\\|")
+	       "\\)")))
 
 (defun org-activate-tags (limit)
   (if (re-search-forward (org-re "^\\*+.*[ \t]\\(:[[:alnum:]_@#%:]+:\\)[ \r\n]") limit t)
@@ -23302,6 +23298,22 @@ This version does not only check the character property, but also
   (outline-on-heading-p t))
 ;; Compatibility alias with Org versions < 7.8.03
 (defalias 'org-on-heading-p 'org-at-heading-p)
+
+(defun org-in-commented-heading-p (&optional no-inheritance)
+  "Non-nil if point is under a commented heading.
+This function also checks ancestors of the current headline,
+unless optional argument NO-INHERITANCE is non-nil."
+  (cond
+   ((org-before-first-heading-p) nil)
+   ((let ((headline (nth 4 (org-heading-components))))
+      (and headline
+	   (let ((case-fold-search nil))
+	     (org-string-match-p (concat "^" org-comment-string "\\(?: \\|$\\)")
+				 headline)))))
+   (no-inheritance nil)
+   (t (save-excursion
+	(and (org-up-heading-safe)
+	     (org-in-commented-heading-p t))))))
 
 (defun org-at-comment-p nil
   "Is cursor in a line starting with a # character?"

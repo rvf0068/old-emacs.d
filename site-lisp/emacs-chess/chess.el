@@ -107,7 +107,10 @@ These can do just about anything."
   :group 'chess)
 
 (defcustom chess-default-engine
-  '(chess-crafty chess-gnuchess chess-phalanx chess-ai)
+  '(chess-crafty
+    chess-stockfish chess-glaurung chess-fruit
+    chess-gnuchess chess-phalanx
+    chess-ai)
   "Default engine to be used when starting a chess session.
 A list indicates a series of alternatives if the first engine is not
 available."
@@ -156,7 +159,9 @@ If an element of MODULE-LIST is a sublist, treat it as alternatives."
 	  ;; this module is actually a list, which means keep trying
 	  ;; until we find one that works
 	  (while module
-	    (if (setq object (apply create-func (car module) args))
+	    (if (setq object (condition-case nil
+				 (apply create-func (car module) args)
+			       (error nil)))
 		(progn
 		  (push object objects)
 		  (setq module nil))
@@ -209,8 +214,8 @@ Otherwise use `chess-default-engine' to determine the engine."
 					   'chess--create-engine game
 					   engine-response-handler
 					   engine-ctor-args)
-		   ;(error nil))
-		     ))
+		   ;  (error nil))
+	    ))
 	  objects)
 
     (unless (car objects)

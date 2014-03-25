@@ -37,6 +37,7 @@
 		  (start-re end-re &optional lim-up lim-down))
 (declare-function org-get-indentation "org" (&optional line))
 (declare-function org-heading-components "org" ())
+(declare-function org-in-commented-heading-p "org" (&optional no-inheritance))
 (declare-function org-in-block-p "org" (names))
 (declare-function org-in-verbatim-emphasis "org" ())
 (declare-function org-link-search "org" (s &optional type avoid-pos stealth))
@@ -158,7 +159,7 @@ may make them unreachable."
 			    "^[ \t]*#\\+BEGIN_SRC")))
 	(goto-char (point-min))
 	(while (re-search-forward regexp nil t)
-	  (unless (save-match-data (org-babel-under-commented-heading-p))
+	  (unless (save-match-data (org-in-commented-heading-p))
 	    (let* ((element (save-excursion
 			      ;; If match is inline, point is at its
 			      ;; end.  Move backward so
