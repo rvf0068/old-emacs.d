@@ -69,14 +69,3 @@
    (t (concat "~/Dropbox/References/" tag ".pdf"))
    )
   )
-
-(defun org-reflibrary-movebibsnarf()
-  (interactive)
-  (set-buffer "rvf.bib")
-  (goto-char (point-max))
-  (set-buffer "*bibsnarfed record*")
-  (append-to-buffer "rvf.bib" (point-min) (point-max))
-  (switch-to-buffer "rvf.bib")
-  )
-
-(global-set-key [(f5)] 'org-reflibrary-movebibsnarf)
