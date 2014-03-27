@@ -4,16 +4,16 @@
 (require 'package)
 (require 'cl)
 
-;; install a dummy org package
-(when (not (package-installed-p 'org))
-      (package-install-file "dummy-org.el")
-)
-
 (add-to-list 'package-archives
              '("melpa" . "http://melpa.milkbox.net/packages/") t)
 ;; set package-user-dir to be relative to Prelude install path
 
 (package-initialize)
+
+;; install a dummy org package
+(when (not (package-installed-p 'org))
+      (package-install-file "dummy-org.el")
+)
 
 ;; concurrent, deferred, used for anything-books
 (defvar prelude-packages
