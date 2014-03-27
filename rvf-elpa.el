@@ -11,7 +11,7 @@
 (package-initialize)
 
 ;; install a dummy org package
-(when (not (package-installed-p 'org))
+(when (not (package-installed-p 'org '(30000101)))
       (package-install-file "dummy-org.el")
 )
 
