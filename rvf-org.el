@@ -200,7 +200,10 @@ comments: true
 categories: %s
 ---
 "))
+    (if keywords
         (concat (format frontmatter title date time keywords) contents)
+        (concat (format frontmatter title date time "") contents)
+      )
     )))
 
 
