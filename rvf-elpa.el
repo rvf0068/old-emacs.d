@@ -29,6 +29,7 @@
     magit
     markdown-mode
     org-journal
+    orgbox
     pandoc-mode
     smart-mode-line
     smartparens
