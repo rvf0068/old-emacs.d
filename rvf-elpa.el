@@ -12,7 +12,7 @@
 
 ;; install a dummy org package
 (when (not (package-installed-p 'org '(30000101)))
-      (package-install-file "dummy-org.el")
+      (package-install-file "~/.emacs.d/dummy-org.el")
 )
 
 ;; concurrent, deferred, used for anything-books
