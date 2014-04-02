@@ -30,7 +30,7 @@
 	("topology-org" .  (
 			    :base-directory "~/Dropbox/paginas/topology/source/org"
 					    :base-extension "org"
-					    :exclude "options.org\\|exercises.org"
+					    :exclude "options.org\\|exercises.*org"
 					    :publishing-directory "~/Dropbox/paginas/topology/source/_posts/"
 					    :publishing-function org-md-publish-to-md
 					    ))
