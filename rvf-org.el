@@ -12,6 +12,12 @@
 
 (add-to-list 'org-latex-packages-alist '("" "listings"))
 
+(setq org-latex-default-packages-alist
+      (remove '("" "hyperref" nil)
+	      org-latex-default-packages-alist))
+
+(add-to-list 'org-latex-packages-alist '("colorlinks=true, linkcolor=blue" "hyperref"))
+
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (add-to-list 'org-beamer-environments-extra
              '("onlyenv"   "O" "\\begin{onlyenv}%a"     "\\end{onlyenv}"))
