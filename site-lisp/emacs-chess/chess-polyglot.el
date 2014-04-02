@@ -24,7 +24,7 @@
 ;; Since 2 bits are used for tagging in Emacs Lisp, 64 bit values can not be
 ;; represented as fixnums.  So we split the 64 bit value up into equally sized
 ;; chunks (32 bit fixnums for now).  781 predefined zorbist hash keys are
-;; stored as constants (see `chess-polyglot-zorbist-keys' and used to calculate
+;; stored as constants (see `chess-polyglot-zorbist-keys') and used to calculate
 ;; zorbist hashes from positions.
 
 ;; Binary search is employed to quickly find all the moves from a certain
@@ -32,8 +32,8 @@
 ;; chess-ply.el).
 
 ;; The most interesting functions provided by this file are
-;; `chess-polyglot-book-open', `chess-polyglot-book-plies' and
-;; `chess-polyglot-book-close'.
+;; `chess-polyglot-book-open', `chess-polyglot-book-plies',
+;; `chess-polyglot-book-ply' and `chess-polyglot-book-close'.
 
 ;; For a detailed description of the polyglot book format, see
 ;; <URL:http://hardy.uhasselt.be/Toga/book_format.html> or
@@ -48,14 +48,14 @@
 (defsubst chess-polyglot-read-octets (n)
   "Read N octets from the current buffer."
   (let ((val 0))
-    (dotimes (i n (progn (cl-assert (<= val most-positive-fixnum)) val))
+    (dotimes (_ n (progn (cl-assert (<= val most-positive-fixnum)) val))
       (setq val (logior (lsh val 8)
 			(progn (forward-char 1) (preceding-char)))))))
 
 (defsubst chess-polyglot-read-key ()
   "Read a polyglot position hash (a 64 bit value) from the current buffer.
-A `cons' with the most significant 32 bit in `car' and the least significant
-32 bit in `cdr' is returned."
+A `cons' with the most significant 32 bits in `car' and the least significant
+32 bits in `cdr' is returned."
   (cons (chess-polyglot-read-octets 4) (chess-polyglot-read-octets 4)))
 
 (defun chess-polyglot-read-move ()
@@ -63,7 +63,7 @@ A `cons' with the most significant 32 bit in `car' and the least significant
 The result is a list of the form (FROM-INDEX TO-INDEX PROMOTION WEIGHT)."
   (let ((mask (chess-polyglot-read-octets 2)))
     (pcase (let (r)
-	     (dotimes (i 5 r)
+	     (dotimes (_ 5 r)
 	       (push (logand mask 7) r)
 	       (setq mask (ash mask -3))))
       (`(,promotion ,from-rank ,from-file ,to-rank ,to-file)
@@ -82,17 +82,16 @@ WEIGHT (an integer) is the relative weight of the move."
   (cl-assert (and (integerp to) (>= to 0) (< to 64)))
   (cl-assert (memq promotion '(nil ?N ?B ?R ?Q)))
   (cl-assert (integerp weight))
-  (let ((ply (apply #'chess-ply-create position nil
-		    (if (and (= from
-				(chess-pos-king-index
-				 position (chess-pos-side-to-move position)))
-			     (= (chess-index-rank from) (chess-index-rank to))
-			     (or (= (chess-index-file to) 0)
-				 (= (chess-index-file to) 7)))
-			(chess-ply-castling-changes
-			 position (= (chess-index-file to) 0))
-		      (nconc (list from to)
-			     (when promotion (list :promote promotion)))))))
+  (let* ((color (chess-pos-side-to-move position))
+	 (ply (apply #'chess-ply-create position nil
+		     (if (and (= from (chess-rf-to-index (if color 7 0) 4))
+			      (= from (chess-pos-king-index position color))
+			      (= (chess-index-rank from) (chess-index-rank to))
+			      (memq (chess-index-file to) '(0 7)))
+			 (chess-ply-castling-changes
+			  position (= (chess-index-file to) 0))
+		       (nconc (list from to)
+			      (when promotion (list :promote promotion)))))))
     (chess-ply-set-keyword ply :polyglot-book-weight weight)
     ply))
 
@@ -103,38 +102,37 @@ WEIGHT (an integer) is the relative weight of the move."
 (defconst chess-polyglot-record-size 16
   "The size (in bytes) of a polyglot book entry.")
 
+(defsubst chess-polyglot-goto-record (record)
+  "Set point to the beginning of RECORD, a number starting from 0."
+  (goto-char (1+ (* record chess-polyglot-record-size))))
+
 (defsubst chess-polyglot-forward-record (n)
   "Move point N book records forward (backward if N is negative).
 On reaching end or beginning of buffer, stop and signal error."
   (forward-char (* n chess-polyglot-record-size)))
 
-(defun chess-polyglot-read-moves (key low high)
-  "Read all moves associated with KEY from the current buffer.
-LOW and HIGH are the number of the first and last record to consider in
-the search."
+(defsubst chess-polyglot-key-<= (lhs rhs)
+  "Non-nil if the polyglot key LHS is less than or equal to RHS."
+  (or (< (car lhs) (car rhs))
+      (and (= (car lhs) (car rhs)) (<= (cdr lhs) (cdr rhs)))))
+
+(defun chess-polyglot-read-moves (key)
+  "Read all moves associated with KEY from the current buffer."
   (cl-assert (= (% (buffer-size) chess-polyglot-record-size) 0))
-  (let* ((mid (/ (+ low high) 2))
-	 (mid-key (progn (goto-char (1+ (* mid chess-polyglot-record-size)))
-			 (chess-polyglot-read-key))))
-    (cond
-     ((= low high) (when (equal key mid-key) (chess-polyglot-read-move)))
-     ((< (car key) (car mid-key)) (chess-polyglot-read-moves key low mid))
-     ((> (car key) (car mid-key)) (chess-polyglot-read-moves key (1+ mid) high))
-     (t (cond
-	 ((< (cdr key) (cdr mid-key)) (chess-polyglot-read-moves key low mid))
-	 ((> (cdr key) (cdr mid-key)) (chess-polyglot-read-moves key (1+ mid) high))
-	 (t (when (> (point) chess-polyglot-record-size)
-	      (chess-polyglot-forward-record -1))
-	    (while (progn (forward-char -8)
-			  (and (> (point) chess-polyglot-record-size)
-			       (equal key (chess-polyglot-read-key))))
-	      (chess-polyglot-forward-record -1))
-	    (forward-char 8)
-	    (let (moves)
-	      (while (equal key (chess-polyglot-read-key))
-		(setq moves (nconc moves (list (chess-polyglot-read-move))))
-		(chess-polyglot-skip-learn))
-	      moves)))))))
+  (let ((left 0) (right (1- (/ (buffer-size) chess-polyglot-record-size))))
+    (while (< left right)
+      (let ((middle (/ (+ left right) 2)))
+	(if (chess-polyglot-key-<= key (progn (chess-polyglot-goto-record middle)
+					      (chess-polyglot-read-key)))
+	    (setq right middle)
+	  (setq left (1+ middle)))))
+    (cl-assert (= left right))
+    (chess-polyglot-goto-record left)
+    (let ((moves ()))
+      (while (equal key (chess-polyglot-read-key))
+	(setq moves (nconc moves (list (chess-polyglot-read-move))))
+	(chess-polyglot-skip-learn))
+      moves)))
 
 (defconst chess-polyglot-zorbist-keys
   [(2637767806 . 863464769) (720845184 . 95069639) (1155203408 . 610415943)
@@ -418,20 +416,20 @@ Uses 781 predefined hash values from `chess-polyglot-zorbist-keys'."
 							     rank file))
 				  chess-polyglot-zorbist-piece-type)))
 	  (when piece
-	    (let ((piece-key (aref chess-polyglot-zorbit-hashes
+	    (let ((piece-key (aref chess-polyglot-zorbist-keys
 				   (+ (* 64 piece) (* (- 7 rank) 8) file))))
 	      (setq h32 (logxor h32 (car piece-key))
 		    l32 (logxor l32 (cdr piece-key))))))))
     (let ((sides '(?K ?Q ?k ?q)))
       (dolist (side sides)
 	(when (chess-pos-can-castle position side)
-	  (let ((castle-key (aref chess-polyglot-zorbit-hashes
+	  (let ((castle-key (aref chess-polyglot-zorbist-keys
 				  (+ 768 (cl-position side sides)))))
 	    (setq h32 (logxor h32 (car castle-key))
 		  l32 (logxor l32 (cdr castle-key)))))))
     ;; TODO: en passant
     (when (chess-pos-side-to-move position)
-      (let ((turn-key (aref chess-polyglot-zorbit-hashes 780)))
+      (let ((turn-key (aref chess-polyglot-zorbist-keys 780)))
 	(setq h32 (logxor h32 (car turn-key))
 	      l32 (logxor l32 (cdr turn-key)))))
     (cons h32 l32)))
@@ -446,6 +444,20 @@ Returns a buffer object which contains the binary data."
       (erase-buffer)
       (set-buffer-multibyte nil)
       (insert-file-contents-literally file)
+      (when (and (fboundp 'zlib-decompress-region)
+		 (goto-char (point-min))
+		 (re-search-forward "\\`\037\213\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)\\(.\\)" nil t)
+		 (pcase (list (aref (match-string 1) 0)
+			      (aref (match-string 2) 0)
+			      (logior (aref (match-string 3) 0)
+				      (lsh (aref (match-string 4) 0) 8)
+				      (lsh (aref (match-string 5) 0) 16)
+				      (lsh (aref (match-string 6) 0) 24))
+			      (aref (match-string 7) 0)
+			      (aref (match-string 8) 0))
+		   (`(,method ,_ ,modified-epoch ,_ ,from-fs)
+		    (and (= method 8) (> modified-epoch 0) (< from-fs 16)))))
+	(zlib-decompress-region (point-min) (point-max)))
       (current-buffer))))
 
 (defun chess-polyglot-book-plies (book position)
@@ -458,31 +470,33 @@ Use `chess-ply-keyword' on elements of the returned list to retrieve them."
   (let (plies)
     (dolist (move
 	     (with-current-buffer book
-	       (chess-polyglot-read-moves (chess-polyglot-pos-to-key position)
-					  0 (1- (/ (buffer-size) 16))))
+	       (chess-polyglot-read-moves (chess-polyglot-pos-to-key position)))
 	     plies)
       (let ((ply (apply #'chess-polyglot-move-to-ply position move)))
 	(when ply
 	  (setq plies (nconc plies (list ply))))))))
 
-(defun chess-polyglot-book-ply (book position)
-  "If non-nil, a (randomly picked) ply from plies in BOOK for POSITION.
-Random Distribution is defined by the relative weights of the found plies."
-  (let* ((plies (chess-polyglot-book-plies book position))
-	 (random-value (random (cl-reduce
-				#'+ (mapcar (lambda (ply)
-					      (chess-ply-keyword
-					       ply :polyglot-book-weight))
-					    plies))))
-	 (max 0) ply)
-    (while plies
-      (let ((min max))
-	(setq max (+ max (chess-ply-keyword (car plies) :polyglot-book-weight)))
-	(if (and (>= random-value min) (< random-value max))
-	    (progn
-	      (setq ply (car plies) plies nil))
-	  (setq plies (cdr plies)))))
-    ply))
+(defun chess-polyglot-book-ply (book position &optional strength)
+  "If non-nil a (randomly picked) ply from plies in BOOK for POSITION.
+Random distribution is defined by the relative weights of the found plies.
+If non-nil, STRENGTH defines the bias towards better moves.
+A value below 1.0 will penalize known good moves while a value
+above 1.0 will prefer known good moves.  The default is 1.0.
+A strength value of 0.0 will completely ignore move weights and evenly
+distribute the probability that a move gets picked."
+  (unless strength (setq strength 1.0))
+  (cl-assert (and (>= strength 0) (< strength 4)))
+  (cl-flet ((ply-weight (ply)
+	      (round (expt (chess-ply-keyword ply :polyglot-book-weight)
+			   strength))))
+    (let* ((plies (chess-polyglot-book-plies book position))
+	   (random-value (random (cl-reduce #'+ (mapcar #'ply-weight plies))))
+	   (max 0) ply)
+      (while plies
+	(if (< random-value (setq max (+ max (ply-weight (car plies)))))
+	    (setq ply (car plies) plies nil)
+	  (setq plies (cdr plies))))
+      ply)))
 
 (defalias 'chess-polyglot-book-close 'kill-buffer
   "Close a polyglot book.")

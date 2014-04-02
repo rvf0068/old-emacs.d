@@ -17,16 +17,35 @@
   :type 'boolean)
 
 (defcustom chess-plain-border-chars '(?+ ?- ?+ ?| ?| ?+ ?- ?+)
-  "A list of characters used to draw borders."
+  "Characters used to draw borders."
   :group 'chess-plain
-  :type '(list (character :tag "Upper left corner")
-	       (character :tag "Upper border")
-	       (character :tag "Upper right corner")
-	       (character :tag "Left border")
-	       (character :tag "Right border")
-	       (character :tag "Lower left corner")
-	       (character :tag "Lower border")
-	       (character :tag "Lower right corner")))
+  :type '(choice (list :tag "Plain ASCII"
+		       (const :value ?+ :tag "Upper left corner: +")
+		       (const :value ?- :tag "Upper border: -")
+		       (const :value ?+ :tag "Upper right corner: +")
+		       (const :value ?| :tag "Left border: |")
+		       (const :value ?| :tag "Right border: |")
+		       (const :value ?+ :tag "Lower left corrner: +")
+		       (const :value ?- :tag "Lower border: -")
+		       (const :value ?+ :tag "Lower right corner: +"))
+		 (list :tag "Unicode box drawing characters"
+		       (const :value ?┌ :tag "Upper left corner: ┌")
+		       (const :value ?╶ :tag "Upper border: ╶")
+		       (const :value ?┐ :tag "Upper right corner: ┐")
+		       (const :value ?╷ :tag "Left border: ╷")
+		       (const :value ?╷ :tag "Right border: ╷")
+		       (const :value ?└ :tag "Lower left corrner: └")
+		       (const :value ?╶ :tag "Lower border: ╶")
+		       (const :value ?┘ :tag "Lower right corner: ┘"))
+		 (list :tag "Custom"
+		       (character :tag "Upper left corner")
+		       (character :tag "Upper border")
+		       (character :tag "Upper right corner")
+		       (character :tag "Left border")
+		       (character :tag "Right border")
+		       (character :tag "Lower left corner")
+		       (character :tag "Lower border")
+		       (character :tag "Lower right corner"))))
 
 (defcustom chess-plain-black-square-char ?.
   "Character used to indicate empty black squares."
@@ -38,26 +57,115 @@
   :group 'chess-plain
   :type 'character)
 
-(defcustom chess-plain-piece-chars
-  '((?K . ?K)
-    (?Q . ?Q)
-    (?R . ?R)
-    (?B . ?B)
-    (?N . ?N)
-    (?P . ?P)
-    (?k . ?k)
-    (?q . ?q)
-    (?r . ?r)
-    (?b . ?b)
-    (?n . ?n)
-    (?p . ?p))
-  "Alist of pieces and their corresponding characters."
+(defcustom chess-plain-piece-chars '((?K . ?K)
+				     (?Q . ?Q)
+				     (?R . ?R)
+				     (?B . ?B)
+				     (?N . ?N)
+				     (?P . ?P)
+				     (?k . ?k)
+				     (?q . ?q)
+				     (?r . ?r)
+				     (?b . ?b)
+				     (?n . ?n)
+				     (?p . ?p))
+  "Alist of pieces and their corresponding characters.
+Characters defined here should make sense in respect to the current setting
+of `chess-plain-upcase-indicates'."
   :group 'chess-plain
-  :type '(alist :key-type (character :tag "Internal representation")
-		:value-type (character :tag "Printed representation")))
+  :type '(choice (list :tag "White has uppercase english letters and black has lowercase english letters"
+		       (const :tag "White King: K"   (?K . ?K))
+		       (const :tag "White Queen: Q"  (?Q . ?Q))
+		       (const :tag "White Rook: R"   (?R . ?R))
+		       (const :tag "White Bishop: B" (?B . ?B))
+		       (const :tag "White Knight: N" (?N . ?N))
+		       (const :tag "White Pawn: P"   (?P . ?P))
+		       (const :tag "Black King: k"   (?k . ?k))
+		       (const :tag "Black Queen: q"  (?q . ?q))
+		       (const :tag "Black Rook: r"   (?r . ?r))
+		       (const :tag "Black Bishop: b" (?b . ?b))
+		       (const :tag "Black Knight: n" (?n . ?n))
+		       (const :tag "Black Pawn: p"   (?p . ?p)))
+		 (list :tag "White has uppercase german letters and black has lowercase german letters"
+		       (const :tag "White King: K"   (?K . ?K))
+		       (const :tag "White Queen: D"  (?Q . ?D))
+		       (const :tag "White Rook: T"   (?R . ?T))
+		       (const :tag "White Bishop: L" (?B . ?L))
+		       (const :tag "White Knight: S" (?N . ?S))
+		       (const :tag "White Pawn: B"   (?P . ?B))
+		       (const :tag "Black King: k"   (?k . ?k))
+		       (const :tag "Black Queen: d"  (?q . ?d))
+		       (const :tag "Black Rook: t"   (?r . ?t))
+		       (const :tag "Black Bishop: l" (?b . ?l))
+		       (const :tag "Black Knight: s" (?n . ?s))
+		       (const :tag "Black Pawn: b"   (?p . ?b)))
+		 (list :tag "White has english letters and black has german letters"
+		       (const :tag "White King: K"   (?K . ?K))
+		       (const :tag "White Queen: Q"  (?Q . ?Q))
+		       (const :tag "White Rook: R"   (?R . ?R))
+		       (const :tag "White Bishop: B" (?B . ?B))
+		       (const :tag "White Knight: N" (?N . ?N))
+		       (const :tag "White Pawn: P"   (?P . ?P))
+		       (const :tag "Black King: J"   (?k . ?J))
+		       (const :tag "Black Queen: D"  (?q . ?D))
+		       (const :tag "Black Rook: T"   (?r . ?T))
+		       (const :tag "Black Bishop: L" (?b . ?L))
+		       (const :tag "Black Knight: S" (?n . ?S))
+		       (const :tag "Black Pawn: X"   (?p . ?X)))
+		 (list :tag "White has german letters and black has english letters"
+		       (const :tag "White King: J"   (?K . ?J))
+		       (const :tag "White Queen: D"  (?Q . ?D))
+		       (const :tag "White Rook: T"   (?R . ?T))
+		       (const :tag "White Bishop: L" (?B . ?L))
+		       (const :tag "White Knight: S" (?N . ?S))
+		       (const :tag "White Pawn: X"   (?P . ?X))
+		       (const :tag "Black King: K"   (?k . ?K))
+		       (const :tag "Black Queen: Q"  (?q . ?Q))
+		       (const :tag "Black Rook: R"   (?r . ?R))
+		       (const :tag "Black Bishop: B" (?b . ?B))
+		       (const :tag "Black Knight: N" (?n . ?N))
+		       (const :tag "Black Pawn: P"   (?p . ?P)))
+		 (list :tag "Unicode figure pieces"
+		       (const :tag "White King: ♔"   (?K . ?♔))
+		       (const :tag "White Queen: ♕"  (?Q . ?♕))
+		       (const :tag "White Rook: ♖"   (?R . ?♖))
+		       (const :tag "White Bishop: ♗" (?B . ?♗))
+		       (const :tag "White Knight: ♘" (?N . ?♘))
+		       (const :tag "White Pawn: ♙"   (?P . ?♙))
+		       (const :tag "Black King: ♚"   (?k . ?♚))
+		       (const :tag "Black Queen: ♛"  (?q . ?♛))
+		       (const :tag "Black Rook: ♜"   (?r . ?♜))
+		       (const :tag "Black Bishop: ♝" (?b . ?♝))
+		       (const :tag "Black Knight: ♞" (?n . ?♞))
+		       (const :tag "Black Pawn: ♟"   (?p . ?♟)))
+		 (list :tag "User defined"
+		       (cons :format "%v"
+			     (const :format "" ?K) (character :tag "White King"))
+		       (cons :format "%v"
+			     (const :format "" ?Q) (character :tag "White Queen"))
+		       (cons :format "%v"
+			     (const :format "" ?R) (character :tag "White Rook"))
+		       (cons :format "%v"
+			     (const :format "" ?B) (character :tag "White Bishop"))
+		       (cons :format "%v"
+			     (const :format "" ?N) (character :tag "White Knight"))
+		       (cons :format "%v"
+			     (const :format "" ?P) (character :tag "White Pawn"))
+		       (cons :format "%v"
+			     (const :format "" ?k) (character :tag "Black King"))
+		       (cons :format "%v"
+			     (const :format "" ?q) (character :tag "Black Queen"))
+		       (cons :format "%v"
+			     (const :format "" ?r) (character :tag "Black Rook"))
+		       (cons :format "%v"
+			     (const :format "" ?b) (character :tag "Black Bishop"))
+		       (cons :format "%v"
+			     (const :format "" ?n) (character :tag "Black Knight"))
+		       (cons :format "%v"
+			     (const :format "" ?p) (character :tag "Black Pawn")))))
 
 (defcustom chess-plain-upcase-indicates 'color
-  "*Defines what a upcase char should indicate.
+  "Defines what a upcase char should indicate.
 The default is 'color, meaning a upcase char is a white piece, a
 lowercase char a black piece.  Possible values: 'color (default),
 'square-color.  If set to 'square-color, a uppercase character
@@ -104,21 +212,16 @@ modify `chess-plain-piece-chars' to avoid real confusion.)"
 
 ;;; Code:
 
+(defun chess-plain-customize ()
+  "Show possible customisations for the plain chessboard display."
+  (interactive)
+  (customize-group 'chess-plain))
+
 (defun chess-plain-handler (event &rest args)
   (cond
    ((eq event 'initialize) t)
-
-   ((eq event 'popup)
-    (funcall chess-plain-popup-function))
-
-   ((eq event 'draw)
-    (apply 'chess-plain-draw args))
-
-   ((eq event 'draw-square)
-    (apply 'chess-plain-draw-square args))
-
-   ((eq event 'highlight)
-    (apply 'chess-plain-highlight args))))
+   ((eq event 'popup) (funcall chess-plain-popup-function))
+   (t (apply (intern-soft (concat "chess-plain-" (symbol-name event))) args))))
 
 (defun chess-plain-popup ()
   (if chess-plain-separate-frame
@@ -127,7 +230,7 @@ modify `chess-plain-piece-chars' to avoid real confusion.)"
     (chess-display-popup-in-window)))
 
 (defun chess-plain-piece-text (piece rank file)
-  (let ((white-square (= (% (+ file rank) 2) 0)))
+  (let ((white-square (zerop (% (+ file rank) 2))))
     (if (eq piece ? )
 	(if white-square
 	    chess-plain-white-square-char
@@ -135,17 +238,15 @@ modify `chess-plain-piece-chars' to avoid real confusion.)"
       (let* ((pchar (cdr (assq piece chess-plain-piece-chars)))
 	     (p (char-to-string
 		 (if (eq chess-plain-upcase-indicates 'square-color)
-		     (if white-square
-			 (downcase pchar)
-		       (upcase pchar))
+		     (if white-square (downcase pchar) (upcase pchar))
 		   pchar))))
 	(add-text-properties 0 1 (list 'face (if (> piece ?a)
 						 'chess-plain-black-face
 					       'chess-plain-white-face)) p)
 	p))))
 
-(defsubst chess-plain-draw-square (pos piece index)
-  "Draw a piece image at POS on an already drawn display."
+(defun chess-plain-draw-square (pos piece index)
+  "Draw a piece at POS on an already drawn display."
   (save-excursion
     (goto-char pos)
     (delete-char 1)

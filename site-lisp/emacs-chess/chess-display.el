@@ -378,7 +378,8 @@ If only START is given, it must be in algebraic move notation."
 	(let ((chess-display-handling-event t))
 	  (chess-game-move chess-module-game ply)
 	  (chess-display-paint-move nil ply)
-	  (chess-display-set-index* nil (chess-game-index chess-module-game)))
+	  (chess-display-set-index* nil (chess-game-index chess-module-game))
+	  (chess-game-run-hooks chess-module-game 'post-move))
       ;; jww (2002-03-28): This should beget a variation within the
       ;; game, or alter the game, just as SCID allows
       (chess-error 'cannot-yet-add))))
@@ -690,7 +691,7 @@ Basically, it means we are playing, not editing or reviewing."
 	(kill-new (with-temp-buffer
 		    (chess-game-to-pgn game)
 		    (buffer-string)))
-      (kill-new (chess-pos-to-fen (chess-display-position nil))))))
+      (kill-new (chess-pos-to-fen (chess-display-position nil) t)))))
 
 (defun chess-display-yank-board ()
   "Send the current board configuration to the user."
