@@ -4004,10 +4004,18 @@ Org mode to function properly:
 Therefore you should not modify this variable unless you know
 what you are doing.  The one reason to change it anyway is that
 you might be loading some other package that conflicts with one
-of the default packages.  Each cell is of the format
-\( \"options\" \"package\" snippet-flag).  If SNIPPET-FLAG is t,
-the package also needs to be included when compiling LaTeX
-snippets into images for inclusion into non-LaTeX output."
+of the default packages.  Each element is either a cell or
+a string.
+
+A cell is of the format:
+
+  \( \"options\" \"package\" SNIPPET-FLAG).
+
+If SNIPPET-FLAG is non-nil, the package also needs to be included
+when compiling LaTeX snippets into images for inclusion into
+non-LaTeX output.
+
+A string will be inserted as-is in the header of the document."
   :group 'org-latex
   :group 'org-export-latex
   :set 'org-set-packages-alist
@@ -4025,18 +4033,22 @@ snippets into images for inclusion into non-LaTeX output."
   "Alist of packages to be inserted in every LaTeX header.
 
 These will be inserted after `org-latex-default-packages-alist'.
-Each cell is of the format:
+Each element is either a cell or a string.
 
-    \(\"options\" \"package\" snippet-flag)
+A cell is of the format:
 
-SNIPPET-FLAG, when t, indicates that this package is also needed
-when turning LaTeX snippets into images for inclusion into
+    \(\"options\" \"package\" SNIPPET-FLAG)
+
+SNIPPET-FLAG, when non-nil, indicates that this package is also
+needed when turning LaTeX snippets into images for inclusion into
 non-LaTeX output.
+
+A string will be inserted as-is in the header of the document.
 
 Make sure that you only list packages here which:
 
-  - you want in every file
-  - do not conflict with the setup in `org-format-latex-header'.
+  - you want in every file;
+  - do not conflict with the setup in `org-format-latex-header';
   - do not conflict with the default packages in
     `org-latex-default-packages-alist'."
   :group 'org-latex
@@ -5658,34 +5670,29 @@ stacked delimiters is N.  Escaping delimiters is not possible."
   "Update the link regular expressions.
 This should be called after the variable `org-link-types' has changed."
   (setq org-link-types-re
-	(concat
-	 "\\`\\(" (mapconcat 'regexp-quote org-link-types "\\|") "\\):")
+	(concat "\\`" (regexp-opt org-link-types t) ":\\(?://\\)")
 	org-link-re-with-space
-	(concat
-	 "<?\\(" (mapconcat 'regexp-quote org-link-types "\\|") "\\):"
-	 "\\([^" org-non-link-chars " ]"
-	 "[^" org-non-link-chars "]*"
-	 "[^" org-non-link-chars " ]\\)>?")
+	(concat "<?" (regexp-opt org-link-types t) ":\\(?://\\)"
+		"\\([^" org-non-link-chars " ]"
+		"[^" org-non-link-chars "]*"
+		"[^" org-non-link-chars " ]\\)>?")
 	org-link-re-with-space2
-	(concat
-	 "<?\\(" (mapconcat 'regexp-quote org-link-types "\\|") "\\):"
-	 "\\([^" org-non-link-chars " ]"
-	 "[^\t\n\r]*"
-	 "[^" org-non-link-chars " ]\\)>?")
+	(concat "<?" (regexp-opt org-link-types t) ":\\(?://\\)?"
+		"\\([^" org-non-link-chars " ]"
+		"[^\t\n\r]*"
+		"[^" org-non-link-chars " ]\\)>?")
 	org-link-re-with-space3
-	(concat
-	 "<?\\(" (mapconcat 'regexp-quote org-link-types "\\|") "\\):"
-	 "\\([^" org-non-link-chars " ]"
-	 "[^\t\n\r]*\\)")
+	(concat "<?" (regexp-opt org-link-types t) ":\\(?://\\)?"
+		"\\([^" org-non-link-chars " ]"
+		"[^\t\n\r]*\\)")
 	org-angle-link-re
-	(concat
-	 "<\\(" (mapconcat 'regexp-quote org-link-types "\\|") "\\):"
-	 "\\([^" org-non-link-chars " ]"
-	 "[^" org-non-link-chars "]*"
-	 "\\)>")
+	(concat "<" (regexp-opt org-link-types t) ":\\(?://\\)?"
+		"\\([^" org-non-link-chars " ]"
+		"[^" org-non-link-chars "]*"
+		"\\)>")
 	org-plain-link-re
 	(concat
-	 "\\<\\(" (mapconcat 'regexp-quote org-link-types "\\|") "\\):"
+	 "\\<" (regexp-opt org-link-types t) ":\\(?://\\)?"
 	 (org-re "\\([^ \t\n()<>]+\\(?:([[:word:]0-9_]+)\\|\\([^[:punct:] \t\n]\\|/\\)\\)\\)"))
 	;;	 "\\([^]\t\n\r<>() ]+[^]\t\n\r<>,.;() ]\\)")
 	org-bracket-link-regexp
@@ -5693,7 +5700,7 @@ This should be called after the variable `org-link-types' has changed."
 	org-bracket-link-analytic-regexp
 	(concat
 	 "\\[\\["
-	 "\\(\\(" (mapconcat 'regexp-quote org-link-types "\\|") "\\):\\)?"
+	 "\\(" (regexp-opt org-link-types t) ":\\(?://\\)?\\)?"
 	 "\\([^]]+\\)"
 	 "\\]"
 	 "\\(\\[" "\\([^]]+\\)" "\\]\\)?"
@@ -5701,7 +5708,7 @@ This should be called after the variable `org-link-types' has changed."
 	org-bracket-link-analytic-regexp++
 	(concat
 	 "\\[\\["
-	 "\\(\\(" (mapconcat 'regexp-quote (cons "coderef" org-link-types) "\\|") "\\):\\)?"
+	 "\\(" (regexp-opt (cons "coderef" org-link-types) t) ":\\(?://\\)?\\)?"
 	 "\\([^]]+\\)"
 	 "\\]"
 	 "\\(\\[" "\\([^]]+\\)" "\\]\\)?"
@@ -6345,9 +6352,11 @@ needs to be inserted at a specific position in the font-lock sequence.")
 	   ;; Code
 	   '(org-activate-code (1 'org-code t))
 	   ;; COMMENT
-	   (list (format org-heading-keyword-regexp-format
-			 (concat "\\(" org-comment-string "\\)"))
-		 '(2 'org-special-keyword t))
+	   (list (format
+		  "^\\*\\(?: +%s\\)?\\(?: +\\[#[A-Z0-9]\\]\\)? +\\(?9:%s\\)\\(?: \\|$\\)"
+		  org-todo-regexp
+		  org-comment-string)
+		 '(9 'org-special-keyword t))
 	   ;; Blocks and meta lines
 	   '(org-fontify-meta-lines-and-blocks))))
     (setq org-font-lock-extra-keywords (delq nil org-font-lock-extra-keywords))
@@ -12178,17 +12187,17 @@ expands them."
   (interactive)
   (save-excursion
     (org-back-to-heading)
-    (let (case-fold-search)
-      (cond
-       ((looking-at (format org-heading-keyword-regexp-format
-			    org-comment-string))
-	(goto-char (match-end 1))
-	(looking-at (concat " +" org-comment-string))
-	(replace-match "" t t)
-	(when (eolp) (insert " ")))
-       ((looking-at org-outline-regexp)
-	(goto-char (match-end 0))
-	(insert org-comment-string " "))))))
+    (looking-at org-complex-heading-regexp)
+    (goto-char (or (match-end 3) (match-end 2) (match-end 1)))
+    (skip-chars-forward " \t")
+    (unless (memq (char-before) '(?\s ?\t)) (insert " "))
+    (if (org-in-commented-heading-p t)
+	(delete-region (point)
+		       (progn (search-forward " " (line-end-position) 'move)
+			      (skip-chars-forward " \t")
+			      (point)))
+      (insert org-comment-string)
+      (unless (eolp) (insert " ")))))
 
 (defvar org-last-todo-state-is-todo nil
   "This is non-nil when the last TODO state change led to a TODO state.
@@ -12303,7 +12312,7 @@ When called through ELisp, arg is also interpreted in the following way:
       (save-excursion
 	(catch 'exit
 	  (org-back-to-heading t)
-	  (when (looking-at (concat "^\\*+ " org-comment-string))
+	  (when (org-in-commented-heading-p t)
 	    (org-toggle-comment)
 	    (setq commentp t))
 	  (if (looking-at org-outline-regexp) (goto-char (1- (match-end 0))))
@@ -18231,11 +18240,11 @@ When a buffer is unmodified, it is just killed.  When modified, it is saved
 		   (if (org-at-heading-p t)
 		       (add-text-properties (point-at-bol) (org-end-of-subtree t) pa))))
 	       (goto-char (point-min))
-	       (setq re (format org-heading-keyword-regexp-format
-				org-comment-string))
+	       (setq re (format "^\\* .*\\<%s\\>" org-comment-string))
 	       (while (re-search-forward re nil t)
-		 (add-text-properties
-		  (match-beginning 0) (org-end-of-subtree t) pc))))
+		 (when (save-match-data (org-in-commented-heading-p t))
+		   (add-text-properties
+		    (match-beginning 0) (org-end-of-subtree t) pc)))))
 	    (goto-char pos)))))
     (setq org-todo-keywords-for-agenda
           (org-uniquify org-todo-keywords-for-agenda))
