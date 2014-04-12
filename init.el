@@ -133,6 +133,8 @@
 
 (load "~/.emacs.d/rvf-misc.el")
 
+(load "~/.emacs.d/rvf-dired.el")
+
 (load "~/.emacs.d/rvf-key-bindings.el")
 
 (load "~/.emacs.d/rvf-cosmetic.el")
