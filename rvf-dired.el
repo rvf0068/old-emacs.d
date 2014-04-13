@@ -4,8 +4,9 @@
 
 ;;; from http://stackoverflow.com/questions/23029329/how-can-emacs-make-a-open-with-selectable-for-files
 (setq dired-guess-shell-alist-user
-      '(("\\.pdf\\'" "evince" "okular")
+      '(("\\.pdf\\'" "evince" "acroread")
         ("\\.eps\\'" "evince")
+        ("\\.djvu\\'" "evince")
         ("\\.jpe?g\\'" "eog")
         ("\\.png\\'" "eog")
         ("\\.gif\\'" "eog")
