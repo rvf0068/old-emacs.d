@@ -89,6 +89,14 @@
 
 ;; smartparens: https://github.com/Fuco1/smartparens
 
+;; adapted from https://github.com/Fuco1/smartparens/issues/80
+(defun my-create-newline-and-enter-sexp (&rest _ignored)
+  "Open a new brace or bracket expression, with relevant newlines and indent. "
+  (newline)
+  (indent-according-to-mode)
+  (forward-line -1)
+  (indent-according-to-mode))
+
 (require 'smartparens)
 (sp-with-modes '(
                  org-mode
@@ -96,7 +104,7 @@
                  )
   (sp-local-pair "`" nil :actions nil)
   (sp-local-pair "'" nil :actions nil)
-;  (sp-local-pair "\\[" "\n\n    \\]")
+  (sp-local-pair "\\[" "\\]" :post-handlers '((my-create-newline-and-enter-sexp "RET")))
   (sp-local-pair "\\{" "\\}")
   )
 (sp-with-modes '(
