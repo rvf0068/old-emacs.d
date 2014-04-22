@@ -23,3 +23,14 @@
       (end-of-line)
       (insert ?\n contents)))
   (next-line 1))
+
+;; from http://stackoverflow.com/a/9414763/577007
+(defun prelude-copy-file-name-to-clipboard ()
+  "Copy the current buffer file name to the clipboard."
+  (interactive)
+  (let ((filename (if (equal major-mode 'dired-mode)
+                      default-directory
+                    (buffer-file-name))))
+    (when filename
+      (kill-new filename)
+      (message "Copied buffer file name '%s' to the clipboard." filename))))
