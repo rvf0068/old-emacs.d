@@ -1908,9 +1908,8 @@ INFO is a plist holding contextual information.  See
 	 (path (cond
 		((member type '("http" "https" "ftp" "mailto"))
 		 (concat type ":" raw-path))
-		((string= type "file")
-		 (if (not (file-name-absolute-p raw-path)) raw-path
-		   (concat "file://" (expand-file-name raw-path))))
+		((and (string= type "file") (file-name-absolute-p raw-path))
+		 (concat "file:" raw-path))
 		(t raw-path)))
 	 protocol)
     (cond
@@ -2362,8 +2361,8 @@ contextual information."
 		((and float (not (assoc "float" org-latex-listings-options)))
 		 `(("float" ,org-latex-default-figure-position))))
 	       `(("language" ,lst-lang))
-	       (when label `(("label" ,label)))
-	       (when caption-str `(("caption" ,caption-str)))
+	       (if label `(("label" ,label)) '(("label" " ")))
+	       (if caption-str `(("caption" ,caption-str)) '(("caption" " ")))
 	       (cond ((assoc "numbers" org-latex-listings-options) nil)
 		     ((not num-start) '(("numbers" "none")))
 		     ((zerop num-start) '(("numbers" "left")))

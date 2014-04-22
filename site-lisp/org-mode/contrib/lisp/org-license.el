@@ -96,7 +96,9 @@ Dit werk is valt onder een [[" org-license-cc-url "][Creative Commons Naamsverme
 	  (setq org-license-cc-url "http://creativecommons.org/licenses/by/3.0/pt/deed.pt")
 	  (insert (concat "* Licença
 Este texto é disponibilizado nos termos da licença [[" org-license-cc-url "][Atribuição 3.0 Portugal]]\n")))
-	 (t (concat (insert "* License
+	 (t
+	  (setq org-license-cc-url "http://creativecommons.org/licenses/by/3.0/en/deed.en") 
+	  (concat (insert "* License
 This document is under a [[" org-license-cc-url "][Creative Commons Attribution 3.0]]\n"))))
   (if (string= "" org-license-images-directory)
       (insert (concat "\n[[" org-license-cc-url "][file:http://i.creativecommons.org/l/by/3.0/80x15.png]]\n"))
@@ -398,14 +400,14 @@ Reconocimiento-NoComercial-SinObraDerivada 3.0 Unported]]\n"))))
   (interactive "MLanguage (es | en): " language)
   (cond ((equal language "es")
 	 (insert "* Licencia
-Copyright (C)  2013 " user-full-name
+Copyright (C) " (format-time-string "%Y") "  " user-full-name
 "\n    Se permite copiar, distribuir y/o modificar este documento
     bajo los términos de la GNU Free Documentation License, Version 1.3
     o cualquier versión publicada por la Free Software Foundation;
     sin Secciones Invariantes y sin Textos de Portada o Contraportada.
     Una copia de la licencia está incluida en [[https://www.gnu.org/copyleft/fdl.html][GNU Free Documentation License]].\n"))
 	(t (insert (concat "* License
-Copyright (C)  2013 " user-full-name
+Copyright (C) " (format-time-string "%Y") " " user-full-name
 "\n    Permission is granted to copy, distribute and/or modify this document
     under the terms of the GNU Free Documentation License, Version 1.3
     or any later version published by the Free Software Foundation;

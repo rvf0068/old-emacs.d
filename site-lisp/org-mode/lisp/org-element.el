@@ -3002,18 +3002,20 @@ Assume point is at the beginning of the link."
       (save-excursion
 	(setq post-blank (progn (goto-char link-end) (skip-chars-forward " \t"))
 	      end (point))
-	;; Extract search option and opening application out of
-	;; "file"-type links.
+	;; Special "file" type link processing.
 	(when (member type org-element-link-type-is-file)
-	  ;; Application.
+	  ;; Extract opening application and search option.
 	  (cond ((string-match "^file\\+\\(.*\\)$" type)
 		 (setq application (match-string 1 type)))
 		((not (string-match "^file" type))
 		 (setq application type)))
-	  ;; Extract search option from PATH.
-	  (when (string-match "::\\(.*\\)$" path)
+	  (when (string-match "::\\(.*\\)\\'" path)
 	    (setq search-option (match-string 1 path)
 		  path (replace-match "" nil nil path)))
+	  ;; Normalize URI.
+	  (when (and (not (org-string-match-p "\\`//" path))
+		     (file-name-absolute-p path))
+	    (setq path (concat "//" (expand-file-name path))))
 	  ;; Make sure TYPE always reports "file".
 	  (setq type "file"))
 	(list 'link
@@ -4932,6 +4934,12 @@ relative to ELEMENT and store it in the objects cache."
 	((eq (org-element-type element) 'headline) nil)
 	(t (puthash element data org-element--cache-objects))))
 
+(defsubst org-element--cache-remove (element)
+  "Remove ELEMENT from cache.
+Assume ELEMENT belongs to cache and that a cache is active."
+  (avl-tree-delete org-element--cache element)
+  (remhash element org-element--cache-objects))
+
 
 ;;;; Synchronization
 
@@ -5082,7 +5090,7 @@ t otherwise."
 				   (setq up (org-element-property :parent up))
 				   (not (eq up deleted-parent))))
 			   up))
-		    (avl-tree-delete org-element--cache data))
+		    (org-element--cache-remove data))
 		   ((or (and next
 			     (not (org-element--cache-key-less-p data-key
 								 next)))
@@ -5091,7 +5099,7 @@ t otherwise."
 		    (aset request 1 pos)
 		    (aset request 4 1)
 		    (throw 'end-phase nil))
-		   (t (avl-tree-delete org-element--cache data)
+		   (t (org-element--cache-remove data)
 		      (when (= (org-element-property :end data) end)
 			(setq deleted-parent data)))))))))))
     (when (= (aref request 4) 1)
@@ -5508,16 +5516,14 @@ change, as an integer."
 (defun org-element-cache-reset (&optional all)
   "Reset cache in current buffer.
 When optional argument ALL is non-nil, reset cache in all Org
-buffers.  This function will do nothing if
-`org-element-use-cache' is nil."
+buffers."
   (interactive "P")
   (dolist (buffer (if all (buffer-list) (list (current-buffer))))
     (with-current-buffer buffer
       (when (org-element--cache-active-p)
 	(org-set-local 'org-element--cache
 		       (avl-tree-create #'org-element--cache-compare))
-	(org-set-local 'org-element--cache-objects
-		       (make-hash-table :weakness 'key :test #'eq))
+	(org-set-local 'org-element--cache-objects (make-hash-table :test #'eq))
 	(org-set-local 'org-element--cache-sync-keys
 		       (make-hash-table :weakness 'key :test #'eq))
 	(org-set-local 'org-element--cache-change-warning nil)
@@ -5527,6 +5533,14 @@ buffers.  This function will do nothing if
 		  #'org-element--cache-before-change nil t)
 	(add-hook 'after-change-functions
 		  #'org-element--cache-after-change nil t)))))
+
+;;;###autoload
+(defun org-element-cache-refresh (pos)
+  "Refresh cache at position POS."
+  (when (org-element--cache-active-p)
+    (org-element--cache-sync (current-buffer) pos)
+    (org-element--cache-submit-request pos pos 0)
+    (org-element--cache-set-timer (current-buffer))))
 
 
 
@@ -5743,8 +5757,11 @@ Providing it allows for quicker computation."
 			 (cbeg (org-element-property :contents-begin next))
 			 (cend (org-element-property :contents-end next)))
 		     (cond
-		      ;; Skip objects ending before or at POS.
-		      ((<= end pos)
+		      ;; Skip objects ending before point.  Also skip
+		      ;; objects ending at point unless it is also the
+		      ;; end of buffer, since we want to return the
+		      ;; innermost object.
+		      ((and (<= end pos) (/= (point-max) end))
 		       (goto-char end)
 		       ;; For convenience, when object ends at POS,
 		       ;; without any space, store it in LAST, as we
@@ -5762,7 +5779,9 @@ Providing it allows for quicker computation."
 				;; object, for consistency with
 				;; convenience feature above.
 				(and (= pos cend)
-				     (not (memq (char-before pos) '(?\s ?\t))))))
+				     (or (= (point-max) pos)
+					 (not (memq (char-before pos)
+						    '(?\s ?\t)))))))
 		       (goto-char cbeg)
 		       (narrow-to-region (point) cend)
 		       (setq parent next

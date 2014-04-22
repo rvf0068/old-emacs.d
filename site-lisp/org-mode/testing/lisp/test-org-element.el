@@ -1361,10 +1361,12 @@ e^{i\\pi}+1=0
   ;; ... with expansion.
   (should
    (equal
-    "orgmode.org/worg"
+    "//orgmode.org/worg"
     (org-test-with-temp-text "[[Org:worg]]"
       (let ((org-link-abbrev-alist '(("Org" . "http://orgmode.org/"))))
-	(org-element-property :path (org-element-context))))))
+	(org-element-property
+	 :path
+	 (org-element-map (org-element-parse-buffer) 'link 'identity nil t))))))
   ;; ... with translation.
   (should
    (equal
@@ -1426,6 +1428,25 @@ e^{i\\pi}+1=0
 	(lambda (l) (list (org-element-property :type l)
 		     (org-element-property :path l)
 		     (org-element-property :application l)))))))
+  ;; ... `:path' in a file-type link must be compatible with "file"
+  ;; scheme in URI syntax, even if Org syntax isn't.
+  (should
+   (org-test-with-temp-text-in-file ""
+     (let ((file (expand-file-name (buffer-file-name))))
+       (insert (format "[[file://%s]]" file))
+       (equal (org-element-property :path (org-element-context))
+	      (concat "//" file)))))
+  (should
+   (org-test-with-temp-text-in-file ""
+     (let ((file (expand-file-name (buffer-file-name))))
+       (insert (format "[[file:%s]]" file))
+       (equal (org-element-property :path (org-element-context))
+	      (concat "//" file)))))
+  (should
+   (org-test-with-temp-text-in-file ""
+     (let ((file (file-relative-name (buffer-file-name))))
+       (insert (format "[[file:%s]]" file))
+       (list (org-element-property :path (org-element-context)) file))))
   ;; Plain link.
   (should
    (org-test-with-temp-text "A link: http://orgmode.org"
@@ -3074,6 +3095,12 @@ Paragraph \\alpha."
    (eq 'bold
        (org-test-with-temp-text "* *bold*"
 	 (search-forward "bo")
+	 (org-element-type (org-element-context)))))
+  ;; Special case: incomplete cell at the end of a table row.
+  (should
+   (eq 'table-cell
+       (org-test-with-temp-text "|a|b|c"
+	 (goto-char (point-max))
 	 (org-element-type (org-element-context))))))
 
 
