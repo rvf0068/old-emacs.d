@@ -326,6 +326,116 @@ in order to execute faster."
   (chess-rf-to-index (+ (chess-index-rank index) rank-move)
 		     (+ (chess-index-file index) file-move)))
 
+;; A 10x12 based scheme to increment indices
+
+(defconst chess-pos-address-index
+  (apply #'vector
+	 (nconc (make-list (* 2 10) nil)
+		(cl-loop for rank from 0 to 7
+			 nconc (nconc (list nil)
+				      (cl-loop for file from 0 to 7
+					       collect (chess-rf-to-index
+							rank file))
+				      (list nil)))
+		(make-list (* 2 10) nil)))
+  "Map square addresses to square indices.")
+
+(defconst chess-pos-index-address
+  (apply #'vector
+	 (cl-loop for rank from 0 to 7
+		  nconc (cl-loop for file from 0 to 7
+				 collect (+ (* (+ rank 2) 10) 1 file))))
+  "Map square indices to square addresses.")
+
+(defconst chess-direction-north -10)
+(defconst chess-direction-east 1)
+(defconst chess-direction-south 10)
+(defconst chess-direction-west -1)
+(defconst chess-direction-northeast (+ chess-direction-north
+				       chess-direction-east))
+(defconst chess-direction-southeast (+ chess-direction-south
+				       chess-direction-east))
+(defconst chess-direction-southwest (+ chess-direction-south
+				       chess-direction-west))
+(defconst chess-direction-northwest (+ chess-direction-north
+				       chess-direction-west))
+(defconst chess-direction-north-northeast (+ chess-direction-north
+					     chess-direction-northeast))
+(defconst chess-direction-east-northeast (+ chess-direction-east
+					    chess-direction-northeast))
+(defconst chess-direction-east-southeast (+ chess-direction-east
+					    chess-direction-southeast))
+(defconst chess-direction-south-southeast (+ chess-direction-south
+					     chess-direction-southeast))
+(defconst chess-direction-south-southwest (+ chess-direction-south
+					     chess-direction-southwest))
+(defconst chess-direction-west-southwest (+ chess-direction-west
+					    chess-direction-southwest))
+(defconst chess-direction-west-northwest (+ chess-direction-west
+					    chess-direction-northwest))
+(defconst chess-direction-north-northwest (+ chess-direction-north
+					     chess-direction-northwest))
+
+(defconst chess-rook-directions (list chess-direction-north
+				      chess-direction-west
+				      chess-direction-east
+				      chess-direction-south)
+  "The directions a rook is allowed to move to.")
+
+(defconst chess-bishop-directions (list chess-direction-northwest
+					chess-direction-northeast
+ 					chess-direction-southwest
+					chess-direction-southeast)
+  "The directions a bishop is allowed to move to.")
+
+(defconst chess-knight-directions (list chess-direction-north-northeast
+					chess-direction-east-northeast
+					chess-direction-east-southeast
+					chess-direction-south-southeast
+					chess-direction-south-southwest
+					chess-direction-west-southwest
+					chess-direction-west-northwest
+					chess-direction-north-northwest)
+  "The directions a knight is allowed to move to.")
+
+(defconst chess-queen-directions (append chess-bishop-directions
+					 chess-rook-directions)
+  "The directions a queen is allowed to move to.")
+
+(defvaralias 'chess-king-directions 'chess-queen-directions
+  "The directions a king is allowed to move to.")
+
+(defsubst chess-next-index (index direction)
+  "Create a new INDEX from an old one, by advancing it in DIRECTION.
+
+DIRECTION should be one of
+`chess-direction-north' (white pawns, rooks, queens and kings),
+`chess-direction-north-northeast' (knights),
+`chess-direction-northeast' (bishops, queens and kings),
+`chess-direction-east-northeast' (knights),
+`chess-direction-east' (rooks, queens and kings),
+`chess-direction-east-southeast' (knights),
+`chess-direction-southeast' (bishops, queens and kings),
+`chess-direction-south-southeast' (knights),
+`chess-direction-south' (black pawns, rooks, queens and kings),
+`chess-direction-south-southwest' (knights),
+`chess-direction-southwest' (bishops, queens and kings),
+`chess-direction-west-southwest' (knights),
+`chess-direction-west' (rooks, queens and kings),
+`chess-direction-west-northwest' (knights),
+`chess-direction-northwest' (bishops, queens and kings) or
+`chess-direction-north-northwest' (knights).
+
+For predefined lists of all directions a certain piece can go, see
+`chess-knight-directions',, `chess-bishop-directions', `chess-rook-directions',
+`chess-queen-directions' and `chess-king-directions'.
+
+If the new index is not on the board, nil is returned."
+  (cl-check-type index (integer 0 63))
+  (cl-check-type direction (integer -21 21))
+  (aref chess-pos-address-index
+	(+ (aref chess-pos-index-address index) direction)))
+
 (defsubst chess-pos-search (position piece-or-color)
   "Look on POSITION anywhere for PIECE-OR-COLOR, returning all coordinates.
 If PIECE-OR-COLOR is t for white or nil for black, any piece of that
@@ -601,28 +711,34 @@ trying to move a blank square."
   (cl-assert (listp changes))
   (cl-assert (> (length changes) 0))
 
-  ;; apply the piece movements listed in `changes'
-  (let ((ch changes))
-    (while ch
-      (if (symbolp (car ch))
-	  (setq ch nil)
-	(let* ((from (car ch))
-	       (to (cadr ch))
-	       (piece (chess-pos-piece position from)))
-	  (if (= piece ? )
-	      (chess-error 'move-from-blank (chess-index-to-coord from))
-	    (chess-pos-set-piece position from ? )
-	    (chess-pos-set-piece position to piece)))
-	(setq ch (cddr ch)))))
+  (let* ((color (chess-pos-side-to-move position))
+	 (can-castle-kingside (chess-pos-can-castle position (if color ?K ?k)))
+	 (can-castle-queenside (chess-pos-can-castle position (if color ?Q ?q))))
+    
+    ;; apply the piece movements listed in `changes'
+    (let ((ch changes))
+      (while ch
+	(if (symbolp (car ch))
+	    (setq ch nil)
+	  (let* ((from (car ch))
+		 (to (cadr ch))
+		 (piece (chess-pos-piece position from)))
+	    (if (= piece ? )
+		(chess-error 'move-from-blank (chess-index-to-coord from))
+	      (chess-pos-set-piece position from ? )
+	      (chess-pos-set-piece position to piece)))
+	  (setq ch (cddr ch)))))
 
-  ;; now fix up the resulting position
-  (let ((color (chess-pos-side-to-move position)))
+    ;; now fix up the resulting position
+
     ;; if the move was en-passant, remove the captured pawn
     (if (memq :en-passant changes)
 	(chess-pos-set-piece position
-			     (chess-incr-index (cadr changes)
-					       (if color 1 -1) 0) ? ))
-
+			     (chess-next-index (cadr changes)
+					       (if color
+						   chess-direction-south
+						 chess-direction-north)) ? ))
+    
     ;; once a piece is moved, en passant is no longer available
     (chess-pos-set-en-passant position nil)
 
@@ -636,14 +752,14 @@ trying to move a blank square."
 	  (chess-pos-set-can-castle position (if color ?Q ?q) nil))
 
 	 ((= piece ?r)
-	  (let* ((side (if color ?Q ?q))
-		 (can-castle (chess-pos-can-castle position side)))
-	    (if (and can-castle (= (car changes) can-castle))
-		(chess-pos-set-can-castle position side nil)
-	      (setq side (if color ?K ?k)
-		    can-castle (chess-pos-can-castle position side))
-	      (if (and can-castle (= (car changes) can-castle))
-		  (chess-pos-set-can-castle position side nil)))))
+	  (if (and can-castle-queenside
+		   (= (car changes)
+		      can-castle-queenside))
+	      (chess-pos-set-can-castle position (if color ?Q ?q) nil)
+	    (if (and can-castle-kingside
+		     (= (car changes)
+			can-castle-kingside))
+		(chess-pos-set-can-castle position (if color ?K ?k) nil))))
 
 	 ((let ((can-castle (chess-pos-can-castle position (if color ?q ?Q))))
 	    (and can-castle (= (cadr changes) can-castle)))
@@ -718,7 +834,6 @@ If NO-CASTLING is non-nil, do not consider castling moves."
   (let* ((color (if (characterp piece)
 		    (< piece ?a)
 		  piece))
-	 (bias (if color -1 1))
 	 (test-piece (and (characterp piece)
 			  (upcase piece)))
 	 p pos candidates)
@@ -727,11 +842,9 @@ If NO-CASTLING is non-nil, do not consider castling moves."
      ;; from any piece movement.  This is useful for testing whether a
      ;; king is in check, for example.
      ((memq piece '(t nil))
-      (dolist (p '(?P ?R ?N ?B ?Q ?K))
+      (dolist (p (if piece '(?P ?R ?N ?B ?Q ?K) '(?p ?r ?n ?b ?q ?k)))
 	(mapc 'chess--add-candidate
-	      (chess-search-position position target
-				     (if piece p (downcase p))
-				     check-only))))
+	      (chess-search-position position target p check-only))))
 
      ;; skip erroneous space requests
      ((= test-piece ? ))
@@ -739,35 +852,44 @@ If NO-CASTLING is non-nil, do not consider castling moves."
      ;; pawn movement, which is diagonal 1 when taking, but forward
      ;; 1 or 2 when moving (the most complex piece, actually)
      ((= test-piece ?P)
-      (let ((p (chess-pos-piece position target)))
+      (let ((p (chess-pos-piece position target))
+	    (backward (if color chess-direction-south chess-direction-north)))
   	(if (if (= p ? )
 		;; check for en passant
 		(and (= (chess-index-rank target) (if color 2 5))
-		     ;; make this fail if no en-passant is possible
-		     (= (or (chess-pos-en-passant position) 100)
-			(or (chess-incr-index target (if color 1 -1) 0) 200))
-		     (or (and (setq pos (chess-incr-index target
-							  (if color 1 -1) -1))
+		     (let ((ep (chess-pos-en-passant position)))
+		       (when ep
+			 (= ep (chess-next-index target backward))))
+		     (or (and (setq pos (chess-next-index target
+							  (if color
+							      chess-direction-southwest
+							    chess-direction-northeast)))
 			      (chess-pos-piece-p position pos
 						 (if color ?P ?p)))
-			 (and (setq pos (chess-incr-index target
-							  (if color 1 -1) 1))
+			 (and (setq pos (chess-next-index target
+							  (if color
+							      chess-direction-southeast
+							    chess-direction-northwest)))
 			      (chess-pos-piece-p position pos
 						 (if color ?P ?p)))))
 	      (if color (> p ?a) (< p ?a)))
 	    (progn
-	      (if (and (setq pos (chess-incr-index target (- bias) -1))
+	      (if (and (setq pos (chess-next-index target (if color
+							      chess-direction-southeast
+							    chess-direction-northwest)))
 		       (chess-pos-piece-p position pos piece))
 		  (chess--add-candidate pos))
-	      (if (and (setq pos (chess-incr-index target (- bias) 1))
+	      (if (and (setq pos (chess-next-index target (if color
+							      chess-direction-southwest
+							    chess-direction-northeast)))
 		       (chess-pos-piece-p position pos piece))
 		  (chess--add-candidate pos)))
-	  (if (setq pos (chess-incr-index target (- bias) 0))
+	  (if (setq pos (chess-next-index target backward))
 	      (if (chess-pos-piece-p position pos piece)
 		  (chess--add-candidate pos)
 		(if (and (chess-pos-piece-p position pos ? )
 			 (= (if color 4 3) (chess-index-rank target))
-			 (setq pos (chess-incr-index pos (- bias) 0))
+			 (setq pos (chess-next-index pos backward))
 			 (chess-pos-piece-p position pos piece))
 		    (chess--add-candidate pos)))))))
 
@@ -775,27 +897,18 @@ If NO-CASTLING is non-nil, do not consider castling moves."
      ;; rank and file and/or diagonal for the nearest pieces!
      ((memq test-piece '(?R ?B ?Q))
       (dolist (dir (cond
-		    ((= test-piece ?R)
-		     '(        (-1 0)
-		       (0 -1)          (0 1)
-			       (1 0)))
-		    ((= test-piece ?B)
-		     '((-1 -1)        (-1 1)
-
-		       (1 -1)         (1 1)))
-		    ((= test-piece ?Q)
-		     '((-1 -1) (-1 0) (-1 1)
-			(0 -1)         (0 1)
-			(1 -1)  (1 0)  (1 1)))))
+		    ((= test-piece ?R) chess-rook-directions)
+		    ((= test-piece ?B) chess-bishop-directions)
+		    ((= test-piece ?Q) chess-queen-directions)))
 	;; up the current file
-	(setq pos (apply 'chess-incr-index target dir))
+	(setq pos (chess-next-index target dir))
 	(while pos
-	  (if (chess-pos-piece-p position pos piece)
-	      (progn
-		(chess--add-candidate pos)
-		(setq pos nil))
-	    (setq pos (and (chess-pos-piece-p position pos ? )
-			   (apply 'chess-incr-index pos dir)))))
+	  (let ((pos-piece (chess-pos-piece position pos)))
+	    (if (eq pos-piece piece)
+		(progn
+		  (chess--add-candidate pos)
+		  (setq pos nil))
+	      (setq pos (and (eq pos-piece ? ) (chess-next-index pos dir))))))
 
 	;; test whether the rook can move to the target by castling
 	(if (and (= test-piece ?R) (not no-castling))
@@ -813,12 +926,10 @@ If NO-CASTLING is non-nil, do not consider castling moves."
 
      ;; the king is a trivial case of the queen, except when castling
      ((= test-piece ?K)
-      (let ((dirs '((-1 -1) (-1 0) (-1 1)
-		    (0 -1)         (0 1)
-		    (1 -1)  (1 0)  (1 1))))
+      (let ((dirs chess-king-directions))
 	(while dirs
 	  ;; up the current file
-	  (setq pos (apply 'chess-incr-index target (car dirs)))
+	  (setq pos (chess-next-index target (car dirs)))
 	  (if (and pos (chess-pos-piece-p position pos piece))
 	      (progn
 		(chess--add-candidate pos)
@@ -838,12 +949,9 @@ If NO-CASTLING is non-nil, do not consider castling moves."
      ;; the knight is a zesty little piece; there may be more than
      ;; one, but at only one possible square in each direction
      ((= test-piece ?N)
-      (dolist (dir '((-2 -1) (-2 1)
-		     (-1 -2) (-1 2)
-		      (1 -2)  (1 2)
-		      (2 -1)  (2 1)))
+      (dolist (dir chess-knight-directions)
 	;; up the current file
-	(if (and (setq pos (apply 'chess-incr-index target dir))
+	(if (and (setq pos (chess-next-index target dir))
 		 (chess-pos-piece-p position pos piece))
 	    (chess--add-candidate pos))))
 
@@ -888,9 +996,11 @@ in check)."
 	    (setq other-piece (chess-pos-piece position target))
 	    (chess-pos-set-piece position target piece)
 	    (when (and (= piece (if color ?P ?p))
-		       (chess-pos-en-passant position)
-		       (= (chess-pos-en-passant position)
-			  (chess-incr-index target (if color 1 -1) 0)))
+		       (let ((ep (chess-pos-en-passant position)))
+			 (when ep
+			   (= ep (chess-next-index target (if color
+							      chess-direction-south
+							    chess-direction-north))))))
 	      (chess-pos-set-piece position
 				   (setq en-passant-square
 					 (chess-incr-index target

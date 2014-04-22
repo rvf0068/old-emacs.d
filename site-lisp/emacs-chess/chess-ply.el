@@ -305,12 +305,9 @@ maneuver."
 				     (= (chess-index-rank target)
 					(if color 0 7)))))
 		(if promotion
-		    (progn
+		    (dolist (promote '(?Q ?R ?B ?N))
 		      (let ((ply (chess-ply-create position t candidate target
-						   :promote ?Q)))
-			(when ply (push ply plies)))
-		      (let ((ply (chess-ply-create position t candidate target
-						   :promote ?N)))
+						   :promote promote)))
 			(when ply (push ply plies))))
 		  (let ((ply (chess-ply-create position t candidate target)))
 		    (when ply (push ply plies)))))
@@ -431,24 +428,7 @@ position object passed in."
 		    (setq pos (apply 'chess-incr-index pos dir)))
 		(if (chess-pos-piece-p position pos (not color))
 		    (chess-ply--add nil nil pos))
-		(setq pos nil)))
-
-	    (when (= test-piece ?R)
-	      (if (eq candidate
-		      (chess-pos-can-castle position (if color ?K ?k)))
-		  (let ((changes (chess-ply-castling-changes position)))
-		    (if changes
-			(if chess-ply-throw-if-any
-			    (throw 'any-found t)
-			  (push (cons position changes) plies)))))
-
-	      (if (eq candidate
-		      (chess-pos-can-castle position (if color ?Q ?q)))
-		  (let ((changes (chess-ply-castling-changes position t)))
-		    (if changes
-			(if chess-ply-throw-if-any
-			    (throw 'any-found t)
-			  (push (cons position changes) plies))))))))
+		(setq pos nil)))))
 
 	 ;; the king is a trivial case of the queen, except when castling
 	 ((= test-piece ?K)
@@ -460,21 +440,22 @@ position object passed in."
 			     (chess-pos-piece-p position pos (not color))))
 		(chess-ply--add nil nil pos)))
 
-	  (if (chess-pos-can-castle position (if color ?K ?k))
-	      (let ((changes (chess-ply-castling-changes position nil
-							 candidate)))
-		(if changes
-		    (if chess-ply-throw-if-any
-			(throw 'any-found t)
-		      (push (cons position changes) plies)))))
+	  (unless (chess-search-position position candidate (not color) nil t)
+	    (if (chess-pos-can-castle position (if color ?K ?k))
+		(let ((changes (chess-ply-castling-changes position nil
+							   candidate)))
+		  (if changes
+		      (if chess-ply-throw-if-any
+			  (throw 'any-found t)
+			(push (cons position changes) plies)))))
 
-	  (if (chess-pos-can-castle position (if color ?Q ?q))
-	      (let ((changes (chess-ply-castling-changes position t
-							 candidate)))
-		(if changes
-		    (if chess-ply-throw-if-any
-			(throw 'any-found t)
-		      (push (cons position changes) plies))))))
+	    (if (chess-pos-can-castle position (if color ?Q ?q))
+		(let ((changes (chess-ply-castling-changes position t
+							   candidate)))
+		  (if changes
+		      (if chess-ply-throw-if-any
+			  (throw 'any-found t)
+			(push (cons position changes) plies)))))))
 
 	 ;; the knight is a zesty little piece; there may be more than
 	 ;; one, but at only one possible square in each direction

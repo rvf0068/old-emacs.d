@@ -1,6 +1,6 @@
 BUILT_SOURCES  = chess-auto.el
 CLEANFILES     = TAGS chess-auto.el auto-autoloads.el
-EXTRA_DIST     = autogen.sh chess-auto.el.in chess-eco.pos doc/chess.pdf
+EXTRA_DIST     = autogen.sh chess-auto.el.in chess-eco.pos chess-polyglot.bin doc/chess.pdf
 DISTCLEANFILES = chess-eco.fen doc/chess.info doc/chess.pdf $(TESTS)
 info_TEXINFOS  = doc/chess.texi
 dist_lisp_DATA = _pkg.el chess-eco.fen
@@ -23,8 +23,10 @@ dist_lisp_LISP =	   \
 	chess-epd.el	   \
 	chess-fen.el	   \
 	chess-file.el	   \
+	chess-fruit.el     \
 	chess-game.el	   \
 	chess-german.el	   \
+	chess-glaurung.el  \
 	chess-gnuchess.el  \
 	chess-ics.el	   \
 	chess-ics1.el	   \
@@ -39,10 +41,12 @@ dist_lisp_LISP =	   \
 	chess-module.el	   \
 	chess-network.el   \
 	chess-none.el	   \
+	chess-perft.el     \
 	chess-pgn.el	   \
 	chess-phalanx.el   \
 	chess-plain.el	   \
 	chess-ply.el	   \
+	chess-polyglot.el  \
 	chess-puzzle.el	   \
 	chess-random.el	   \
 	chess-scid.el	   \
@@ -113,6 +117,9 @@ test/twic.pgn:
 
 check-twic: test/twic.pgn
 	$(MAKE) DATABASE=$< START=0 COUNT=0 check
+
+perft:
+	$(EMACS) -batch -L $(srcdir) -l chess-perft -f ert-run-tests-batch
 
 TAGS: $(dist_lisp_LISP)
 	@etags $(dist_lisp_LISP)
