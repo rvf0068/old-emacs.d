@@ -845,6 +845,37 @@ trying to move a blank square."
       (throw 'in-check t)
     (push candidate candidates)))
 
+(defconst chess-white-can-slide-to
+  (let ((squares (make-vector 64 nil)))
+    (dotimes (index 64)
+      (aset squares index
+	    (cl-loop for dir in chess-sliding-white-piece-directions
+		     for ray = (let ((square index) (first t))
+				 (cl-loop while (setq square (chess-next-index
+							      square (car dir)))
+					  collect (cons square
+							(if first
+							    (cons ?K (cdr dir))
+							  (cdr dir)))
+					  do (setq first nil)))
+		     when ray collect ray)))
+    squares))
+(defconst chess-black-can-slide-to
+  (let ((squares (make-vector 64 nil)))
+    (dotimes (index 64)
+      (aset squares index
+	    (cl-loop for dir in chess-sliding-black-piece-directions
+		     for ray = (let ((square index) (first t))
+				 (cl-loop while (setq square (chess-next-index
+							      square (car dir)))
+					  collect (cons square
+							(if first
+							    (cons ?k (cdr dir))
+							  (cdr dir)))
+					  do (setq first nil)))
+		     when ray collect ray)))
+    squares))
+
 (defun chess-search-position (position target piece &optional
 				       check-only no-castling)
   "Look on POSITION from TARGET for a PIECE that can move there.
@@ -876,50 +907,55 @@ If NO-CASTLING is non-nil, do not consider castling moves."
      ;; from any piece movement.  This is useful for testing whether a
      ;; king is in check, for example.
      ((memq piece '(t nil))
-      (dolist (dir-type (if piece
-			    chess-sliding-white-piece-directions
-			  chess-sliding-black-piece-directions))
-	(let ((dir (car dir-type)))
-	  (setq pos (chess-next-index target dir))
-	  (while pos
-	    (let ((pos-piece (chess-pos-piece position pos)))
-	      (if (memq pos-piece (cdr dir-type))
-		  (progn
-		    (chess--add-candidate pos)
-		    (setq pos nil))
-		(setq pos (and (eq pos-piece ? ) (chess-next-index pos dir))))))))
+      ;; test for bishops, rooks, queens and kings at once
+      (dolist (ray (aref (if piece
+			     chess-white-can-slide-to
+			   chess-black-can-slide-to) target))
+	(while ray
+	  (let ((pos-piece (chess-pos-piece position (caar ray))))
+	    (setq ray (cond ((memq pos-piece (cdar ray))
+			     (chess--add-candidate (caar ray)) nil)
+			    ((eq pos-piece ? ) (cdr ray)))))))
 
-      ;; test whether the rook can move to the target by castling
-      (unless no-castling
-	(let (rook)
-	  (if (and (= target (if color ?\075 ?\005))
-		   (setq rook (chess-pos-can-castle position (if color ?K ?k)))
-		   (chess-ply-castling-changes position))
-	      (chess--add-candidate rook)
-	    (if (and (= target (if color ?\073 ?\003))
-		     (setq rook (chess-pos-can-castle position
-						      (if color ?Q ?q)))
-		     (chess-ply-castling-changes position t))
-		(chess--add-candidate rook)))))
-
-      (dolist (p (if piece '(?P ?N ?K) '(?p ?n ?k)))
+      ;; test for knights and pawns
+      (dolist (p (if piece '(?P ?N) '(?p ?n)))
 	(mapc 'chess--add-candidate
-	      (chess-search-position position target p check-only))))
+	      (chess-search-position position target p check-only)))
+
+      ;; test whether the rook or king can move to the target by castling
+      (unless no-castling
+	(if (and (or (and (eq target (if color ?\076 ?\006))
+			  (chess-pos-can-castle position (if color ?K ?k))
+			  (chess-ply-castling-changes position))
+		     (and (eq target (if color ?\072 ?\002))
+			  (chess-pos-can-castle position (if color ?Q ?q))
+			  (chess-ply-castling-changes position t))))
+	    (chess--add-candidate (chess-pos-king-index position color))
+	  (let (rook)
+	    (if (and (eq target (if color ?\075 ?\005))
+		     (setq rook (chess-pos-can-castle position (if color ?K ?k)))
+		     (chess-ply-castling-changes position))
+		(chess--add-candidate rook)
+	      (if (and (eq target (if color ?\073 ?\003))
+		       (setq rook (chess-pos-can-castle position
+							(if color ?Q ?q)))
+		       (chess-ply-castling-changes position t))
+		  (chess--add-candidate rook)))))))
 
      ;; skip erroneous space requests
      ((= test-piece ? ))
 
      ;; pawn movement, which is diagonal 1 when taking, but forward
      ;; 1 or 2 when moving (the most complex piece, actually)
-     ((= test-piece ?P)
+     ((eq test-piece ?P)
       (let ((p (chess-pos-piece position target))
 	    (backward (if color chess-direction-south chess-direction-north)))
-  	(if (if (= p ? )
+	(if (if (eq p ? )
 		;; check for en passant
 		(and (= (chess-index-rank target) (if color 2 5))
 		     (let ((ep (chess-pos-en-passant position)))
 		       (when ep
-			 (= ep (chess-next-index target backward))))
+			 (= ep (funcall (if color #'+ #'-) target 8))))
 		     (or (and (setq pos (chess-next-index target
 							  (if color
 							      chess-direction-southwest
@@ -945,13 +981,14 @@ If NO-CASTLING is non-nil, do not consider castling moves."
 		       (chess-pos-piece-p position pos piece))
 		  (chess--add-candidate pos)))
 	  (if (setq pos (chess-next-index target backward))
-	      (if (chess-pos-piece-p position pos piece)
-		  (chess--add-candidate pos)
-		(if (and (chess-pos-piece-p position pos ? )
-			 (= (if color 4 3) (chess-index-rank target))
-			 (setq pos (chess-next-index pos backward))
-			 (chess-pos-piece-p position pos piece))
-		    (chess--add-candidate pos)))))))
+	      (let ((pos-piece (chess-pos-piece position pos)))
+		(if (eq pos-piece piece)
+		    (chess--add-candidate pos)
+		  (if (and (eq pos-piece ? )
+			   (= (if color 4 3) (chess-index-rank target))
+			   (setq pos (funcall (if color #'+ #'-) pos 8))
+			   (chess-pos-piece-p position pos piece))
+		      (chess--add-candidate pos))))))))
 
      ;; the rook, bishop and queen are the easiest; just look along
      ;; rank and file and/or diagonal for the nearest pieces!
@@ -997,10 +1034,10 @@ If NO-CASTLING is non-nil, do not consider castling moves."
 
 	;; test whether the king can move to the target by castling
 	(if (and (not no-castling)
-		 (or (and (equal target (chess-rf-to-index (if color 7 0) 6))
+		 (or (and (eq target (if color ?\076 ?\006))
 			  (chess-pos-can-castle position (if color ?K ?k))
 			  (chess-ply-castling-changes position))
-		     (and (equal target (chess-rf-to-index (if color 7 0) 2))
+		     (and (eq target (if color ?\072 ?\002))
 			  (chess-pos-can-castle position (if color ?Q ?q))
 			  (chess-ply-castling-changes position t))))
 	    (chess--add-candidate (chess-pos-king-index position color)))))
@@ -1046,13 +1083,13 @@ in check)."
   (cl-assert (> (length candidates) 0))
   (let ((cand candidates)
 	(piece (chess-pos-piece position (car candidates)))
-	other-piece en-passant-square last-cand king-pos)
+	(other-piece (chess-pos-piece position target))
+	en-passant-square last-cand king-pos)
     (while cand
       (unwind-protect
 	  (progn
 	    ;; determine the resulting position
 	    (chess-pos-set-piece position (car cand) ? )
-	    (setq other-piece (chess-pos-piece position target))
 	    (chess-pos-set-piece position target piece)
 	    (when (and (= piece (if color ?P ?p))
 		       (let ((ep (chess-pos-en-passant position)))
