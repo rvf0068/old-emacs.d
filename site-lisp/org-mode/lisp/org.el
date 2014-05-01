@@ -7181,16 +7181,23 @@ visibility state."
 Otherwise make it visible.  When optional argument ELEMENT is
 a parsed drawer, as returned by `org-element-at-point', hide or
 show that drawer instead."
-  (let ((drawer (or element (org-element-at-point))))
-    (when (memq (org-element-type drawer) '(drawer property-drawer))
-      (save-excursion
-	(goto-char (org-element-property :post-affiliated drawer))
-	(outline-flag-region
-	 (line-end-position)
-	 (progn (goto-char (org-element-property :end drawer))
-		(skip-chars-backward " \r\t\n")
-		(line-end-position))
-	 flag)))))
+  (when (save-excursion
+	  (beginning-of-line)
+	  (org-looking-at-p org-drawer-regexp))
+    (let ((drawer (or element (org-element-at-point))))
+      (when (memq (org-element-type drawer) '(drawer property-drawer))
+	(let ((post (org-element-property :post-affiliated drawer)))
+	  (save-excursion
+	    (outline-flag-region
+	     (progn (goto-char post) (line-end-position))
+	     (progn (goto-char (org-element-property :end drawer))
+		    (skip-chars-backward " \r\t\n")
+		    (line-end-position))
+	     flag))
+	  ;; When the drawer is hidden away, make sure point lies in
+	  ;; a visible part of the buffer.
+	  (when (and flag (> (line-beginning-position) post))
+	    (goto-char post)))))))
 
 (defun org-subtree-end-visible-p ()
   "Is the end of the current subtree visible?"
@@ -7677,9 +7684,11 @@ command."
     (cond
 
      ((or (= (buffer-size) 0)
-	  (and (not (save-excursion
-		      (and (ignore-errors (org-back-to-heading invisible-ok))
-			   (org-at-heading-p))))
+	  (and (or (and (bolp)
+			(not (save-excursion
+			       (and (ignore-errors (org-back-to-heading invisible-ok))
+				    (org-at-heading-p)))))
+		   (and (bolp) (not (looking-at org-outline-regexp-bol))))
 	       (or arg (not itemp))))
       ;; At beginning of buffer or so high up that only a heading
       ;; makes sense.
@@ -7708,11 +7717,12 @@ command."
 			       nil))
 	       ;; Get a level string to fall back on
 	       (fix-level
-		(save-excursion
-		  (org-back-to-heading t)
-		  (if (org-previous-line-empty-p) (setq empty-line-p t))
-		  (looking-at org-outline-regexp)
-		  (make-string (1- (length (match-string 0))) ?*)))
+		(if (org-before-first-heading-p) "*"
+		  (save-excursion
+		    (org-back-to-heading t)
+		    (if (org-previous-line-empty-p) (setq empty-line-p t))
+		    (looking-at org-outline-regexp)
+		    (make-string (1- (length (match-string 0))) ?*))))
 	       (stars
 		(save-excursion
 		  (condition-case nil
