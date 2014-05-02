@@ -18,6 +18,12 @@
 
 (add-to-list 'org-latex-packages-alist '("colorlinks=true, linkcolor=blue" "hyperref"))
 
+(add-to-list 'org-latex-packages-alist '("margin=2.5cm" "geometry"))
+
+(add-to-list 'org-latex-packages-alist '("" "libertine"))
+
+(add-to-list 'org-latex-packages-alist '("libertine" "newtxmath"))
+
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (add-to-list 'org-beamer-environments-extra
              '("onlyenv"   "O" "\\begin{onlyenv}%a"     "\\end{onlyenv}"))
