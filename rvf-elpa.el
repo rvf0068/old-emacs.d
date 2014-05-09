@@ -18,6 +18,7 @@
 ;; concurrent, deferred, used for anything-books
 (defvar prelude-packages
   '(
+    bbdb
     bibretrieve
     bibslurp
     calfw
