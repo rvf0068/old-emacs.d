@@ -70,8 +70,4 @@
    )
   )
 
-(autoload 'helm-bibtex "helm-bibtex" "" t)
-(setq helm-bibtex-bibliography '("/home/rafael/Dropbox/texmf/bibtex/bib/misc/rvf.bib"))
-(setq helm-bibtex-library-path "/home/rafael/Dropbox/References/")
-(setq helm-bibtex-notes-path "/home/rafael/Downloads/scratch/")
 
