@@ -27,6 +27,7 @@
     deferred
     gap-mode
     helm
+    helm-bibtex
     magit
     markdown-mode
     org-journal
