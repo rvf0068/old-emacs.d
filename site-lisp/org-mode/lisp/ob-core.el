@@ -984,7 +984,7 @@ with a prefix argument then this is passed on to
 Return t if a code block was found at point, nil otherwise."
   `(let ((org-src-window-setup 'switch-invisibly))
      (when (and (org-babel-where-is-src-block-head)
-		(org-edit-src-code nil nil nil))
+		(org-edit-src-code))
        (unwind-protect (progn ,@body)
 	 (if (org-bound-and-true-p org-edit-src-from-org-mode)
 	     (org-edit-src-exit)))
@@ -2942,8 +2942,8 @@ plus the parameter value."
   "File where a babel block should send graphical output, per PARAMS."
   (unless (assq :file params)
     (if (assq :file-ext params)
-	(error ":file-ext given but no :file generated; did you forget to give a block a #+NAME?")
-      (error "No :file header argument given; cannot create graphical result.")))
+	(user-error ":file-ext given but no :file generated; did you forget to give a block a #+NAME?")
+      (user-error "No :file header argument given; cannot create graphical result.")))
   (and (member "graphics" (cdr (assq :result-params params)))
        (cdr (assq :file params))))
 

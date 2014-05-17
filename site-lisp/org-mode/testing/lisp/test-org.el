@@ -732,7 +732,7 @@
 
 ;;; Fixed-Width Areas
 
-(ert-deftest test-org/toggle-fixed-with ()
+(ert-deftest test-org/toggle-fixed-width ()
   "Test `org-toggle-fixed-width' specifications."
   ;; No region: Toggle on fixed-width marker in paragraphs.
   (should
@@ -1742,14 +1742,34 @@ Text.
 
 (ert-deftest test-org/update-radio-target-regexp ()
   "Test `org-update-radio-target-regexp' specifications."
-  (org-test-with-temp-text "radio\n\nParagraph\n\nradio"
-    (save-excursion (goto-char (point-max)) (org-element-context))
-    (insert "<<<")
-    (search-forward "o")
-    (insert ">>>")
-    (org-update-radio-target-regexp)
-    (goto-char (point-max))
-    (org-element-type (org-element-context))))
+  ;; Properly update cache with no previous radio target regexp.
+  (should
+   (eq 'link
+       (org-test-with-temp-text "radio\n\nParagraph\n\nradio"
+	 (save-excursion (goto-char (point-max)) (org-element-context))
+	 (insert "<<<")
+	 (search-forward "o")
+	 (insert ">>>")
+	 (org-update-radio-target-regexp)
+	 (goto-char (point-max))
+	 (org-element-type (org-element-context)))))
+  ;; Properly update cache with previous radio target regexp.
+  (should
+   (eq 'link
+       (org-test-with-temp-text "radio\n\nParagraph\n\nradio"
+	 (save-excursion (goto-char (point-max)) (org-element-context))
+	 (insert "<<<")
+	 (search-forward "o")
+	 (insert ">>>")
+	 (org-update-radio-target-regexp)
+	 (search-backward "r")
+	 (delete-char 5)
+	 (insert "new")
+	 (org-update-radio-target-regexp)
+	 (goto-char (point-max))
+	 (delete-region (line-beginning-position) (point))
+	 (insert "new")
+	 (org-element-type (org-element-context))))))
 
 
 

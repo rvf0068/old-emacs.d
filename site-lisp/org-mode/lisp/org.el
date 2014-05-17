@@ -6107,6 +6107,8 @@ by a #."
 Also refresh fontification if needed."
   (interactive)
   (let ((old-regexp org-target-link-regexp)
+	(before-re "\\(?:^\\|[^[:alnum:]]\\)\\(")
+	(after-re "\\)\\(?:$\\|[^[:alnum:]]\\)")
 	(targets
 	 (org-with-wide-buffer
 	  (goto-char (point-min))
@@ -6120,20 +6122,30 @@ Also refresh fontification if needed."
 	    rtn))))
     (setq org-target-link-regexp
 	  (and targets
-	       (concat "\\(?:^\\|[^[:alnum:]]\\)\\("
+	       (concat before-re
 		       (mapconcat
-			(lambda (x)
-			  (replace-regexp-in-string
-			   " +" "\\s-+" (regexp-quote x) t t))
+			#'(lambda (x)
+			    (replace-regexp-in-string
+			     " +" "\\s-+" (regexp-quote x) t t))
 			targets
 			"\\|")
-		       "\\)\\(?:$\\|[^[:alnum:]]\\)")))
+		       after-re)))
     (unless (equal old-regexp org-target-link-regexp)
       ;; Clean-up cache.
-      (when old-regexp
+      (let ((regexp (cond ((not old-regexp) org-target-link-regexp)
+			  ((not org-target-link-regexp) old-regexp)
+			  (t
+			   (concat before-re
+				   (mapconcat
+				    #'(lambda (re)
+					(substring re (length before-re)
+						   (- (length after-re))))
+				    (list old-regexp org-target-link-regexp)
+				    "\\|")
+				   after-re)))))
 	(org-with-wide-buffer
 	 (goto-char (point-min))
-	 (while (re-search-forward old-regexp nil t)
+	 (while (re-search-forward regexp nil t)
 	   (org-element-cache-refresh (match-beginning 1)))))
       ;; Re fontify buffer.
       (when (memq 'radio org-highlight-links)
@@ -6974,21 +6986,20 @@ With a numeric prefix, show all headlines up to that level."
 ;; buffers, where outline-regexp is needed.
 (defun org-overview ()
   "Switch to overview mode, showing only top-level headlines.
-Really, this shows all headlines with level equal or greater than the level
+This shows all headlines with a level equal or greater than the level
 of the first headline in the buffer.  This is important, because if the
 first headline is not level one, then (hide-sublevels 1) gives confusing
 results."
   (interactive)
-  (let ((pos (point))
-	(level (save-excursion
-		 (goto-char (point-min))
-		 (if (re-search-forward (concat "^" outline-regexp) nil t)
-		     (progn
-		       (goto-char (match-beginning 0))
-		       (funcall outline-level))))))
-    (and level (hide-sublevels level))
-    (recenter '(4))
-    (goto-char pos)))
+  (save-excursion
+    (let ((level
+	   (save-excursion
+	     (goto-char (point-min))
+	     (if (re-search-forward (concat "^" outline-regexp) nil t)
+		 (progn
+		   (goto-char (match-beginning 0))
+		   (funcall outline-level))))))
+      (and level (hide-sublevels level)))))
 
 (defun org-content (&optional arg)
   "Show all headlines in the buffer, like a table of contents.
