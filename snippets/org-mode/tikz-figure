@@ -4,16 +4,18 @@
 # contributor: Rafael Villarroel <rvf0068@gmail.com>
 # key: tkz
 # --
-#+caption: $1
-#+label: ${2:"waiting"$(unless yas/modified-p (reftex-label "figure" 'dont-insert))}
-#+attr_html: :alt $1 :width $3%
-#+attr_latex: :width 0.$3\textwidth
-#+attr_odt: (:scale 0.$3)
+
+#+name: $1
 #+headers: :imagemagick yes :iminoptions -density 300 -resize 400
 #+headers: :packages '(("" "tikz") ("" "tkz-berge")) :border 1pt
-#+begin_src latex :file ${2:$(substring yas/text 4)}.png 
+#+header: :file (by-backend (html "$1.png") (latex 'nil) (t "$1.png"))
+#+header: :results raw :cache yes
+#+begin_src latex
   \begin{tikzpicture}
-    ${0}
+    $0
   \end{tikzpicture}
 #+end_src
 
+#+caption: $2
+#+attr_html: :width 400 :alt $2 :align center
+#+results: $1
