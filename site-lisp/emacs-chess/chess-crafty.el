@@ -1,9 +1,28 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Play against crafty!
-;;
+;;; chess-crafty.el --- Play against crafty!
+
+;; Copyright (C) 2002, 2004, 2014  Free Software Foundation, Inc.
+
+;; Author: John Wiegley <johnw@gnu.org>
+;; Maintainer: Mario Lang <mlang@delysid.org>
+;; Keywords: games, processes
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'chess-common)
+(require 'chess-fen)
 (require 'chess-var)
 
 (defgroup chess-crafty nil
@@ -113,7 +132,7 @@
 
      ((eq event 'setup-pos)
       (chess-engine-send nil (format "setboard %s\n"
-				     (chess-pos-to-string (car args)))))
+				     (chess-pos-to-fen (car args)))))
 
      ((eq event 'evaluate)
       (setq chess-crafty-evaluation nil)

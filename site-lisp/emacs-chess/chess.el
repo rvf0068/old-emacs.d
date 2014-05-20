@@ -9,48 +9,58 @@
 ;; Author: John Wiegley <johnw@gnu.org>
 ;; Maintainer: Mario Lang <mlang@delysid.org>
 ;; Description: Play chess in Emacs
-;; URL: http://emacs-chess.sourceforge.net/
-;; Compatibility: Emacs21
+;; URL: https://github.com/jwiegley/emacs-chess/
+;; Compatibility: Emacs24
 
-;; This file is not part of GNU Emacs.
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
 
-;; This is free software; you can redistribute it and/or modify it under
-;; the terms of the GNU General Public License as published by the Free
-;; Software Foundation; either version 2, or (at your option) any later
-;; version.
-;;
-;; This is distributed in the hope that it will be useful, but WITHOUT
-;; ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-;; FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-;; for more details.
-;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston,
-;; MA 02111-1307, USA.
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
 ;; Welcome to Emacs Chess, a chess playing module for GNU Emacs.
 ;;
-;; This program will not play chess against you; it is not a chess
-;; computer.  It can use a chess computer, however, to simulate your
-;; opponent's moves.  This is decided when you choose your opponent.
-;; You must, of course, have that chess computer installed.  See the
-;; top of chess-player.el for more information.
+;; Type `M-x chess', and play chess against one of the default engine modules.
 ;;
-;; To just get a chessboard up, put the following in your .emacs file:
+;; Type `C-u M-x chess' to select a specific engine.
+;; You can play against various external chess computer programs, like
+;; crafty, fruit, glaurung, gnuchess, phalanx, sjeng and stockfish.
+;; There is also an Emacs based chess computer module (ai) which does not
+;; require any external programs.  However, the internal AI is not very strong.
 ;;
-;;   (add-to-list 'load-path "<the path to Emacs Chess>")
+;; To play on one of the internet chess servers, type `M-x chess-ics'.
 ;;
-;;   (autoload 'chess "chess" "Play a game of chess" t)
+;; If you'd like to view or edit Portable Game Notation (PGN) files,
+;; `chess-pgn-mode' provides a text-mode derived mode which can display the
+;; chess position at point.
 ;;
-;; Now you can type `M-x chess', and play chess against anyone else in
-;; the room with you, without having to install anything more.
+;; If you are new to Chess, `M-x chess-tutorial' provides a simple knight
+;; movement exercise to get you started, and `M-x chess-puzzle' can be used
+;; to solve puzzle collections.
+;;
+;; There are some different types of chessboard display modules available.
+;; * A simple character based display (chess-plain).
+;; * A more verbose ASCII chessboard (chess-ics1).
+;; * A graphical chessboard display which uses images (chess-images).
+;;
+;; The variable `chess-default-display' controls which display modules
+;; are tried when a chessboard should be displayed.  By default, chess-images
+;; is tried first.  If Emacs is not running in a graphical environment,
+;; chess-ics1 is used instead.  To enable the chess-plain display module,
+;; customize `chess-default-display' accordingly.
 ;;
 ;; Once this is working, the next thing to do is to customize
-;; `chess-use-modules'.  This is a list of functionality modules used
-;; by chess.el to provide its functionality.  You can enable or
+;; `chess-default-modules'.  This is a list of functionality modules used
+;; by chess.el to provide additional functionality.  You can enable or
 ;; disable modules so that Emacs Chess better suites your tastes.
 ;; Those modules in turn often have configuration variables, and
 ;; appropriate documentation at the top of the related file.
@@ -61,13 +71,7 @@
 ;; displays, opponents, analysis programs, etc.  See the documentation
 ;; in chess-module.el to learn more.
 ;;
-;; There is no documentation for this program other than what exists
-;; in the source files.  This is because the source files aim at being
-;; self documenting, and as chess is such a simple game, most chess
-;; players aren't going to need to know much about this program in
-;; particular.
-;;
-;; However, most people will probably be interested in reading the top
+;; Most people will probably also be interested in reading the top
 ;; of chess-display.el and chess-pgn.el, which describe the user
 ;; interface commands available in each of those buffer types.
 

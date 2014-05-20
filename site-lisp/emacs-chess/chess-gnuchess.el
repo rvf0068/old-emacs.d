@@ -1,9 +1,28 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Play against gnuchess!
-;;
+;;; chess-gnuchess.el --- Play against gnuchess!
+
+;; Copyright (C) 2002, 2004  Free Software Foundation, Inc.
+
+;; Author: John Wiegley <johnw@gnu.org>
+;; Maintainer: Mario Lang <mlang@delysid.org>
+;; Keywords: games, processes
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Code:
 
 (require 'chess-common)
+(require 'chess-fen)
 
 (defgroup chess-gnuchess nil
   "The publically available chess engine 'gnuchess'."
@@ -51,7 +70,7 @@
 
      ((eq event 'setup-pos)
       (let ((file (chess-with-temp-file
-		      (insert (chess-pos-to-string (car args)) ?\n))))
+		      (insert (chess-pos-to-fen (car args)) ?\n))))
 	(chess-engine-send nil (format "epdload %s\n" file))))
 
      ((eq event 'setup-game)

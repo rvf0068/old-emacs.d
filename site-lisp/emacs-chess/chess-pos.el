@@ -1,7 +1,23 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Routines for manipulating chess positions
-;;
+;;; chess-pos.el --- Routines for manipulating chess positions
+
+;; Copyright (C) 2002, 2004, 2014  Free Software Foundation, Inc.
+
+;; Author: John Wiegley <johnw@gnu.org>
+;; Maintainer: Mario Lang <mlang@delysid.org>
+;; Keywords: games
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -51,10 +67,6 @@
 ;;    (chess-pos-search POSITION PIECE)
 ;;    (chess-pos-search* POSITION PIECE...)
 ;;
-;; You might also try the `search' event, which employs the
-;; intelligence of listening rules modules to search out your piece
-;; according to legal piece movements.
-
 ;; Once you have a pair of indices, you can move a piece around:
 ;;
 ;;    (chess-pos-move POSITION FROM-INDEX TO-INDEX)
@@ -72,7 +84,6 @@
 ;;; Code:
 
 (require 'chess-message)
-(require 'chess-fen)
 (eval-when-compile
   (require 'cl-lib)
   (cl-proclaim '(optimize (speed 3) (safety 2))))
@@ -667,19 +678,6 @@ The current side-to-move is always white."
 	       [nil nil nil nil nil nil t nil nil nil nil])
     (chess-pos-copy chess-starting-position)))
 
-(defsubst chess-pos-to-string (position &optional full)
-  "Convert the given POSITION into a string.
-The returned string can be converted back to a position using
-`chess-pos-from-string'."
-  (cl-assert (vectorp position))
-  (chess-pos-to-fen position full))
-
-(defsubst chess-pos-from-string (string)
-  "Convert the given STRING to a chess position.
-This string should have been created by `chess-pos-to-string'."
-  (cl-assert (stringp string))
-  (chess-fen-to-pos string))
-
 (defconst chess-pos-piece-values
   '((?p . 1)
     (?n . 3)
@@ -920,7 +918,7 @@ If NO-CASTLING is non-nil, do not consider castling moves."
       ;; test for knights and pawns
       (dolist (p (if piece '(?P ?N) '(?p ?n)))
 	(mapc 'chess--add-candidate
-	      (chess-search-position position target p check-only)))
+	      (chess-search-position position target p check-only no-castling)))
 
       ;; test whether the rook or king can move to the target by castling
       (unless no-castling
