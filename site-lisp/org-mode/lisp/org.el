@@ -19180,6 +19180,8 @@ boundaries."
 (org-defkey org-mode-map [(meta up)]    'org-metaup)
 (org-defkey org-mode-map [(meta down)]  'org-metadown)
 
+(org-defkey org-mode-map [(control meta shift right)] 'org-increase-number-at-point)
+(org-defkey org-mode-map [(control meta shift left)] 'org-decrease-number-at-point)
 (org-defkey org-mode-map [(meta shift left)]   'org-shiftmetaleft)
 (org-defkey org-mode-map [(meta shift right)]  'org-shiftmetaright)
 (org-defkey org-mode-map [(meta shift up)]     'org-shiftmetaup)
@@ -20251,6 +20253,28 @@ Optional argument N tells to change by that many units."
       (let (org-support-shift-select)
 	(org-clock-timestamps-down n))
     (user-error "Not at a clock log")))
+
+(defun org-increase-number-at-point (&optional inc)
+  "Increment the number at point.
+With an optional prefix numeric argument INC, increment using
+this numeric value."
+  (interactive "p")
+  (unless inc (setq inc 1))
+  (let ((nap (thing-at-point 'number)))
+    (when nap
+      (skip-chars-backward "-+0123456789")
+      (kill-word 1)
+      (insert (number-to-string (+ inc nap)))))
+  (when (org-at-table-p)
+    (org-table-align)
+    (org-table-end-of-field 1)))
+
+(defun org-decrease-number-at-point (&optional inc)
+  "Decrement the number at point.
+With an optional prefix numeric argument INC, decrement using
+this numeric value."
+  (interactive "p")
+  (org-increase-number-at-point (- inc)))
 
 (defun org-ctrl-c-ret ()
   "Call `org-table-hline-and-move' or `org-insert-heading' dep. on context."
@@ -22371,6 +22395,7 @@ Also align node properties according to `org-property-format'."
 			 (org-element-property :begin element))))
 	     'noindent)
 	    ((and (eq type 'src-block)
+		  org-src-tab-acts-natively
 		  (> (line-beginning-position)
 		     (org-element-property :post-affiliated element))
 		  (< (line-beginning-position)
@@ -22378,9 +22403,8 @@ Also align node properties according to `org-property-format'."
 		      (goto-char (org-element-property :end element))
 		      (skip-chars-backward " \r\t\n")
 		      (line-beginning-position))))
-	     (if (not org-src-tab-acts-natively) 'noindent
-	       (let ((org-src-strip-leading-and-trailing-blank-lines nil))
-		 (org-babel-do-key-sequence-in-edit-buffer (kbd "TAB")))))
+	     (let ((org-src-strip-leading-and-trailing-blank-lines nil))
+	       (org-babel-do-key-sequence-in-edit-buffer (kbd "TAB"))))
 	    (t
 	     (let ((column (org--get-expected-indentation element nil)))
 	       ;; Preserve current column.
