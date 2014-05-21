@@ -239,3 +239,6 @@ categories: %s
 	     (read-string "Maximum interval: "))))
   (org-set-property "STYLE" "habit")
   (org-set-property "LOGGING" "TODO DONE(!)"))
+
+;; see http://orgmode.org/w/?p=worg.git;a=commitdiff;h=022e5ecafdda4c2a89322251795a437a0918d4c5
+(add-to-list 'ispell-skip-region-alist '("#\\+begin_src". "#\\+end_src"))
