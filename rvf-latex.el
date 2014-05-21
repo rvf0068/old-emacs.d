@@ -66,6 +66,10 @@
              '("Shell escape"
                "pdflatex -shell-escape %s"
                TeX-run-command t t) t)
+(add-to-list 'TeX-command-list      
+             '("LuaLaTeX"
+               "lualatex %s"
+               TeX-run-command nil nil) t)
 
 ;; some functions
 
