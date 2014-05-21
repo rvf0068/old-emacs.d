@@ -4376,6 +4376,7 @@ Normal means, no org-mode-specific context."
 (defvar texmathp-why)
 (declare-function speedbar-line-directory "speedbar" (&optional depth))
 (declare-function table--at-cell-p "table" (position &optional object at-column))
+(declare-function calc-eval "calc" (str &optional separator &rest args))
 
 ;;;###autoload
 (defun turn-on-orgtbl ()
@@ -5180,9 +5181,9 @@ Support for group tags is controlled by the option
 		    "\\(?: +\\(\\[#.\\]\\)\\)?"
 		    "\\(?: +"
 		    ;; Stats cookies can be stuck to body.
-		    "\\(?:\\[[0-9%%/]+\\] *\\)?"
+		    "\\(?:\\[[0-9%%/]+\\] *\\)*"
 		    "\\(%s\\)"
-		    "\\(?: *\\[[0-9%%/]+\\]\\)?"
+		    "\\(?: *\\[[0-9%%/]+\\]\\)*"
 		    "\\)"
 		    (org-re "\\(?:[ \t]+\\(:[[:alnum:]_@#%%:]+:\\)\\)?")
 		    "[ \t]*$")
@@ -7695,14 +7696,15 @@ command."
     (cond
 
      ((or (= (buffer-size) 0)
-	  (and (or (and (bolp)
-			(not (save-excursion
-			       (and (ignore-errors (org-back-to-heading invisible-ok))
-				    (org-at-heading-p)))))
-		   (and (bolp) (not (looking-at org-outline-regexp-bol))))
+	  (and (not (save-excursion
+		      (and (ignore-errors (org-back-to-heading invisible-ok))
+			   (org-at-heading-p))))
 	       (or arg (not itemp))))
       ;; At beginning of buffer or so high up that only a heading
       ;; makes sense.
+      (when (and (org-before-first-heading-p) (not (bolp)))
+	(re-search-forward org-outline-regexp-bol)
+	(beginning-of-line 0))
       (insert
        (if (or (bobp) (org-previous-line-empty-p)) "" "\n")
        (if (org-in-src-block-p) ",* " "* "))
@@ -7766,8 +7768,12 @@ command."
 
 	  ;; If we insert after content, move there and clean up whitespace
 	  (when (and respect-content
-		     (not (org-looking-at-p org-outline-regexp-bol)))
-	    (org-end-of-subtree nil t)
+		     (not (org-looking-at-p org-outline-regexp-bol))
+		     (not (bolp)))
+	    (if (not (org-before-first-heading-p))
+		(org-end-of-subtree nil t)
+	      (re-search-forward org-outline-regexp-bol)
+	      (beginning-of-line 0))
 	    (skip-chars-backward " \r\n")
 	    (and (not (looking-back "^\\*+"))
 		 (looking-at "[ \t]+") (replace-match ""))
@@ -7796,10 +7802,9 @@ command."
 		    (setq initial-content (org-trim initial-content)))
 		  (goto-char pos))
 	      ;; a normal line
-	      (unless (bolp)
-		(setq initial-content (buffer-substring (point) (point-at-eol)))
-		(delete-region (point) (point-at-eol))
-		(setq initial-content (org-trim initial-content)))))
+	      (setq initial-content
+		    (org-trim (buffer-substring (point) (point-at-eol))))
+	      (delete-region (point) (point-at-eol))))
 
 	  ;; If we are at the beginning of the line, insert before it.  Else after
 	  (cond
@@ -10720,10 +10725,7 @@ there is one, return it."
       (save-restriction
 	(widen)
 	(goto-char marker)
-	(let ((re (concat "\\(" org-bracket-link-regexp "\\)\\|"
-			  "\\(" org-angle-link-re "\\)\\|"
-			  "\\(" org-plain-link-re "\\)"))
-	      (cnt ?0)
+	(let ((cnt ?0)
 	      (in-emacs (if (integerp nth) nil nth))
 	      have-zero end links link c)
 	  (when (and (stringp zero) (string-match org-bracket-link-regexp zero))
@@ -10732,7 +10734,7 @@ there is one, return it."
 	  (save-excursion
 	    (org-back-to-heading t)
 	    (setq end (save-excursion (outline-next-heading) (point)))
-	    (while (re-search-forward re end t)
+	    (while (re-search-forward org-any-link-re end t)
 	      (push (match-string 0) links))
 	    (setq links (org-uniquify (reverse links))))
 	  (cond
@@ -14889,8 +14891,8 @@ Returns the new tags string, or nil to not change the current settings."
       (if expert
 	  (set-buffer (get-buffer-create " *Org tags*"))
 	(delete-other-windows)
-	(split-window-vertically)
-	(org-switch-to-buffer-other-window (get-buffer-create " *Org tags*")))
+	(set-window-buffer (split-window-vertically) (get-buffer-create " *Org tags*"))
+	(org-switch-to-buffer-other-window " *Org tags*"))
       (erase-buffer)
       (org-set-local 'org-done-keywords done-keywords)
       (org-fast-tag-insert "Inherited" inherited i-face "\n")
@@ -20259,15 +20261,19 @@ Optional argument N tells to change by that many units."
 With an optional prefix numeric argument INC, increment using
 this numeric value."
   (interactive "p")
-  (unless inc (setq inc 1))
-  (let ((nap (thing-at-point 'number)))
-    (when nap
-      (skip-chars-backward "-+0123456789")
-      (kill-word 1)
-      (insert (number-to-string (+ inc nap)))))
-  (when (org-at-table-p)
-    (org-table-align)
-    (org-table-end-of-field 1)))
+  (if (not (number-at-point))
+      (user-error "Not on a number")
+    (unless inc (setq inc 1))
+    (let ((pos (point))
+	  (beg (skip-chars-backward "-+^/*0-9eE."))
+	  (end (skip-chars-forward "-+^/*0-9eE^.")) nap)
+      (setq nap (buffer-substring-no-properties
+		 (+ pos beg) (+ pos beg end)))
+      (delete-region (+ pos beg) (+ pos beg end))
+      (insert (calc-eval (concat (number-to-string inc) "+" nap))))
+    (when (org-at-table-p)
+      (org-table-align)
+      (org-table-end-of-field 1))))
 
 (defun org-decrease-number-at-point (&optional inc)
   "Decrement the number at point.
