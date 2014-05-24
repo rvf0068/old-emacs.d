@@ -152,3 +152,10 @@
 (setq helm-bibtex-library-path "/home/rafael/Dropbox/References/")
 (setq helm-bibtex-notes-path "/home/rafael/Downloads/scratch/")
 
+(setq org2blog/wp-blog-alist
+      '(("hgomat"
+         :url "http://hgomat.wordpress.com/xmlrpc.php"
+         :username "rvf0068"
+         :tags-as-categories nil)))
+
+
