@@ -22,6 +22,7 @@
     bibretrieve
     bibslurp
     calfw
+    chess
     concurrent
     dash
     deferred
@@ -31,6 +32,7 @@
     magit
     markdown-mode
     org-journal
+    org2blog
     orgbox
     pandoc-mode
     smart-mode-line
