@@ -6427,7 +6427,7 @@ needs to be inserted at a specific position in the font-lock sequence.")
 	(while (re-search-forward
 		"\\\\\\(there4\\|sup[123]\\|frac[13][24]\\|[a-zA-Z]+\\)\\($\\|{}\\|[^[:alpha:]\n]\\)"
 		limit t)
-	  (if (and (not (org-in-indented-comment-line))
+	  (if (and (not (org-at-comment-p))
 		   (setq ee (org-entity-get (match-string 1)))
 		   (= (length (nth 6 ee)) 1))
 	      (let*
@@ -8904,8 +8904,9 @@ When sorting is done, call `org-after-sorting-entries-or-items-hook'."
 	     (or (org-entry-get nil property) ""))
 	    ((= dcst ?o)
 	     (if (looking-at org-complex-heading-regexp)
-		 (- 9999 (length (member (match-string 2)
-					 org-todo-keywords-1)))))
+		 (let* ((m (match-string 2))
+			(s (if (member m org-done-keywords) '- '+)))
+		   (- 99 (funcall s (length (member m org-todo-keywords-1)))))))
 	    ((= dcst ?f)
 	     (if getkey-func
 		 (progn
@@ -9433,10 +9434,11 @@ call CMD."
 		 (concat org-outline-regexp-bol ".*"
 			 "\\(?:\\[\\([0-9]+\\)%\\|\\([0-9]+\\)/\\([0-9]+\\)\\]\\)")
 		 nil t)
-	   (setq stats (if (match-string 2)
-			   (/ (* (string-to-number (match-string 2)) 100)
-			      (string-to-number (match-string 3)))
-			 (string-to-number (match-string 1))))
+	   (setq stats (cond ((equal (match-string 3) "0") 0)
+			     ((match-string 2)
+			      (/ (* (string-to-number (match-string 2)) 100)
+				 (string-to-number (match-string 3))))
+			     (t (string-to-number (match-string 1)))))
 	   (org-back-to-heading t)
 	   (put-text-property (point) (progn (org-end-of-subtree t t) (point))
 			      'org-stats stats)))))))
@@ -9913,8 +9915,8 @@ according to FMT (default from `org-email-link-description-format')."
 	  "]"))
 
 (defconst org-link-escape-chars
-  ;;%20 %2B %3B %3D %5B %5D
-  '(?\  ?\+ ?\; ?\= ?\[ ?\])
+  ;;%20 %5B %5D
+  '(?\  ?\[ ?\])
   "List of characters that should be escaped in a link when stored to Org.
 This is the list that is used for internal purposes.")
 
@@ -9934,24 +9936,28 @@ Optional argument TABLE is a list with characters that should be
 escaped.  When nil, `org-link-escape-chars' is used.
 If optional argument MERGE is set, merge TABLE into
 `org-link-escape-chars'."
-  (cond
-   ((and table merge)
-    (mapc (lambda (defchr)
-	    (unless (member defchr table)
-	      (setq table (cons defchr table)))) org-link-escape-chars))
-   ((null table)
-    (setq table org-link-escape-chars)))
-  (mapconcat
-   (lambda (char)
-     (if (or (member char table)
-	     (and (or (< char 32) (= char ?\%) (> char 126))
-		  org-url-hexify-p))
-	 (mapconcat (lambda (sequence-element)
-		      (format "%%%.2X" sequence-element))
-		    (or (encode-coding-char char 'utf-8)
-			(error "Unable to percent escape character: %s"
-			       (char-to-string char))) "")
-       (char-to-string char))) text ""))
+  ;; Don't escape chars in internal links
+  (if (string-match "^\\*[[:alnum:]]+" text)
+      text
+    (cond
+     ((and table merge)
+      (mapc (lambda (defchr)
+	      (unless (member defchr table)
+		(setq table (cons defchr table))))
+	    org-link-escape-chars))
+     ((null table)
+      (setq table org-link-escape-chars)))
+    (mapconcat
+     (lambda (char)
+       (if (or (member char table)
+	       (and (or (< char 32) (= char ?\%) (> char 126))
+		    org-url-hexify-p))
+	   (mapconcat (lambda (sequence-element)
+			(format "%%%.2X" sequence-element))
+		      (or (encode-coding-char char 'utf-8)
+			  (error "Unable to percent escape character: %s"
+				 (char-to-string char))) "")
+	 (char-to-string char))) text "")))
 
 (defun org-link-escape-browser (text)
   "Escape some characters before handing over to the browser.
@@ -10017,9 +10023,8 @@ Note: this function also decodes single byte encodings like
 	    (setq ret (concat ret (org-char-to-string sum)))
 	    (setq sum 0))
 	   ((not bytes)			; single byte(s)
-	    (setq ret (org-link-unescape-single-byte-sequence hex))))
-	  )) ;; end (while bytes
-      ret )))
+	    (setq ret (org-link-unescape-single-byte-sequence hex))))))
+      ret)))
 
 (defun org-link-unescape-single-byte-sequence (hex)
   "Unhexify hex-encoded single byte character sequences."
@@ -10542,6 +10547,28 @@ Functions in this hook must return t if they identify and follow
 a link at point.  If they don't find anything interesting at point,
 they must return nil.")
 
+(defun org-open-link-in-comment-or-property ()
+  "Open the link at point in a comment or in a property."
+  (let* ((comment-or-prop "\\s-*# \\|[ \t]*:[^:]+:[ \t]*")
+	 (string-rear
+	  (replace-regexp-in-string
+	   comment-or-prop ""
+	   (buffer-substring (point) (line-beginning-position))))
+	 (string-front
+	  (replace-regexp-in-string
+	   comment-or-prop ""
+	   (buffer-substring (point) (line-end-position))))
+	 (value (org-element-property :value (org-element-at-point))))
+    (with-temp-buffer
+      (let ((org-inhibit-startup t)) (org-mode))
+      (insert value)
+      (goto-char (point-min))
+      (while (and (re-search-forward (regexp-quote string-rear) nil t)
+		  (re-search-forward (regexp-quote string-front) nil t))
+	(goto-char (match-beginning 0))	
+	(org-open-at-point)
+	(when (string= string-rear "") (forward-char))))))
+
 (defvar org-link-search-inhibit-query nil) ;; dynamically scoped
 (defvar clean-buffer-list-kill-buffer-names) ; Defined in midnight.el
 (defun org-open-at-point (&optional arg reference-buffer)
@@ -10583,7 +10610,12 @@ is used internally by `org-open-link-from-string'."
 					  footnote-reference timestamp)))
 		    (setq context (org-element-property :parent context))))
 	(cond
-	 ;; Unsupported context: return an error.
+	 ;; WARNING: Before checking for syntactically correct
+	 ;; contexts, we make two exceptions as we open links in
+	 ;; comments and properties.
+	 ((or (org-at-comment-p) (org-at-property-p))
+	  (org-open-link-in-comment-or-property))
+	 ;; Now check for context where link opening is not supported.
 	 ((not context) (user-error "No link found"))
 	 ;; On a headline or an inlinetask, but not on a timestamp,
 	 ;; a link, a footnote reference or on tags.
@@ -11935,9 +11967,7 @@ this is used for the GOTO interface."
 	 (pos (nth 3 refile-pointer))
 	 buffer)
     (if (and (not (markerp pos)) (not file))
-	(if file
-	    (user-error "Please save the buffer to a file before refiling")
-	  (user-error "Please indicate a target file in the refile path"))
+	(user-error "Please indicate a target file in the refile path")
       (when (org-string-nw-p re)
 	(setq buffer (if (markerp pos)
 			 (marker-buffer pos)
@@ -21523,17 +21553,6 @@ With prefix arg UNCOMPILED, load the uncompiled versions."
 	   (>= (match-end 0) pos)
 	   start))))
 
-(defun org-in-commented-line ()
-  "Is point in a line starting with `#'?"
-  (equal (char-after (point-at-bol)) ?#))
-
-(defun org-in-indented-comment-line ()
-  "Is point in a line starting with `#' after some white space?"
-  (save-excursion
-    (save-match-data
-      (goto-char (point-at-bol))
-      (looking-at "[ \t]*#"))))
-
 (defun org-in-verbatim-emphasis ()
   (save-match-data
     (and (org-in-regexp org-emph-re 2)
@@ -23585,10 +23604,11 @@ unless optional argument NO-INHERITANCE is non-nil."
     (save-excursion (and (org-up-heading-safe) (org-in-commented-heading-p))))))
 
 (defun org-at-comment-p nil
-  "Is cursor in a line starting with a # character?"
+  "Is cursor in a commented line?"
   (save-excursion
-    (beginning-of-line)
-    (looking-at "^#")))
+    (save-match-data
+      (beginning-of-line)
+      (looking-at "^[ \t]*# "))))
 
 (defun org-at-drawer-p nil
   "Is cursor at a drawer keyword?"

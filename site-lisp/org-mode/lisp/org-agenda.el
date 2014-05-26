@@ -2160,7 +2160,8 @@ The following commands are available:
 	  org-agenda-entry-text-mode org-agenda-start-with-entry-text-mode
 	  org-agenda-clockreport-mode org-agenda-start-with-clockreport-mode
 	  org-agenda-show-log org-agenda-start-with-log-mode))
-
+  (add-to-invisibility-spec '(org-filtered))
+  (add-to-invisibility-spec '(org-link))
   (easy-menu-change
    '("Agenda") "Agenda Files"
    (append
@@ -3586,10 +3587,12 @@ generating a new one."
       ;; does not have org variables local
       org-agenda-this-buffer-is-sticky))))
 
-(defun org-agenda-prepare-window (abuf)
-  "Setup agenda buffer in the window."
-  (let* ((awin (get-buffer-window abuf))
-	 wconf)
+(defun org-agenda-prepare-window (abuf filter-alist)
+  "Setup agenda buffer in the window.
+ABUF is the buffer for the agenda window.
+FILTER-ALIST is an alist of filters we need to apply when
+`org-agenda-persistent-filter' is non-nil."
+  (let* ((awin (get-buffer-window abuf)) wconf)
     (cond
      ((equal (current-buffer) abuf) nil)
      (awin (select-window awin))
@@ -3603,66 +3606,70 @@ generating a new one."
      ((equal org-agenda-window-setup 'reorganize-frame)
       (delete-other-windows)
       (org-switch-to-buffer-other-window abuf)))
-    ;; additional test in case agenda is invoked from within agenda
-    ;; buffer via elisp link
+    (setq org-agenda-tag-filter (cdr (assoc 'tag filter-alist)))
+    (setq org-agenda-category-filter (cdr (assoc 'cat filter-alist)))
+    (setq org-agenda-regexp-filter (cdr (assoc 're filter-alist)))
+    ;; Additional test in case agenda is invoked from within agenda
+    ;; buffer via elisp link.
     (unless (equal (current-buffer) abuf)
       (org-pop-to-buffer-same-window abuf))
     (setq org-agenda-pre-window-conf
 	  (or org-agenda-pre-window-conf wconf))))
 
 (defun org-agenda-prepare (&optional name)
-  (if (org-agenda-use-sticky-p)
-      (progn
-	;; Popup existing buffer
-	(org-agenda-prepare-window (get-buffer org-agenda-buffer-name))
-	(message "Sticky Agenda buffer, use `r' to refresh")
-	(or org-agenda-multi (org-agenda-fit-window-to-buffer))
-	(throw 'exit "Sticky Agenda buffer, use `r' to refresh"))
-    (setq org-todo-keywords-for-agenda nil)
-    (unless org-agenda-persistent-filter
-      (setq org-agenda-tag-filter nil
-	    org-agenda-category-filter nil
-	    org-agenda-regexp-filter nil))
-    (put 'org-agenda-tag-filter :preset-filter
-	 org-agenda-tag-filter-preset)
-    (put 'org-agenda-category-filter :preset-filter
-	 org-agenda-category-filter-preset)
-    (put 'org-agenda-regexp-filter :preset-filter
-	 org-agenda-regexp-filter-preset)
-    (if org-agenda-multi
+  (let ((filter-alist (if org-agenda-persistent-filter
+			  (list `(tag . ,org-agenda-tag-filter)
+				`(re . ,org-agenda-regexp-filter)
+				`(car . ,org-agenda-category-filter)))))
+    (if (org-agenda-use-sticky-p)
 	(progn
-	  (setq buffer-read-only nil)
-	  (goto-char (point-max))
-	  (unless (or (bobp) org-agenda-compact-blocks
-		      (not org-agenda-block-separator))
-	    (insert "\n"
-		    (if (stringp org-agenda-block-separator)
-			org-agenda-block-separator
-		      (make-string (window-width) org-agenda-block-separator))
-		    "\n"))
-	  (narrow-to-region (point) (point-max)))
-      (setq org-done-keywords-for-agenda nil)
-
-      ;; Setting any org variables that are in org-agenda-local-vars
-      ;; list need to be done after the prepare call
-      (org-agenda-prepare-window (get-buffer-create org-agenda-buffer-name))
-      (setq buffer-read-only nil)
-      (org-agenda-reset-markers)
-      (let ((inhibit-read-only t)) (erase-buffer))
-      (org-agenda-mode)
-      (setq org-agenda-buffer (current-buffer))
-      (setq org-agenda-contributing-files nil)
-      (setq org-agenda-columns-active nil)
-      (org-agenda-prepare-buffers (org-agenda-files nil 'ifmode))
-      (setq org-todo-keywords-for-agenda
-	    (org-uniquify org-todo-keywords-for-agenda))
-      (setq org-done-keywords-for-agenda
-	    (org-uniquify org-done-keywords-for-agenda))
-      (setq org-agenda-last-prefix-arg current-prefix-arg)
-      (setq org-agenda-this-buffer-name org-agenda-buffer-name)
-      (and name (not org-agenda-name)
-	   (org-set-local 'org-agenda-name name)))
-    (setq buffer-read-only nil)))
+	  ;; Popup existing buffer
+	  (org-agenda-prepare-window (get-buffer org-agenda-buffer-name)
+				     filter-alist)
+	  (message "Sticky Agenda buffer, use `r' to refresh")
+	  (or org-agenda-multi (org-agenda-fit-window-to-buffer))
+	  (throw 'exit "Sticky Agenda buffer, use `r' to refresh"))
+      (setq org-todo-keywords-for-agenda nil)
+      (put 'org-agenda-tag-filter :preset-filter
+	   org-agenda-tag-filter-preset)
+      (put 'org-agenda-category-filter :preset-filter
+	   org-agenda-category-filter-preset)
+      (put 'org-agenda-regexp-filter :preset-filter
+	   org-agenda-regexp-filter-preset)
+      (if org-agenda-multi
+	  (progn
+	    (setq buffer-read-only nil)
+	    (goto-char (point-max))
+	    (unless (or (bobp) org-agenda-compact-blocks
+			(not org-agenda-block-separator))
+	      (insert "\n"
+		      (if (stringp org-agenda-block-separator)
+			  org-agenda-block-separator
+			(make-string (window-width) org-agenda-block-separator))
+		      "\n"))
+	    (narrow-to-region (point) (point-max)))
+	(setq org-done-keywords-for-agenda nil)
+	;; Setting any org variables that are in org-agenda-local-vars
+	;; list need to be done after the prepare call
+	(org-agenda-prepare-window
+	 (get-buffer-create org-agenda-buffer-name) filter-alist)
+	(setq buffer-read-only nil)
+	(org-agenda-reset-markers)
+	(let ((inhibit-read-only t)) (erase-buffer))
+	(org-agenda-mode)
+	(setq org-agenda-buffer (current-buffer))
+	(setq org-agenda-contributing-files nil)
+	(setq org-agenda-columns-active nil)
+	(org-agenda-prepare-buffers (org-agenda-files nil 'ifmode))
+	(setq org-todo-keywords-for-agenda
+	      (org-uniquify org-todo-keywords-for-agenda))
+	(setq org-done-keywords-for-agenda
+	      (org-uniquify org-done-keywords-for-agenda))
+	(setq org-agenda-last-prefix-arg current-prefix-arg)
+	(setq org-agenda-this-buffer-name org-agenda-buffer-name)
+	(and name (not org-agenda-name)
+	     (org-set-local 'org-agenda-name name)))
+      (setq buffer-read-only nil))))
 
 (defvar org-agenda-overriding-columns-format)  ; From org-colview.el
 (defun org-agenda-finalize ()
@@ -6443,7 +6450,8 @@ Any match of REMOVE-RE will be removed from TXT."
 	     (category-icon (if category-icon
 				(propertize " " 'display category-icon)
 			      ""))
-	     (effort (get-text-property 1 'effort txt))
+	     (effort (and (not (string= txt ""))
+			  (get-text-property 1 'effort txt)))
 	     ;; time, tag, effort are needed for the eval of the prefix format
 	     (tag (if tags (nth (1- (length tags)) tags) ""))
 	     time
@@ -6727,8 +6735,10 @@ The optional STRING argument forces conversion into a 5 character wide string
 HH:MM."
   (save-match-data
     (when
-	(or (string-match "\\<\\([012]?[0-9]\\)\\(:\\([0-5][0-9]\\)\\)\\([AaPp][Mm]\\)?\\> *" s)
-	    (string-match "\\<\\([012]?[0-9]\\)\\(:\\([0-5][0-9]\\)\\)?\\([AaPp][Mm]\\)\\> *" s))
+	(and
+	 (or (string-match "\\<\\([012]?[0-9]\\)\\(:\\([0-5][0-9]\\)\\)\\([AaPp][Mm]\\)?\\> *" s)
+	     (string-match "\\<\\([012]?[0-9]\\)\\(:\\([0-5][0-9]\\)\\)?\\([AaPp][Mm]\\)\\> *" s))
+	 (not (eq (get-text-property 1 'face s) 'org-link)))
       (let* ((h (string-to-number (match-string 1 s)))
 	     (m (if (match-end 3) (string-to-number (match-string 3 s)) 0))
 	     (ampm (if (match-end 4) (downcase (match-string 4 s))))
@@ -7054,6 +7064,7 @@ Restriction will be the file if TYPE is `file', or if type is the
 universal prefix '(4), or if the cursor is before the first headline
 in the file.  Otherwise, restriction will be to the current subtree."
   (interactive "P")
+  (org-agenda-remove-restriction-lock 'noupdate)
   (and (equal type '(4)) (setq type 'file))
   (setq type (cond
 	      (type type)
@@ -7627,7 +7638,7 @@ When NO-OPERATOR is non-nil, do not add the + operator to returned tags."
 	 (e (point-at-eol)))
     (let ((inhibit-read-only t))
       (add-text-properties
-       b e `(invisible t org-filtered t org-filter-type ,type)))))
+       b e `(invisible org-filtered org-filter-type ,type)))))
 
 (defun org-agenda-remove-filter (type)
   (interactive)
@@ -7639,7 +7650,7 @@ When NO-OPERATOR is non-nil, do not add the + operator to returned tags."
 	(goto-char pos)
 	(remove-text-properties
 	 (point) (next-single-property-change (point) 'org-filter-type)
-	 `(invisible t org-filter-type ,type))))
+	 `(invisible org-filtered org-filter-type ,type))))
     (set (intern (format "org-agenda-%s-filter" (intern-soft type))) nil)
     (setq org-agenda-filter-form nil)
     (org-agenda-set-mode-name)
@@ -9138,7 +9149,7 @@ Called with a universal prefix arg, show the priority instead of setting it."
             (add-text-properties
 	     (1- (point)) (point-at-eol)
 	     (list 'display (org-add-props stamp nil
-			      'face 'secondary-selection))))
+			      'face '(secondary-selection default)))))
 	  (beginning-of-line 1))
 	(beginning-of-line 0)))))
 
