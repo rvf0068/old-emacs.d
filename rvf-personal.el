@@ -162,4 +162,5 @@
          :username "rvf0068"
          :tags-as-categories nil)))
 
-
+;; do not show holidays in diary
+(setq diary-show-holidays-flag nil)
