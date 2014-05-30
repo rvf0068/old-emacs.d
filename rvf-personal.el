@@ -151,6 +151,10 @@
 (setq helm-bibtex-bibliography '("/home/rafael/Dropbox/texmf/bibtex/bib/misc/rvf.bib"))
 (setq helm-bibtex-library-path "/home/rafael/Dropbox/References/")
 (setq helm-bibtex-notes-path "/home/rafael/Downloads/scratch/")
+;; see https://github.com/tmalsburg/helm-bibtex/commit/ab85b12d6b3cdb4745b73e7f67f426ff139a8b3c
+(setq helm-bibtex-pdf-open-function
+      (lambda (fpath) (shell-command-to-string
+		       (concat "/usr/bin/evince " fpath " &"))))
 
 (setq org2blog/wp-blog-alist
       '(("hgomat"
