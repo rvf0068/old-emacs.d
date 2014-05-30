@@ -102,6 +102,7 @@ setting of `org-html-htmlize-output-type' is 'css."
     (underline . org-org-identity)
     (verbatim . org-org-identity)
     (verse-block . org-org-identity))
+  :options-alist '((:org-htmlized-css-url nil nil org-org-htmlized-css-url))
   :menu-entry
   '(?O "Export to Org"
        ((?O "As Org buffer" org-org-export-as-org)
@@ -298,7 +299,7 @@ Return output file name."
 	   (visitingp (find-buffer-visiting filename))
 	   (work-buffer (or visitingp (find-file filename)))
 	   newbuf)
-      (font-lock-fontify-buffer)
+      (font-lock-ensure)
       (show-all)
       (org-show-block-all)
       (setq newbuf (htmlize-buffer))

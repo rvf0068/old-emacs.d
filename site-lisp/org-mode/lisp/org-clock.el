@@ -1830,7 +1830,7 @@ PROPNAME lets you set a custom text property instead of :org-clock-minutes."
       org-clock-file-total-minutes)))
 
 ;;;###autoload
-(defun org-clock-display (arg)
+(defun org-clock-display (&optional arg)
   "Show subtree times in the entire buffer.
 
 With one universal prefix argument, show the total time for
@@ -1870,8 +1870,10 @@ Use \\[org-clock-remove-overlays] to remove the subtree times."
 			     (cond (todayp " for today")
 				   (customp " (custom)")
 				   (t "")))
-		     (org-minutes-to-clocksum-string org-clock-file-total-minutes)
-		     " (%d hours and %d minutes)") h m)))
+		     (org-minutes-to-clocksum-string
+		      org-clock-file-total-minutes)
+		     " (%d hours and %d minutes)")
+	     h m)))
 
 (defvar org-clock-overlays nil)
 (make-variable-buffer-local 'org-clock-overlays)
@@ -1957,7 +1959,7 @@ fontified, and then returned."
     (org-mode)
     (org-create-dblock props)
     (org-update-dblock)
-    (font-lock-fontify-buffer)
+    (font-lock-ensure)
     (forward-line 2)
     (buffer-substring (point) (progn
 				(re-search-forward "^[ \t]*#\\+END" nil t)
