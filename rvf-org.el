@@ -20,6 +20,8 @@
 
 (add-to-list 'org-latex-packages-alist '("margin=2.5cm" "geometry"))
 
+(add-to-list 'org-latex-packages-alist '("" "amsthm"))
+
 (add-to-list 'org-latex-packages-alist '("" "libertine"))
 
 (add-to-list 'org-latex-packages-alist '("libertine" "newtxmath"))
@@ -76,7 +78,6 @@
 		'org-cdlatex-complex-numbers
 	    )))
 
-
 (defun org-cdlatex-real-numbers ()
   (interactive)
   (if (org-inside-LaTeX-fragment-p)
@@ -102,7 +103,6 @@
 	    (local-set-key (kbd "Q")
 		'org-cdlatex-rational-numbers
 	    )))
-
 
 ;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
 (add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
