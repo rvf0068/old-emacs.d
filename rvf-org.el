@@ -24,7 +24,7 @@
 
 (add-to-list 'org-latex-packages-alist '("" "libertine"))
 
-(add-to-list 'org-latex-packages-alist '("libertine" "newtxmath"))
+(add-to-list 'org-latex-packages-alist '("libertine,timesmathacc" "newtxmath"))
 
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (add-to-list 'org-beamer-environments-extra
