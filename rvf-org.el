@@ -196,6 +196,15 @@
 (add-to-list 'org-export-filter-latex-fragment-functions
 	     'my-space-replacement)
 
+;; filters for beamer export
+(defun my-beamer-replacement (contents backend info)
+  (when (eq backend 'beamer)
+    (replace-regexp-in-string "\\\\usepackage\\[margin=2.5cm\\]{geometry}\n\\|\\\\usepackage\\[colorlinks=true, linkcolor=blue\\]{hyperref}\n" "" contents)
+    ))
+
+(add-to-list 'org-export-filter-final-output-functions
+	     'my-beamer-replacement)
+
 ;; modified from https://github.com/spacemanaki/octorgopress
 (defun org-octopress-template (contents backend info)
   (when (eq backend 'md)
