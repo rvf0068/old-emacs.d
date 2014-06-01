@@ -20,11 +20,13 @@
 
 (add-to-list 'org-latex-packages-alist '("margin=2.5cm" "geometry"))
 
-(add-to-list 'org-latex-packages-alist '("" "amsthm"))
-
-(add-to-list 'org-latex-packages-alist '("" "libertine"))
+(add-to-list 'org-latex-packages-alist '("mono=false" "libertine"))
 
 (add-to-list 'org-latex-packages-alist '("libertine,timesmathacc" "newtxmath"))
+
+(add-to-list 'org-latex-packages-alist '("scaled=0.7" "luximono"))
+
+(add-to-list 'org-latex-packages-alist '("" "amsthm"))
 
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (add-to-list 'org-beamer-environments-extra
