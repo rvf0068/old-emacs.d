@@ -83,12 +83,9 @@
 		      "org-loaddefs.el")
 	      nil t t t)
       (error
-       (message (org-add-props
-		    "WARNING: No org-loaddefs.el file could be found from where org.el is loaded."
-		    nil 'face 'org-warning))
+       (message "WARNING: No org-loaddefs.el file could be found from where org.el is loaded.")
        (sit-for 3)
-       (message (org-add-props "You need to run \"make\" or \"make autoloads\" from Org lisp directory"
-		    nil 'face 'org-warning))
+       (message "You need to run \"make\" or \"make autoloads\" from Org lisp directory")
        (sit-for 3))))
 
 (require 'org-macs)
@@ -133,6 +130,7 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-clock-timestamps-up "org-clock" (&optional n))
 (declare-function org-clock-timestamps-down "org-clock" (&optional n))
 (declare-function org-clock-remove-overlays "org-clock" (&optional beg end noremove))
+(declare-function org-clock-sum "org-clock" (&optional tstart tend headline-filter propname))
 (declare-function org-clock-sum-current-item "org-clock" (&optional tstart))
 (declare-function org-clock-update-time-maybe "org-clock" ())
 (declare-function org-clocktable-shift "org-clock" (dir n))
@@ -158,6 +156,7 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-table-begin "org-table" (&optional table-type))
 (declare-function org-table-blank-field "org-table" ())
 (declare-function org-table-end "org-table" (&optional table-type))
+(declare-function org-table-end-of-field "org-table" (&optional n))
 (declare-function org-table-insert-row "org-table" (&optional arg))
 (declare-function org-table-paste-rectangle "org-table" ())
 (declare-function org-table-maybe-eval-formula "org-table" ())
@@ -167,6 +166,7 @@ Stars are put in group 1 and the trimmed body in group 2.")
 		  (beg end acc restriction))
 (declare-function org-element-at-point "org-element" ())
 (declare-function org-element-cache-reset "org-element" (&optional all))
+(declare-function org-element-cache-refresh "org-element" (pos))
 (declare-function org-element-contents "org-element" (element))
 (declare-function org-element-context "org-element" (&optional element))
 (declare-function org-element-interpret-data "org-element"
@@ -6276,7 +6276,7 @@ Use `org-reduced-level' to remove the effect of `org-odd-levels'."
 	  ".*?\\)\\(?5:[ \t]*\\)$"))
 
 (defconst org-property-re
-  (org-re-property ".*?" 'literal)
+  (org-re-property ".*?" 'literal t)
   "Regular expression matching a property line.
 There are four matching groups:
 1: :PROPKEY: including the leading and trailing colon,
@@ -12550,8 +12550,10 @@ When called through ELisp, arg is also interpreted in the following way:
 		  (throw 'exit nil))))
 	    (store-match-data match-data)
 	    (replace-match next t t)
-	    (unless (pos-visible-in-window-p hl-pos)
-	      (message "TODO state changed to %s" (org-trim next)))
+	    (cond ((equal this org-state)
+		   (message "TODO state was already %s" (org-trim next)))
+		  ((pos-visible-in-window-p hl-pos)
+		   (message "TODO state changed to %s" (org-trim next))))
 	    (unless head
 	      (setq head (org-get-todo-sequence-head org-state)
 		    ass (assoc head org-todo-kwd-alist)
@@ -15619,7 +15621,7 @@ If yes, return this value.  If not, return the current value of the variable."
 	(if (and range
 		 (goto-char (car range))
 		 (re-search-forward
-		  (org-re-property property)
+		  (org-re-property property nil t)
 		  (cdr range) t))
 	    (progn
 	      (delete-region (match-beginning 0) (1+ (point-at-eol)))
@@ -15989,9 +15991,7 @@ This is computed according to `org-property-set-functions-alist'."
 		  (funcall set-function prompt
 			   (mapcar 'list (org-property-values property))
 			   nil nil "" nil cur)))))
-    (if (equal val "")
-	cur
-      val)))
+    (org-trim val)))
 
 (defvar org-last-set-property nil)
 (defvar org-last-set-property-value nil)
@@ -16067,8 +16067,10 @@ in the current file."
 		    (org-icompleting-read "Property: " props nil t)
 		  (caar props))))
      (list prop)))
-  (if (org-entry-delete nil property)
-      (message "Property %s deleted" property)))
+  (if (not property)
+      (message "No property to delete in this entry")
+    (org-entry-delete nil property delete-empty-drawer)
+    (message "Property \"%s\" deleted" property)))
 
 (defun org-delete-property-globally (property)
   "Remove PROPERTY globally, from all entries."

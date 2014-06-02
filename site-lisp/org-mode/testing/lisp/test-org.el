@@ -924,7 +924,6 @@
      (org-open-at-point)
      (bobp))))
 
-
 ;;;; Link Escaping
 
 (ert-deftest test-org/org-link-escape-ascii-character ()
@@ -1013,6 +1012,35 @@ drops support for Emacs 24.1 and 24.2."
      (concat "http://lists.gnu.org/archive/cgi-bin/namazu.cgi?query="
 	     "\"Release 8.2\"&idxname=emacs-orgmode")))))
 
+;;;; Open at point
+
+(ert-deftest test-org/open-at-point-in-property ()
+  "Does `org-open-at-point' open link in property drawer?"
+  (should
+   (org-test-with-temp-text
+    "* Headline
+:PROPERTIES:
+:URL: <point>[[info:org#Top]]
+:END:"
+    (org-open-at-point) t)))
+
+(ert-deftest test-org/open-at-point-in-comment ()
+  "Does `org-open-at-point' open link in a commented line?"
+  (should
+   (org-test-with-temp-text
+    "# <point>[[info:org#Top]]"
+    (org-open-at-point) t)))
+
+(ert-deftest test-org/open-at-point/info ()
+  "Test `org-open-at-point' on info links."
+  (should
+   (org-test-with-temp-text
+    "<point>[[info:org#Top]]"
+    (org-open-at-point)
+    (and (switch-to-buffer "*info*")
+	 (prog1
+	     (looking-at "\nOrg Mode Manual")
+	   (kill-buffer))))))
 
 
 ;;; Node Properties

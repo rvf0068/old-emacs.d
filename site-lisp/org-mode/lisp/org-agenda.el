@@ -397,32 +397,36 @@ the daily/weekly agenda, see `org-agenda-skip-function'.")
 			   (repeat :inline t :tag "Conditions for skipping"
 				   (choice
 				    :tag "Condition type"
-				    (list :tag "Regexp matches" :inline t (const :format "" regexp) (regexp))
-				    (list :tag "Regexp does not match" :inline t (const :format "" notregexp) (regexp))
+				    (list :tag "Regexp matches" :inline t
+					  (const :format "" 'regexp)
+					  (regexp))
+				    (list :tag "Regexp does not match" :inline t
+					  (const :format "" 'notregexp)
+					  (regexp))
 				    (list :tag "TODO state is" :inline t
-					  (const todo)
+					  (const 'todo)
 					  (choice
-					   (const :tag "any not-done state" todo)
-					   (const :tag "any done state" done)
-					   (const :tag "any state" any)
+					   (const :tag "Any not-done state" 'todo)
+					   (const :tag "Any done state" 'done)
+					   (const :tag "Any state" 'any)
 					   (list :tag "Keyword list"
 						 (const :format "" quote)
 						 (repeat (string :tag "Keyword")))))
 				    (list :tag "TODO state is not" :inline t
-					  (const nottodo)
+					  (const 'nottodo)
 					  (choice
-					   (const :tag "any not-done state" todo)
-					   (const :tag "any done state" done)
-					   (const :tag "any state" any)
+					   (const :tag "Any not-done state" 'todo)
+					   (const :tag "Any done state" 'done)
+					   (const :tag "Any state" 'any)
 					   (list :tag "Keyword list"
 						 (const :format "" quote)
 						 (repeat (string :tag "Keyword")))))
-				    (const :tag "scheduled" scheduled)
-				    (const :tag "not scheduled" notscheduled)
-				    (const :tag "deadline" deadline)
-				    (const :tag "no deadline" notdeadline)
-				    (const :tag "timestamp" timestamp)
-				    (const :tag "no timestamp" nottimestamp))))))
+				    (const :tag "scheduled" 'scheduled)
+				    (const :tag "not scheduled" 'notscheduled)
+				    (const :tag "deadline" 'deadline)
+				    (const :tag "no deadline" 'notdeadline)
+				    (const :tag "timestamp" 'timestamp)
+				    (const :tag "no timestamp" 'nottimestamp))))))
 		   (list :tag "Non-standard skipping condition"
 			 :value (org-agenda-skip-function)
 			 (const org-agenda-skip-function)
@@ -8352,7 +8356,7 @@ When called with a prefix argument, include all archive files as well."
       (message "No tags associated with this line"))))
 
 (defun org-agenda-goto (&optional highlight)
-  "Go to the Org-mode file which contains the item at point."
+  "Go to the entry at point in the corresponding Org-mode file."
   (interactive)
   (let* ((marker (or (org-get-at-bol 'org-marker)
 		     (org-agenda-error)))
@@ -8370,6 +8374,9 @@ When called with a prefix argument, include all archive files as well."
     (when (outline-invisible-p)
       (show-entry))			; display invisible text
     (recenter (/ (window-height) 2))
+    (org-back-to-heading t)
+    (if (re-search-forward org-complex-heading-regexp nil t)
+	(goto-char (match-beginning 4)))
     (run-hooks 'org-agenda-after-show-hook)
     (and highlight (org-highlight (point-at-bol) (point-at-eol)))))
 
@@ -8836,7 +8843,8 @@ the same tree node, and the headline of the tree node in the Org-mode file."
       	(string-match (concat "^" (regexp-opt org-done-keywords-for-agenda))
 		      newhead)
 	(org-agenda-unmark-clocking-task))
-      (org-move-to-column col))))
+      (org-move-to-column col)
+      (org-agenda-mark-clocking-task))))
 
 (defun org-agenda-add-note (&optional arg)
   "Add a time-stamped note to the entry at point."
