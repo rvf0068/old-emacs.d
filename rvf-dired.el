@@ -16,7 +16,8 @@
         ("\\.\\(?:mp4\\|mkv\\|avi\\|flv\\|ogv\\)\\'" "smplayer")
         ("\\.\\(?:mp3\\|flac\\)\\'" "audacious")
         ("\\.html?\\'" "firefox")
-        ("\\.cue?\\'" "audacious")
+        ("\\.cue\\'" "audacious")
+        ("\\.epub\\'" "fbreader")
 	))
 
 (defun dired-start-process (cmd &optional file-list)
