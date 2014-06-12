@@ -5575,7 +5575,7 @@ The following commands are available:
 		    :parents (list text-mode-abbrev-table)))
 
 (defsubst org-fix-ellipsis-at-bol ()
-  (save-excursion (goto-char (window-start)) (recenter 0)))
+  (save-excursion (set-window-start (selected-window) (window-start))))
 
 (defun org-find-invisible-foreground ()
   (let ((candidates (remove
@@ -7245,13 +7245,11 @@ show that drawer instead."
   (pos-visible-in-window-p
    (save-excursion (org-end-of-subtree t) (point))))
 
-(defun org-first-headline-recenter (&optional N)
-  "Move cursor to the first headline and recenter the headline.
-Optional argument N means put the headline into the Nth line of the window."
+(defun org-first-headline-recenter ()
+  "Move cursor to the first headline and recenter the headline."
   (goto-char (point-min))
   (when (re-search-forward (concat "^\\(" org-outline-regexp "\\)") nil t)
-    (beginning-of-line)
-    (recenter (prefix-numeric-value N))))
+    (set-window-start (selected-window) (point-at-bol))))
 
 ;;; Saving and restoring visibility
 
@@ -7689,12 +7687,22 @@ When NEXT is non-nil, check the next line instead."
 	   (looking-at "[ \t]*$")))))
 
 (defun org-insert-heading (&optional arg invisible-ok)
-  "Insert a new heading or item with same depth at point.
+  "Insert a new heading or an item with the same depth at point.
 
-If point is in a plain list and ARG is nil, add a new list item.
+If point is at the beginning of a heading or a list item, insert
+a new heading or a new item above the current one.  If point is
+at the beginning of a normal line, turn the line into a heading.
 
-With one universal prefix argument, insert a heading even when
-the point is within a list.
+If point is in the middle of a headline or a list item, split the
+headline or the item and create a new headline/item with the text
+in the current line after point \(see `org-M-RET-may-split-line'
+on how to modify this behavior).
+
+With one universal prefirx argument, set the user option
+`org-insert-heading-respect-content' to t for the duration of
+the command.  This modifies the behavior described above in this
+ways: on list items and at the beginning of normal lines, force
+the insertion of a heading after the current subtree.
 
 With two universal prefix arguments, insert the heading at the
 end of the grandparent subtree.  For example, if point is within
@@ -7731,12 +7739,16 @@ command."
 	       (or arg (not itemp))))
       ;; At beginning of buffer or so high up that only a heading
       ;; makes sense.
-      (when (and (org-before-first-heading-p) (not (bolp)))
-	(re-search-forward org-outline-regexp-bol)
-	(beginning-of-line 0))
-      (insert
-       (if (or (bobp) (org-previous-line-empty-p)) "" "\n")
-       (if (org-in-src-block-p) ",* " "* "))
+      (cond ((and (bolp) (not respect-content)) (insert "* "))
+	    ((not respect-content)
+	     (unless may-split (end-of-line))
+	     (insert "\n* "))
+	    ((re-search-forward org-outline-regexp-bol nil t)
+	     (beginning-of-line)
+	     (insert "* \n")
+	     (backward-char))
+	    (t (goto-char (point-max))
+	       (insert "\n* ")))
       (run-hooks 'org-insert-heading-hook))
 
      ((and itemp (not (member arg '((4) (16)))))
@@ -7797,8 +7809,7 @@ command."
 
 	  ;; If we insert after content, move there and clean up whitespace
 	  (when (and respect-content
-		     (not (org-looking-at-p org-outline-regexp-bol))
-		     (not (bolp)))
+		     (not (org-looking-at-p org-outline-regexp-bol)))
 	    (if (not (org-before-first-heading-p))
 		(org-end-of-subtree nil t)
 	      (re-search-forward org-outline-regexp-bol)
@@ -7933,17 +7944,15 @@ This is a list with the following elements:
   (org-move-subtree-down)
   (end-of-line 1))
 
-(defun org-insert-heading-respect-content (&optional arg invisible-ok)
+(defun org-insert-heading-respect-content (&optional invisible-ok)
   "Insert heading with `org-insert-heading-respect-content' set to t."
-  (interactive "P")
-  (let ((org-insert-heading-respect-content t))
-    (org-insert-heading '(4) invisible-ok)))
+  (interactive)
+  (org-insert-heading '(4) invisible-ok))
 
 (defun org-insert-todo-heading-respect-content (&optional force-state)
   "Insert TODO heading with `org-insert-heading-respect-content' set to t."
-  (interactive "P")
-  (let ((org-insert-heading-respect-content t))
-    (org-insert-todo-heading force-state '(4))))
+  (interactive)
+  (org-insert-todo-heading force-state '(4)))
 
 (defun org-insert-todo-heading (arg &optional force-heading)
   "Insert a new heading with the same level and TODO state as current heading.
@@ -16069,7 +16078,7 @@ in the current file."
      (list prop)))
   (if (not property)
       (message "No property to delete in this entry")
-    (org-entry-delete nil property delete-empty-drawer)
+    (org-entry-delete nil property)
     (message "Property \"%s\" deleted" property)))
 
 (defun org-delete-property-globally (property)
@@ -22716,63 +22725,62 @@ matches in paragraphs or comments, use it."
 	      ((looking-at message-cite-prefix-regexp)
 	       (throw 'exit (match-string-no-properties 0)))
 	      ((looking-at org-outline-regexp)
-	       (throw 'exit (make-string (length (match-string 0)) ? ))))))
+	       (throw 'exit (make-string (length (match-string 0)) ?\s))))))
     (org-with-wide-buffer
-     (let* ((p (line-beginning-position))
-	    (element (save-excursion
-		       (beginning-of-line)
-		       (or (ignore-errors (org-element-at-point))
-			   (user-error "An element cannot be parsed line %d"
-				       (line-number-at-pos (point))))))
-	    (type (org-element-type element))
-	    (post-affiliated (org-element-property :post-affiliated element)))
-       (unless (and post-affiliated (< p post-affiliated))
-	 (case type
-	   (comment
-	    (save-excursion
-	      (beginning-of-line)
-	      (looking-at "[ \t]*")
-	      (concat (match-string 0) "# ")))
-	   (footnote-definition "")
-	   ((item plain-list)
-	    (make-string (org-list-item-body-column
-			  (or post-affiliated
-			      (org-element-property :begin element)))
-			 ? ))
-	   (paragraph
-	    ;; Fill prefix is usually the same as the current line,
-	    ;; unless the paragraph is at the beginning of an item.
-	    (let ((parent (org-element-property :parent element)))
+     (unless (org-at-heading-p)
+       (let* ((p (line-beginning-position))
+	      (element (save-excursion
+			 (beginning-of-line)
+			 (org-element-at-point)))
+	      (type (org-element-type element))
+	      (post-affiliated (org-element-property :post-affiliated element)))
+	 (unless (and post-affiliated (< p post-affiliated))
+	   (case type
+	     (comment
 	      (save-excursion
 		(beginning-of-line)
-		(cond ((eq (org-element-type parent) 'item)
-		       (make-string (org-list-item-body-column
-				     (org-element-property :begin parent))
-				    ? ))
-		      ((and adaptive-fill-regexp
-			    ;; Locally disable
-			    ;; `adaptive-fill-function' to let
-			    ;; `fill-context-prefix' handle
-			    ;; `adaptive-fill-regexp' variable.
-			    (let (adaptive-fill-function)
-			      (fill-context-prefix
-			       post-affiliated
-			       (org-element-property :end element)))))
-		      ((looking-at "[ \t]+") (match-string 0))
-		      (t  "")))))
-	   (comment-block
-	    ;; Only fill contents if P is within block boundaries.
-	    (let* ((cbeg (save-excursion (goto-char post-affiliated)
-					 (forward-line)
-					 (point)))
-		   (cend (save-excursion
-			   (goto-char (org-element-property :end element))
-			   (skip-chars-backward " \r\t\n")
-			   (line-beginning-position))))
-	      (when (and (>= p cbeg) (< p cend))
-		(if (save-excursion (beginning-of-line) (looking-at "[ \t]+"))
-		    (match-string 0)
-		  ""))))))))))
+		(looking-at "[ \t]*")
+		(concat (match-string 0) "# ")))
+	     (footnote-definition "")
+	     ((item plain-list)
+	      (make-string (org-list-item-body-column
+			    (or post-affiliated
+				(org-element-property :begin element)))
+			   ?\s))
+	     (paragraph
+	      ;; Fill prefix is usually the same as the current line,
+	      ;; unless the paragraph is at the beginning of an item.
+	      (let ((parent (org-element-property :parent element)))
+		(save-excursion
+		  (beginning-of-line)
+		  (cond ((eq (org-element-type parent) 'item)
+			 (make-string (org-list-item-body-column
+				       (org-element-property :begin parent))
+				      ?\s))
+			((and adaptive-fill-regexp
+			      ;; Locally disable
+			      ;; `adaptive-fill-function' to let
+			      ;; `fill-context-prefix' handle
+			      ;; `adaptive-fill-regexp' variable.
+			      (let (adaptive-fill-function)
+				(fill-context-prefix
+				 post-affiliated
+				 (org-element-property :end element)))))
+			((looking-at "[ \t]+") (match-string 0))
+			(t  "")))))
+	     (comment-block
+	      ;; Only fill contents if P is within block boundaries.
+	      (let* ((cbeg (save-excursion (goto-char post-affiliated)
+					   (forward-line)
+					   (point)))
+		     (cend (save-excursion
+			     (goto-char (org-element-property :end element))
+			     (skip-chars-backward " \r\t\n")
+			     (line-beginning-position))))
+		(when (and (>= p cbeg) (< p cend))
+		  (if (save-excursion (beginning-of-line) (looking-at "[ \t]+"))
+		      (match-string 0)
+		    "")))))))))))
 
 (declare-function message-goto-body "message" ())
 (defvar message-cite-prefix-regexp)	; From message.el

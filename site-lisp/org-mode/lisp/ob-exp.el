@@ -48,6 +48,7 @@
 (declare-function org-element-context "org-element" ())
 (declare-function org-element-property "org-element" (property element))
 (declare-function org-element-type "org-element" (element))
+(declare-function org-id-get "org-id" (&optional pom create prefix))
 (declare-function org-escape-code-in-string "org-src" (s))
 
 (defcustom org-export-babel-evaluate t
@@ -66,7 +67,12 @@ be executed."
 (defmacro org-babel-exp-in-export-file (lang &rest body)
   (declare (indent 1))
   `(let* ((lang-headers (intern (concat "org-babel-default-header-args:" ,lang)))
-	  (heading (nth 4 (ignore-errors (org-heading-components))))
+	  (heading-query (or (org-id-get)
+			     ;; CUSTOM_IDs don't work, maybe they are
+			     ;; stripped, or maybe they resolve too
+			     ;; late in `org-link-search'.
+			     ;; (org-entry-get nil "CUSTOM_ID")
+			     (nth 4 (ignore-errors (org-heading-components)))))
 	  (export-buffer (current-buffer))
 	  results)
      (when org-babel-exp-reference-buffer
@@ -75,13 +81,17 @@ be executed."
        ;; heading in the original file
        (set-buffer org-babel-exp-reference-buffer)
        (save-restriction
-	 (when heading
+	 (when heading-query
 	   (condition-case nil
 	       (let ((org-link-search-inhibit-query t))
-		 (org-link-search heading))
-	     (error (when heading
+		 ;; TODO: When multiple headings have the same title,
+		 ;;       this returns the first, which is not always
+		 ;;       the right heading.  Consider a better way to
+		 ;;       find the proper heading.
+		 (org-link-search heading-query))
+	     (error (when heading-query
 		      (goto-char (point-min))
-		      (re-search-forward (regexp-quote heading) nil t)))))
+		      (re-search-forward (regexp-quote heading-query) nil t)))))
 	 (setq results ,@body))
        (set-buffer export-buffer)
        results)))
@@ -177,7 +187,9 @@ may make them unreachable."
 			   (point)))))
 	      (case type
 		(inline-src-block
-		 (let* ((info (org-babel-parse-inline-src-block-match))
+		 (let* ((head (match-beginning 0))
+			(info (append (org-babel-parse-inline-src-block-match)
+				      (list nil nil head)))
 			(params (nth 2 info)))
 		   (setf (nth 1 info)
 			 (if (and (cdr (assoc :noweb params))
