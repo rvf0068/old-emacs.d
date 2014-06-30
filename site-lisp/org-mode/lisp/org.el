@@ -4269,7 +4269,7 @@ After a match, the match groups contain these elements:
 ;; set this option proved cumbersome.  See this message/thread:
 ;; http://article.gmane.org/gmane.emacs.orgmode/68681
 (defvar org-emphasis-regexp-components
-  '(" \t('\"{" "- \t.,:!?;'\")}\\" " \t\r\n,\"'" "." 1)
+  '(" \t('\"{" "- \t.,:!?;'\")}\\\[" " \t\r\n,\"'" "." 1)
   "Components used to build the regular expression for emphasis.
 This is a list with five entries.  Terminology:  In an emphasis string
 like \" *strong word* \", we call the initial space PREMATCH, the final
@@ -5519,8 +5519,7 @@ The following commands are available:
       (org-add-hook 'isearch-mode-end-hook 'org-isearch-end 'append 'local)
     ;; Emacs 22 deals with this through a special variable
     (org-set-local 'outline-isearch-open-invisible-function
-		   (lambda (&rest ignore) (org-show-context 'isearch)))
-    (org-add-hook 'isearch-mode-end-hook 'org-fix-ellipsis-at-bol 'append 'local))
+		   (lambda (&rest ignore) (org-show-context 'isearch))))
 
   ;; Setup the pcomplete hooks
   (set (make-local-variable 'pcomplete-command-completion-function)
@@ -5573,9 +5572,6 @@ The following commands are available:
 (when (fboundp 'abbrev-table-put)
   (abbrev-table-put org-mode-abbrev-table
 		    :parents (list text-mode-abbrev-table)))
-
-(defsubst org-fix-ellipsis-at-bol ()
-  (save-excursion (set-window-start (selected-window) (window-start))))
 
 (defun org-find-invisible-foreground ()
   (let ((candidates (remove
@@ -5959,7 +5955,7 @@ by a #."
 	     (if (equal "+title:" dc1) (match-end 2) (match-end 0)))
 	    (add-text-properties
 	     beg (match-end 3)
-	     (if (member (intern (substring dc1 0 -1)) org-hidden-keywords)
+	     (if (member (intern (substring dc1 1 -1)) org-hidden-keywords)
 		 '(font-lock-fontified t invisible t)
 	       '(font-lock-fontified t face org-document-info-keyword)))
 	    (add-text-properties
@@ -12244,27 +12240,24 @@ keywords relative to each registered export back-end."
     "TITLE:" "TODO:" "TYP_TODO:" "SELECT_TAGS:" "EXCLUDE_TAGS:"))
 
 (defcustom org-structure-template-alist
-  '(("s" "#+BEGIN_SRC ?\n\n#+END_SRC" "<src lang=\"?\">\n\n</src>")
-    ("e" "#+BEGIN_EXAMPLE\n?\n#+END_EXAMPLE" "<example>\n?\n</example>")
-    ("q" "#+BEGIN_QUOTE\n?\n#+END_QUOTE" "<quote>\n?\n</quote>")
-    ("v" "#+BEGIN_VERSE\n?\n#+END_VERSE" "<verse>\n?\n</verse>")
-    ("V" "#+BEGIN_VERBATIM\n?\n#+END_VERBATIM" "<verbatim>\n?\n</verbatim>")
-    ("c" "#+BEGIN_CENTER\n?\n#+END_CENTER" "<center>\n?\n</center>")
-    ("l" "#+BEGIN_LaTeX\n?\n#+END_LaTeX"
-     "<literal style=\"latex\">\n?\n</literal>")
-    ("L" "#+LaTeX: " "<literal style=\"latex\">?</literal>")
-    ("h" "#+BEGIN_HTML\n?\n#+END_HTML"
-     "<literal style=\"html\">\n?\n</literal>")
-    ("H" "#+HTML: " "<literal style=\"html\">?</literal>")
-    ("a" "#+BEGIN_ASCII\n?\n#+END_ASCII" "")
-    ("A" "#+ASCII: " "")
-    ("i" "#+INDEX: ?" "#+INDEX: ?")
-    ("I" "#+INCLUDE: %file ?"
-     "<include file=%file markup=\"?\">"))
+  '(("s" "#+BEGIN_SRC ?\n\n#+END_SRC")
+    ("e" "#+BEGIN_EXAMPLE\n?\n#+END_EXAMPLE")
+    ("q" "#+BEGIN_QUOTE\n?\n#+END_QUOTE")
+    ("v" "#+BEGIN_VERSE\n?\n#+END_VERSE")
+    ("V" "#+BEGIN_VERBATIM\n?\n#+END_VERBATIM")
+    ("c" "#+BEGIN_CENTER\n?\n#+END_CENTER")
+    ("l" "#+BEGIN_LaTeX\n?\n#+END_LaTeX")
+    ("L" "#+LaTeX: ")
+    ("h" "#+BEGIN_HTML\n?\n#+END_HTML")
+    ("H" "#+HTML: ")
+    ("a" "#+BEGIN_ASCII\n?\n#+END_ASCII")
+    ("A" "#+ASCII: ")
+    ("i" "#+INDEX: ?")
+    ("I" "#+INCLUDE: %file ?"))
   "Structure completion elements.
 This is a list of abbreviation keys and values.  The value gets inserted
 if you type `<' followed by the key and then press the completion key,
-usually `M-TAB'.  %file will be replaced by a file name after prompting
+usually `TAB'.  %file will be replaced by a file name after prompting
 for the file using completion.  The cursor will be placed at the position
 of the `?` in the template.
 There are two templates for each key, the first uses the original Org syntax,
@@ -12275,8 +12268,9 @@ variable `org-mtags-prefer-muse-templates'."
   :type '(repeat
 	  (list
 	   (string :tag "Key")
-	   (string :tag "Template")
-	   (string :tag "Muse Template"))))
+	   (string :tag "Template")))
+  :version 24.4
+  :package-version '(Org . "8.3"))
 
 (defun org-try-structure-completion ()
   "Try to complete a structure template before point.
@@ -12293,9 +12287,8 @@ expands them."
 
 (defun org-complete-expand-structure-template (start cell)
   "Expand a structure template."
-  (let* ((musep (org-bound-and-true-p org-mtags-prefer-muse-templates))
-	 (rpl (nth (if musep 2 1) cell))
-	 (ind ""))
+  (let ((rpl (nth 1 cell))
+	(ind ""))
     (delete-region start (point))
     (when (string-match "\\`[ \t]*#\\+" rpl)
       (cond
@@ -13103,7 +13096,7 @@ Returns the new TODO keyword, or nil if no state change should occur."
 (defvar org-last-inserted-timestamp)
 (defvar org-log-post-message)
 (defvar org-log-note-purpose)
-(defvar org-log-note-how)
+(defvar org-log-note-how nil)
 (defvar org-log-note-extra)
 (defun org-auto-repeat-maybe (done-word)
   "Check if the current headline contains a repeated deadline/schedule.
@@ -13502,7 +13495,6 @@ be removed."
 (defvar org-log-note-purpose nil)
 (defvar org-log-note-state nil)
 (defvar org-log-note-previous-state nil)
-(defvar org-log-note-how nil)
 (defvar org-log-note-extra nil)
 (defvar org-log-note-window-configuration nil)
 (defvar org-log-note-return-to (make-marker))
@@ -13894,8 +13886,7 @@ How much context is shown depends upon the variables
 	(while (and (ignore-errors (progn (org-up-heading-all 1) t))
 		    (not (bobp)))
 	  (org-flag-heading nil)
-	  (when siblings-p (org-show-siblings)))))
-    (unless (eq key 'agenda) (org-fix-ellipsis-at-bol))))
+	  (when siblings-p (org-show-siblings)))))))
 
 (defvar org-reveal-start-hook nil
   "Hook run before revealing a location.")
@@ -19532,8 +19523,8 @@ boundaries."
     ("s" . org-narrow-to-subtree)
     ("=" . org-columns)
     ("Outline Structure Editing")
-    ("U" . org-shiftmetaup)
-    ("D" . org-shiftmetadown)
+    ("U" . org-metaup)
+    ("D" . org-metadown)
     ("r" . org-metaright)
     ("l" . org-metaleft)
     ("R" . org-shiftmetaright)
@@ -24154,7 +24145,7 @@ Move to the previous element at the same level, when possible."
 		       (prev (org-element-at-point))
 		       (up prev))
 		  (while (and (setq up (org-element-property :parent up))
-			      (<= (org-element-property :end prev) beg))
+			      (<= (org-element-property :end up) beg))
 		    (setq prev up))
 		  prev)))))
       ;; Error out if no previous element or previous element is
@@ -24340,8 +24331,7 @@ Show the heading too, if it is currently invisible."
 		   isearch-mode-end-hook-quit)
 	;; Only when the isearch was not quitted.
 	(org-add-hook 'post-command-hook 'org-isearch-post-command
-		      'append 'local)))
-    (org-fix-ellipsis-at-bol)))
+		      'append 'local)))))
 
 (defun org-isearch-post-command ()
   "Remove self from hook, and show context."

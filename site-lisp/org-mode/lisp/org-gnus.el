@@ -36,11 +36,13 @@
 (eval-when-compile (require 'gnus-sum))
 
 ;; Declare external functions and variables
+
 (declare-function message-fetch-field "message" (header &optional not-all))
 (declare-function message-narrow-to-head-1 "message" nil)
 (declare-function nnimap-group-overview-filename "nnimap" (group server))
-;; The following line suppresses a compiler warning stemming from gnus-sum.el
 (declare-function gnus-summary-last-subject "gnus-sum" nil)
+(declare-function nnvirtual-map-article "nnvirtual" (article))
+
 ;; Customization variables
 
 (org-defvaralias 'org-usenet-links-prefer-google 'org-gnus-prefer-web-links)
@@ -170,6 +172,10 @@ If `org-store-link' was called with a prefix arg the meaning of
 	   (subject (copy-sequence (mail-header-subject header)))
 	   (to (cdr (assq 'To (mail-header-extra header))))
 	   newsgroups x-no-archive desc link)
+      (when (eq (car (gnus-find-method-for-group gnus-newsgroup-name))
+		  'nnvirtual)
+	(setq group (car (nnvirtual-map-article
+			  (gnus-summary-article-number)))))
       ;; Remove text properties of subject string to avoid Emacs bug
       ;; #3506
       (set-text-properties 0 (length subject) nil subject)

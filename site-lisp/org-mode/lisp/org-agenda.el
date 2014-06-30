@@ -7001,10 +7001,12 @@ When TYPE is \"scheduled\", \"deadline\", \"timestamp\" or
 is the empty string, compare all timestamps without respect of
 their type."
   (let* ((def (if org-sort-agenda-notime-is-late most-positive-fixnum -1))
-	 (ta (or (and (string-match type (or (get-text-property 1 type a) ""))
-		      (get-text-property 1 'ts-date a)) def))
-	 (tb (or (and (string-match type (or (get-text-property 1 type b) ""))
-		      (get-text-property 1 'ts-date b)) def)))
+	 (ta (or (and (string-match type (or (get-text-property 1 'type a) ""))
+		      (get-text-property 1 'ts-date a))
+		 def))
+	 (tb (or (and (string-match type (or (get-text-property 1 'type b) ""))
+		      (get-text-property 1 'ts-date b))
+		 def)))
     (cond ((< ta tb) -1)
 	  ((< tb ta) +1))))
 
@@ -7030,7 +7032,7 @@ their type."
 			       (org-cmp-ts a b "deadline")))
 	 (deadline-down   (if deadline-up (- deadline-up) nil))
 	 (tsia-up         (and (org-em 'tsia-up 'tsia-down ss)
-			       (org-cmp-ts a b "iatimestamp_ia")))
+			       (org-cmp-ts a b "timestamp_ia")))
 	 (tsia-down       (if tsia-up (- tsia-up) nil))
 	 (ts-up           (and (org-em 'ts-up 'ts-down ss)
 			       (org-cmp-ts a b "timestamp")))
@@ -7452,7 +7454,7 @@ to switch to narrowing."
 		     alist ""))
 	 (inhibit-read-only t)
 	 (current org-agenda-tag-filter)
-	 maybe-refresh a n tag)
+	 a n tag)
     (unless char
       (message
        "%s by tag [%s ], [TAB], %s[/]:off, [+-]:narrow"
@@ -7483,19 +7485,16 @@ to switch to narrowing."
 	    (if modifier
 		(push modifier org-agenda-tag-filter))))
 	(if (not (null org-agenda-tag-filter))
-	    (org-agenda-filter-apply org-agenda-tag-filter 'tag)))
-      (setq maybe-refresh t))
+	    (org-agenda-filter-apply org-agenda-tag-filter 'tag))))
      ((equal char ?/)
       (org-agenda-filter-show-all-tag)
       (when (get 'org-agenda-tag-filter :preset-filter)
-	(org-agenda-filter-apply org-agenda-tag-filter 'tag))
-      (setq maybe-refresh t))
+	(org-agenda-filter-apply org-agenda-tag-filter 'tag)))
      ((equal char ?. )
       (setq org-agenda-tag-filter
 	    (mapcar (lambda(tag) (concat "+" tag))
 		    (org-get-at-bol 'tags)))
-      (org-agenda-filter-apply org-agenda-tag-filter 'tag)
-      (setq maybe-refresh t))
+      (org-agenda-filter-apply org-agenda-tag-filter 'tag))
      ((or (equal char ?\ )
 	  (setq a (rassoc char alist))
 	  (and tag (setq a (cons tag nil))))
@@ -7504,11 +7503,8 @@ to switch to narrowing."
       (setq org-agenda-tag-filter
 	    (cons (concat (if strip "-" "+") tag)
 		  (if narrow current nil)))
-      (org-agenda-filter-apply org-agenda-tag-filter 'tag)
-      (setq maybe-refresh t))
-     (t (error "Invalid tag selection character %c" char)))
-    (when maybe-refresh
-      (org-agenda-redo))))
+      (org-agenda-filter-apply org-agenda-tag-filter 'tag))
+     (t (error "Invalid tag selection character %c" char)))))
 
 (defun org-agenda-get-represented-tags ()
   "Get a list of all tags currently represented in the agenda."
@@ -7632,13 +7628,12 @@ When NO-OPERATOR is non-nil, do not add the + operator to returned tags."
   ;; Deactivate `org-agenda-entry-text-mode' when filtering
   (if org-agenda-entry-text-mode (org-agenda-entry-text-mode))
   (let (tags cat txt)
-    (setq org-agenda-filter-form
-	  (org-agenda-filter-make-matcher filter type))
-    (if (and (eq type 'category)
-	     (not (equal (substring (car filter) 0 1) "-")))
-	;; Only set `org-agenda-filtered-by-category' to t
-	;; when a unique category is used as the filter
-	(setq org-agenda-filtered-by-category t))
+    (setq org-agenda-filter-form (org-agenda-filter-make-matcher filter type))
+    ;; Only set `org-agenda-filtered-by-category' to t when a unique
+    ;; category is used as the filter:
+    (setq org-agenda-filtered-by-category
+	  (and (eq type 'category)
+	       (not (equal (substring (car filter) 0 1) "-"))))
     (org-agenda-set-mode-name)
     (save-excursion
       (goto-char (point-min))

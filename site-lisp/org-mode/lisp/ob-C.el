@@ -2,7 +2,8 @@
 
 ;; Copyright (C) 2010-2014 Free Software Foundation, Inc.
 
-;; Author: Eric Schulte, Thierry Banel
+;; Author: Eric Schulte
+;;      Thierry Banel
 ;; Keywords: literate programming, reproducible research
 ;; Homepage: http://orgmode.org
 
@@ -45,16 +46,32 @@
 
 (defvar org-babel-default-header-args:C '())
 
-(defvar org-babel-C-compiler "gcc"
-  "Command used to compile a C source code file into an
-executable.")
+(defcustom org-babel-C-compiler "gcc"
+  "Command used to compile a C source code file into an executable.
+May be either a command in the path, like gcc
+or an absolute path name, like /usr/local/bin/gcc
+parameter may be used, like gcc -v"
+  :group 'org-babel
+  :version "24.3"
+  :type 'string)
 
-(defvar org-babel-C++-compiler "g++"
-  "Command used to compile a C++ source code file into an
-executable.")
+(defcustom org-babel-C++-compiler "g++"
+  "Command used to compile a C++ source code file into an executable.
+May be either a command in the path, like g++
+or an absolute path name, like /usr/local/bin/g++
+parameter may be used, like g++ -v"
+  :group 'org-babel
+  :version "24.3"
+  :type 'string)
 
-(defvar org-babel-D-compiler "rdmd"
-  "Command used to compile and execute a D source code file.")
+(defcustom org-babel-D-compiler "rdmd"
+  "Command used to compile and execute a D source code file.
+May be either a command in the path, like rdmd
+or an absolute path name, like /usr/local/bin/rdmd
+parameter may be used, like rdmd --chatty"
+  :group 'org-babel
+  :version "24.3"
+  :type 'string)
 
 (defvar org-babel-c-variant nil
   "Internal variable used to hold which type of C (e.g. C or C++ or D)
@@ -264,7 +281,7 @@ FORMAT can be either a format string or a function which is called with VAL."
 	     (list
 	      (if (equal org-babel-c-variant 'd) "string" "const char*")
 	      "\"%s\""))
-	    (t (error "unknown type %S" type)))))
+	    (t (error "unknown type %S" basetype)))))
     (cond
      ((integerp val) type) ;; an integer declared in the #+begin_src line
      ((floatp val) type) ;; a numeric declared in the #+begin_src line

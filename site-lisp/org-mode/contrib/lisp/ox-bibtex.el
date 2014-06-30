@@ -89,8 +89,6 @@
 ;; Initialization
 
 (eval-when-compile (require 'cl))
-(let ((jump-fn (car (org-remove-if-not #'fboundp '(ebib obe-goto-citation)))))
-  (org-add-link-type "cite" jump-fn))
 
 ;;; Internal Functions
 
@@ -148,6 +146,27 @@ to `org-bibtex-citation-p' predicate."
     (let ((value (org-element-property :value citation)))
       (and (string-match "\\`\\\\cite{" value)
 	   (substring value (match-end 0) -1)))))
+
+
+;;; Follow cite: links
+
+(defun org-bibtex-file nil "Org-mode file of bibtex entries.")
+
+(defun org-bibtex-goto-citation (&optional citation)
+  "Visit a citation given its ID."
+  (interactive)
+  (let ((citation (or citation
+		      (org-icompleting-read "Citation: "
+					    (obe-citations)))))
+    (find-file (or org-bibtex-file
+		   (error "`org-bibtex-file' has not been configured")))
+    (goto-char (point-min))
+    (when (re-search-forward (format "  :CUSTOM_ID: %s" citation) nil t)
+      (outline-previous-visible-heading 1)
+      t)))
+
+(let ((jump-fn (car (org-remove-if-not #'fboundp '(ebib org-bibtex-goto-citation)))))
+  (org-add-link-type "cite" jump-fn))
 
 
 
@@ -250,8 +269,10 @@ Return new parse tree."
 (defun org-bibtex-merge-contiguous-citations (tree backend info)
   "Merge all contiguous citation in parse tree.
 As a side effect, this filter will also turn all \"cite\" links
-into \"\\cite{...}\" LaTeX fragments and will extract options
-into square brackets at the beginning of the \"\\cite\" command."
+into \"\\cite{...}\" LaTeX fragments and will extract options.
+Cite options are placed into square brackets at the beginning of
+the \"\\cite\" command for the LaTeX backend, and are removed for
+the HTML and ASCII backends."
   (when (org-export-derived-backend-p backend 'html 'latex 'ascii)
     (org-element-map tree '(link latex-fragment)
       (lambda (object)
@@ -282,7 +303,8 @@ into square brackets at the beginning of the \"\\cite\" command."
 		     (lambda (k)
 		       (if (string-match "^(\\([^)]\+\\))\\(.*\\)" k)
 			   (progn
-			     (setq option (format "[%s]" (match-string 1 k)))
+			     (when (org-export-derived-backend-p backend 'latex)
+			       (setq option (format "[%s]" (match-string 1 k))))
 			     (match-string 2 k))
 			 k))
 		     keys))

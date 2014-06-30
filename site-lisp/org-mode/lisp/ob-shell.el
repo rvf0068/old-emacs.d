@@ -38,19 +38,6 @@
 
 (defvar org-babel-default-header-args:sh '())
 
-(defcustom org-babel-sh-command shell-file-name
-  "Command used to invoke a shell.
-Set by default to the value of `shell-file-name'.  This will be
-passed to `shell-command-on-region'"
-  :group 'org-babel
-  :type 'string)
-
-(defcustom org-babel-sh-var-quote-fmt
-  "$(cat <<'BABEL_TABLE'\n%s\nBABEL_TABLE\n)"
-  "Format string used to escape variables when passed to shell scripts."
-  :group 'org-babel
-  :type 'string)
-
 (defcustom org-babel-shell-names
   '("sh" "bash" "csh" "ash" "dash" "ksh" "mksh" "posh")
   "List of names of shell supported by babel shell code blocks."
@@ -63,7 +50,7 @@ passed to `shell-command-on-region'"
      (lambda (name)
        (eval `(defun ,(intern (concat "org-babel-execute:" name)) (body params)
 		,(format "Execute a block of %s commands with Babel." name)
-		(let ((org-babel-sh-command ,name))
+		(let ((shell-file-name ,name))
 		  (org-babel-execute:shell body params)))))
      (second value))))
 
@@ -113,28 +100,26 @@ This function is called by `org-babel-execute-src-block'."
 (defun org-babel-variable-assignments:bash_array
     (varname values &optional sep hline)
   "Returns a list of statements declaring the values as a bash array."
-  (format "unset %s\ndeclare -a %s=( \"%s\" )"
-     varname varname
-     (mapconcat 'identity
-       (mapcar
-         (lambda (value) (org-babel-sh-var-to-sh value sep hline))
-         values)
-       "\" \"")))
+  (format "unset %s\ndeclare -a %s=( %s )"
+	  varname varname
+	  (mapconcat
+	   (lambda (value) (org-babel-sh-var-to-sh value sep hline))
+	   values
+	   " ")))
 
 (defun org-babel-variable-assignments:bash_assoc
     (varname values &optional sep hline)
   "Returns a list of statements declaring the values as bash associative array."
   (format "unset %s\ndeclare -A %s\n%s"
     varname varname
-    (mapconcat 'identity
-      (mapcar
-        (lambda (items)
-          (format "%s[\"%s\"]=%s"
-            varname
-            (org-babel-sh-var-to-sh (car items) sep hline)
-            (org-babel-sh-var-to-sh (cdr items) sep hline)))
-        values)
-      "\n")))
+    (mapconcat
+     (lambda (items)
+       (format "%s[%s]=%s"
+	       varname
+	       (org-babel-sh-var-to-sh (car items) sep hline)
+	       (org-babel-sh-var-to-sh (cdr items) sep hline)))
+     values
+     "\n")))
 
 (defun org-babel-variable-assignments:bash (varname values &optional sep hline)
   "Represents the parameters as useful Bash shell variables."
@@ -152,7 +137,7 @@ This function is called by `org-babel-execute-src-block'."
 		     "hline"))))
     (mapcar
      (lambda (pair)
-       (if (string= org-babel-sh-command "bash")
+       (if (string-match "bash$" shell-file-name)
 	   (org-babel-variable-assignments:bash
             (car pair) (cdr pair) sep hline)
          (org-babel-variable-assignments:sh-generic
@@ -163,8 +148,10 @@ This function is called by `org-babel-execute-src-block'."
   "Convert an elisp value to a shell variable.
 Convert an elisp var into a string of shell commands specifying a
 var of the same value."
-  (format org-babel-sh-var-quote-fmt
-	  (org-babel-sh-var-to-string var sep hline)))
+  (concat "'" (replace-regexp-in-string
+	       "'" "'\"'\"'"
+	       (org-babel-sh-var-to-string var sep hline))
+	  "'"))
 
 (defun org-babel-sh-var-to-string (var &optional sep hline)
   "Convert an elisp value to a string."
@@ -217,7 +204,7 @@ return the value of the last statement in BODY."
                (call-process-shell-command
                 (if shebang
                     script-file
-                  (format "%s %s" org-babel-sh-command script-file))
+                  (format "%s %s" shell-file-name script-file))
                 stdin-file
                 (current-buffer) nil cmdline)
                (buffer-string))))
@@ -255,7 +242,7 @@ return the value of the last statement in BODY."
                    (insert body))
                  (set-file-modes script-file #o755)
                  (org-babel-eval script-file ""))
-             (org-babel-eval org-babel-sh-command (org-babel-trim body)))))))
+             (org-babel-eval shell-file-name (org-babel-trim body)))))))
     (when results
       (let ((result-params (cdr (assoc :result-params params))))
         (org-babel-result-cond result-params
