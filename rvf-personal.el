@@ -20,9 +20,11 @@
       '(
         ("Tasks" "/usr/share/icons/Humanity/stock/16/stock_task.svg" nil nil :ascent center)
         ("LIMA" "/usr/share/icons/Humanity/actions/16/add.svg" nil nil :ascent center)
+        ("WorldCup" "/usr/share/icons/Humanity/categories/16/gnome-globe.svg" nil nil :ascent center)
         ("Math" "/usr/share/icons/gnome/16x16/apps/libreoffice-math.png" nil nil :ascent center)
         ("Saint" "/usr/share/icons/gnome/16x16/emotes/face-angel.png" nil nil :ascent center)
         ("Emacs" "/usr/share/emacs/24.3/etc/images/icons/hicolor/16x16/apps/emacs.png" nil nil :ascent center)
+	("" '(space . (:height (16) :width (16))))
         ))
 
 (setq org-publish-project-alist
