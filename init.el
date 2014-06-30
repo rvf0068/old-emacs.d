@@ -155,7 +155,6 @@
     (load "~/.emacs.d/rvf-personal.el")
   )
 
-(require 'chess)
 (setq chess-images-directory "~/Dropbox/emacs/site-lisp/emacs-chess/pieces/ziics/FRITZ2")
 (setq chess-images-separate-frame nil)
 (setq chess-images-default-size 32)
