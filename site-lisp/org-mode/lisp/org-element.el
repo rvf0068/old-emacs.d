@@ -194,8 +194,8 @@ is not sufficient to know if point is at a paragraph ending.  See
   "Complete list of object types.")
 
 (defconst org-element-recursive-objects
-  '(bold italic link subscript radio-target strike-through superscript
-	 table-cell underline)
+  '(bold footnote-reference italic link subscript radio-target strike-through
+	 superscript table-cell underline)
   "List of recursive object types.")
 
 (defvar org-element-block-name-alist
@@ -341,8 +341,7 @@ still has an entry since one of its properties (`:title') does.")
 (defconst org-element-secondary-value-alist
   '((headline . :title)
     (inlinetask . :title)
-    (item . :tag)
-    (footnote-reference . :inline-definition))
+    (item . :tag))
   "Alist between element types and location of secondary value.")
 
 (defconst org-element-object-variables '(org-link-abbrev-alist-local)
@@ -2755,16 +2754,17 @@ CONTENTS is nil."
 
 When at a footnote reference, return a list whose car is
 `footnote-reference' and cdr a plist with `:label', `:type',
-`:inline-definition', `:begin', `:end' and `:post-blank' as
-keywords.  Otherwise, return nil."
+`:begin', `:end', `:content-begin', `:contents-end' and
+`:post-blank' as keywords.  Otherwise, return nil."
   (catch 'no-object
     (when (looking-at org-footnote-re)
       (save-excursion
 	(let* ((begin (point))
-	       (label (or (org-match-string-no-properties 2)
-			  (org-match-string-no-properties 3)
-			  (and (match-string 1)
-			       (concat "fn:" (org-match-string-no-properties 1)))))
+	       (label
+		(or (org-match-string-no-properties 2)
+		    (org-match-string-no-properties 3)
+		    (and (match-string 1)
+			 (concat "fn:" (org-match-string-no-properties 1)))))
 	       (type (if (or (not label) (match-string 1)) 'inline 'standard))
 	       (inner-begin (match-end 0))
 	       (inner-end
@@ -2776,32 +2776,22 @@ keywords.  Otherwise, return nil."
 		  (1- (point))))
 	       (post-blank (progn (goto-char (1+ inner-end))
 				  (skip-chars-forward " \t")))
-	       (end (point))
-	       (footnote-reference
-		(list 'footnote-reference
-		      (list :label label
-			    :type type
-			    :begin begin
-			    :end end
-			    :post-blank post-blank))))
-	  (org-element-put-property
-	   footnote-reference :inline-definition
-	   (and (eq type 'inline)
-		(org-element-parse-secondary-string
-		 (buffer-substring inner-begin inner-end)
-		 (org-element-restriction 'footnote-reference)
-		 footnote-reference))))))))
+	       (end (point)))
+	  (list 'footnote-reference
+		(list :label label
+		      :type type
+		      :begin begin
+		      :end end
+		      :contents-begin (and (eq type 'inline) inner-begin)
+		      :contents-end (and (eq type 'inline) inner-end)
+		      :post-blank post-blank)))))))
 
 (defun org-element-footnote-reference-interpreter (footnote-reference contents)
   "Interpret FOOTNOTE-REFERENCE object as Org syntax.
-CONTENTS is nil."
-  (let ((label (or (org-element-property :label footnote-reference) "fn:"))
-	(def
-	 (let ((inline-def
-		(org-element-property :inline-definition footnote-reference)))
-	   (if (not inline-def) ""
-	     (concat ":" (org-element-interpret-data inline-def))))))
-    (format "[%s]" (concat label def))))
+CONTENTS is its definition, when inline, or nil."
+  (format "[%s]"
+	  (concat (or (org-element-property :label footnote-reference) "fn:")
+		  (and contents (concat ":" contents)))))
 
 
 ;;;; Inline Babel Call
@@ -2921,27 +2911,29 @@ Assume point is at the beginning of the LaTeX fragment."
   (catch 'no-object
     (save-excursion
       (let* ((begin (point))
-	     (substring-match
-	      (or (catch 'exit
-		    (dolist (e (cdr org-latex-regexps))
-		      (let ((latex-regexp (nth 1 e)))
-			(when (or (looking-at latex-regexp)
-				  (and (not (bobp))
-				       (save-excursion
-					 (backward-char)
-					 (looking-at latex-regexp))))
-			  (throw 'exit (nth 2 e))))))
-		  ;; Macro.
-		  (and (looking-at "\\\\[a-zA-Z]+\\*?\\(\\(\\[[^][\n{}]*\\]\\)\\|\\({[^{}\n]*}\\)\\)*")
-		       0)
-		  ;; No fragment found.
-		  (throw 'no-object nil)))
-	     (value (org-match-string-no-properties substring-match))
-	     (post-blank (progn (goto-char (match-end substring-match))
-				(skip-chars-forward " \t")))
+	     (after-fragment
+	      (if (eq (char-after) ?$)
+		  (if (eq (char-after (1+ (point))) ?$)
+		      (search-forward "$$" nil t 2)
+		    (and (not (eq (char-before) ?$))
+			 (search-forward "$" nil t 2)
+			 (not (memq (char-before (match-beginning 0))
+				    '(?\s ?\t ?\n ?, ?.)))
+			 (looking-at "\\([- \t.,?;:'\"]\\|$\\)")
+			 (point)))
+		(case (char-after (1+ (point)))
+		  (?\( (search-forward "\\)" nil t))
+		  (?\[ (search-forward "\\]" nil t))
+		  (otherwise
+		   ;; Macro.
+		   (and (looking-at "\\\\[a-zA-Z]+\\*?\\(\\(\\[[^][\n{}]*\\]\\)\\|\\({[^{}\n]*}\\)\\)*")
+			(match-end 0))))))
+	     (post-blank (if (not after-fragment) (throw 'no-object nil)
+			   (goto-char after-fragment)
+			   (skip-chars-forward " \t")))
 	     (end (point)))
 	(list 'latex-fragment
-	      (list :value value
+	      (list :value (buffer-substring-no-properties begin after-fragment)
 		    :begin begin
 		    :end end
 		    :post-blank post-blank))))))
@@ -4287,12 +4279,14 @@ to an appropriate container (e.g., a paragraph)."
 				  (org-element-timestamp-parser))
 			     (and (memq 'link restriction)
 				  (org-element-link-parser)))))
-		      (?\\ (or (and (memq 'line-break restriction)
-				    (org-element-line-break-parser))
-			       (and (memq 'entity restriction)
-				    (org-element-entity-parser))
-			       (and (memq 'latex-fragment restriction)
-				    (org-element-latex-fragment-parser))))
+		      (?\\
+		       (if (eq (aref result 1) ?\\)
+			   (and (memq 'line-break restriction)
+				(org-element-line-break-parser))
+			 (or (and (memq 'entity restriction)
+				  (org-element-entity-parser))
+			     (and (memq 'latex-fragment restriction)
+				  (org-element-latex-fragment-parser)))))
 		      (?\[
 		       (if (eq (aref result 1) ?\[)
 			   (and (memq 'link restriction)
@@ -4703,7 +4697,7 @@ This cache is used in `org-element-context'.")
 
 A request is a vector with the following pattern:
 
- \[NEXT BEG END OFFSET PARENT PHASE]
+ \[NEXT BEG END OFFSET OUTREACH PARENT PHASE]
 
 Processing a synchronization request consists of three phases:
 
@@ -4713,9 +4707,9 @@ Processing a synchronization request consists of three phases:
 
 During phase 0, NEXT is the key of the first element to be
 removed, BEG and END is buffer position delimiting the
-modifications.  Every element starting between them (inclusive)
-are removed.  PARENT, when non-nil, is the parent of the first
-element to be removed.
+modifications.  Elements starting between them (inclusive) are
+removed and so are those contained within OUTREACH.  PARENT, when
+non-nil, is the parent of the first element to be removed.
 
 During phase 1, NEXT is the key of the next known element in
 cache and BEG its beginning position.  Parse buffer between that
@@ -5047,7 +5041,7 @@ updated before current modification are actually submitted."
 	    (when next
 	      (incf (aref next 3) (aref request 3))
 	      (aset next 2 (aref request 2))
-	      (aset next 5 (aref request 5)))
+	      (aset next 6 (aref request 6)))
 	    (setq org-element--cache-sync-requests
 		  (cdr org-element--cache-sync-requests))))
 	;; If more requests are awaiting, set idle timer accordingly.
@@ -5077,7 +5071,7 @@ more information.
 Throw `interrupt' if the process stops before completing the
 request."
   (catch 'quit
-    (when (= (aref request 5) 0)
+    (when (= (aref request 6) 0)
       ;; Phase 1.
       ;;
       ;; Delete all elements starting after BEG, but not after buffer
@@ -5087,7 +5081,8 @@ request."
       ;; a deletion modifies structure of the balanced tree.
       (catch 'end-phase
         (let ((beg (aref request 0))
-              (end (aref request 2)))
+              (end (aref request 2))
+	      (outreach (aref request 4)))
           (while t
             (when (org-element--cache-interrupt-p time-limit)
 	      (throw 'interrupt nil))
@@ -5108,18 +5103,22 @@ request."
                             node nil)))))
 	      (if data
 		  (let ((pos (org-element-property :begin data)))
-		    (if (and (<= pos end)
-			     (or (not next)
-				 (org-element--cache-key-less-p data-key next)))
+		    (if (if (or (not next)
+				(org-element--cache-key-less-p data-key next))
+			    (<= pos end)
+			  (let ((up data))
+			    (while (and up (not (eq up outreach)))
+			      (setq up (org-element-property :parent up)))
+			    up))
 			(org-element--cache-remove data)
 		      (aset request 0 data-key)
 		      (aset request 1 pos)
-		      (aset request 5 1)
+		      (aset request 6 1)
 		      (throw 'end-phase nil)))
 		;; No element starting after modifications left in
 		;; cache: further processing is futile.
 		(throw 'quit t)))))))
-    (when (= (aref request 5) 1)
+    (when (= (aref request 6) 1)
       ;; Phase 2.
       ;;
       ;; Phase 1 left a hole in the parse tree.  Some elements after
@@ -5158,8 +5157,8 @@ request."
 	(let ((limit (+ (aref request 1) (aref request 3) extra)))
 	  (when (and threshold (< threshold limit)) (throw 'interrupt nil))
 	  (let ((parent (org-element--parse-to limit t time-limit)))
-	    (aset request 4 parent)
-	    (aset request 5 2)
+	    (aset request 5 parent)
+	    (aset request 6 2)
 	    (throw 'end-phase nil)))))
     ;; Phase 3.
     ;;
@@ -5174,7 +5173,7 @@ request."
     ;; request is updated.
     (let ((start (aref request 0))
 	  (offset (aref request 3))
-	  (parent (aref request 4))
+	  (parent (aref request 5))
 	  (node (org-element--cache-root))
 	  (stack (list nil))
 	  (leftp t)
@@ -5194,7 +5193,7 @@ request."
 	      ;; Handle interruption request.  Update current request.
 	      (when (or exit-flag (org-element--cache-interrupt-p time-limit))
 		(aset request 0 key)
-		(aset request 4 parent)
+		(aset request 5 parent)
 		(throw 'interrupt nil))
 	      ;; Shift element.
 	      (unless (zerop offset)
@@ -5471,31 +5470,30 @@ changes."
 BEG and END are buffer positions delimiting the minimal area
 where cache data should be removed.  OFFSET is the size of the
 change, as an integer."
-  (let ((next (car org-element--cache-sync-requests)))
+  (let ((next (car org-element--cache-sync-requests))
+	delete-to delete-from)
     (if (and next
-	     (zerop (aref next 5))
-	     (let ((relative-end (- end (aref next 3))))
-	       (and (> (aref next 2) relative-end)
-		    (<= (aref next 1) relative-end))))
+	     (zerop (aref next 6))
+	     (> (setq delete-to (+ (aref next 2) (aref next 3))) end)
+	     (<= (setq delete-from (aref next 1)) end))
 	;; Current changes can be merged with first sync request: we
 	;; can save a partial cache synchronization.
 	(progn
 	  (incf (aref next 3) offset)
-	  ;; If last changes happened before (position wise) old ones,
-	  ;; recompute the key of the first element to remove.
-	  ;; Otherwise, extend boundaries of robust parents (see
-	  ;; `org-element--cache-for-removal'), if any.
-	  (if (>= (aref next 1) beg)
-	      (let ((first (org-element--cache-for-removal beg end offset)))
-		(when first
-		  (aset next 0 (org-element--cache-key first))
-		  (aset next 1 (org-element-property :begin first))
-		  (aset next 4 (org-element-property :parent first))))
-	    (let ((up (aref next 4)))
-	      (while up
-		(org-element--cache-shift-positions
-		 up offset '(:contents-end :end))
-		(setq up (org-element-property :parent up))))))
+	  ;; If last change happened within area to be removed, extend
+	  ;; boundaries of robust parents, if any.  Otherwise, find
+	  ;; first element to remove and update request accordingly.
+	  (if (> beg delete-from)
+	      (let ((up (aref next 5)))
+		(while up
+		  (org-element--cache-shift-positions
+		   up offset '(:contents-end :end))
+		  (setq up (org-element-property :parent up))))
+	    (let ((first (org-element--cache-for-removal beg delete-to offset)))
+	      (when first
+		(aset next 0 (org-element--cache-key first))
+		(aset next 1 (org-element-property :begin first))
+		(aset next 5 (org-element-property :parent first))))))
       ;; Ensure cache is correct up to END.  Also make sure that NEXT,
       ;; if any, is no longer a 0-phase request, thus ensuring that
       ;; phases are properly ordered.  We need to provide OFFSET as
@@ -5504,34 +5502,43 @@ change, as an integer."
       ;; the first request).
       (when next (org-element--cache-sync (current-buffer) end offset))
       (let ((first (org-element--cache-for-removal beg end offset)))
-	(cond
-	 ;; Changes happened before the first known element.  Shift
-	 ;; the rest of the cache.
-	 ((and first (> (org-element-property :begin first) end))
-	  (push (vector (org-element--cache-key first) nil nil offset nil 2)
-		org-element--cache-sync-requests))
-	 ;; There is at least an element to remove.  Find position
-	 ;; past every element containing END.
-	 (first
-	  (if (> (org-element-property :end first) end)
-	      (setq end (org-element-property :end first))
-	    (let ((element (org-element--cache-find end)))
-	      (setq end (org-element-property :end element))
-	      (let ((up element))
-		(while (and (setq up (org-element-property :parent up))
-			    (>= (org-element-property :begin up) beg))
-		  (setq end (org-element-property :end up))))))
-	  (push (vector (org-element--cache-key first)
-			(org-element-property :begin first)
-			end
-			offset
-			(org-element-property :parent first)
-			0)
-		org-element--cache-sync-requests))
-	 ;; No element to remove.  No need to re-parent either.
-	 ;; Simply shift additional elements, if any, by OFFSET.
-	 (org-element--cache-sync-requests
-	  (incf (aref (car org-element--cache-sync-requests) 3) offset)))))))
+	(if first
+	    (push (let ((beg (org-element-property :begin first))
+			(key (org-element--cache-key first)))
+		    (cond
+		     ;; When changes happen before the first known
+		     ;; element, shift the rest of the cache.
+		     ((> beg end)
+		      (vector key nil nil offset nil nil 2))
+		     ;; Otherwise, we find the first non robust
+		     ;; element containing END.  All elements between
+		     ;; FIRST and this one are to be removed.
+		     ;;
+		     ;; Among them, some could be located outside the
+		     ;; synchronized part of the cache, in which case
+		     ;; comparing buffer positions to find them is
+		     ;; useless.  Instead, we store the element
+		     ;; containing them in the request itself.  All
+		     ;; its children will be removed.
+		     ((let ((first-end (org-element-property :end first)))
+			(and (> first-end end)
+			     (vector key beg first-end offset first
+				     (org-element-property :parent first) 0))))
+		     (t
+		      (let* ((element (org-element--cache-find end))
+			     (end (org-element-property :end element))
+			     (up element))
+			(while (and (setq up (org-element-property :parent up))
+				    (>= (org-element-property :begin up) beg))
+			  (setq end (org-element-property :end up)
+				element up))
+			(vector key beg end offset element
+				(org-element-property :parent first) 0)))))
+		  org-element--cache-sync-requests)
+	  ;; No element to remove.  No need to re-parent either.
+	  ;; Simply shift additional elements, if any, by OFFSET.
+	  (when org-element--cache-sync-requests
+	    (incf (aref (car org-element--cache-sync-requests) 3) offset)))))))
 
 
 ;;;; Public Functions
