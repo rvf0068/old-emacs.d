@@ -12,6 +12,7 @@
 
 (setq org-tag-faces '(
                       ("LIMA" . (:foreground "green" :weight bold :underline t))
+                      ("Maestría" . (:foreground "magenta" :weight bold :underline t))
                       ("titulacion" . (:foreground "blue" :weight bold :underline t))
                       ("todo" . (:foreground "orange" :weight bold :underline t))
                       ))
@@ -24,6 +25,7 @@
         ("Math" "/usr/share/icons/gnome/16x16/apps/libreoffice-math.png" nil nil :ascent center)
         ("Saint" "/usr/share/icons/gnome/16x16/emotes/face-angel.png" nil nil :ascent center)
         ("Emacs" "/usr/share/emacs/24.3/etc/images/icons/hicolor/16x16/apps/emacs.png" nil nil :ascent center)
+        ("Clase" "/usr/share/icons/gnome/16x16/mimetypes/libreoffice-formula.png" nil nil :ascent center)
 	("" '(space . (:height (16) :width (16))))
         ))
 
