@@ -6,6 +6,7 @@
 (setq dired-guess-shell-alist-user
       '(("\\.pdf\\'" "evince" "acroread")
         ("\\.eps\\'" "evince")
+        ("\\.ps\\'" "evince")
         ("\\.djvu\\'" "evince")
         ("\\.jpe?g\\'" "eog" "shotwell")
         ("\\.png\\'" "eog" "shotwell")
@@ -13,7 +14,7 @@
         ("\\.xpm\\'" "eog")
         ("\\.csv\\'" "libreoffice")
         ("\\.tex\\'" "pdflatex" "latex")
-        ("\\.\\(?:mp4\\|mkv\\|avi\\|flv\\|ogv\\)\\'" "smplayer")
+        ("\\.\\(?:mp4\\|mkv\\|avi\\|flv\\|ogv\\|ts\\)\\'" "smplayer")
         ("\\.\\(?:mp3\\|flac\\)\\'" "audacious")
         ("\\.html?\\'" "firefox")
         ("\\.cue\\'" "audacious")
