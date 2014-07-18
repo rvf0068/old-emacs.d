@@ -47,7 +47,10 @@
 
 (define-abbrev-table 'git-rebase-mode-abbrev-table '())
 
-(define-abbrev-table 'global-abbrev-table '())
+(define-abbrev-table 'global-abbrev-table
+  '(
+    ("taht" "that" nil 2)
+   ))
 
 (define-abbrev-table 'gnus-article-edit-mode-abbrev-table '())
 
@@ -107,6 +110,8 @@
 
 (define-abbrev-table 'org-export-stack-mode-abbrev-table '())
 
+(define-abbrev-table 'org-journal-mode-abbrev-table '())
+
 (define-abbrev-table 'org-mode-abbrev-table
   '(
     ("cd" "campo de descomposición" nil 2)
@@ -125,9 +130,7 @@
 
 (define-abbrev-table 'prog-mode-abbrev-table '())
 
-(define-abbrev-table 'python-mode-abbrev-table
-  '(
-   ))
+(define-abbrev-table 'python-mode-abbrev-table '())
 
 (define-abbrev-table 'reftex-select-bib-mode-abbrev-table '())
 
