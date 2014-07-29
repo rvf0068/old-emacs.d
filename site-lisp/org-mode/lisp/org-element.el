@@ -45,11 +45,11 @@
 ;; and `special-block'.
 ;;
 ;; Other element types are: `babel-call', `clock', `comment',
-;; `comment-block', `diary-sexp', `example-block', `export-block',
-;; `fixed-width', `horizontal-rule', `keyword', `latex-environment',
-;; `node-property', `paragraph', `planning', `src-block', `table',
-;; `table-row' and `verse-block'.  Among them, `paragraph' and
-;; `verse-block' types can contain Org objects and plain text.
+;; `comment-block', `diary-sexp', `example-block', `fixed-width',
+;; `horizontal-rule', `keyword', `latex-environment', `node-property',
+;; `paragraph', `planning', `src-block', `table', `table-row' and
+;; `verse-block'.  Among them, `paragraph' and `verse-block' types can
+;; contain Org objects and plain text.
 ;;
 ;; Objects are related to document's contents.  Some of them are
 ;; recursive.  Associated types are of the following: `bold', `code',
@@ -173,11 +173,11 @@ is not sufficient to know if point is at a paragraph ending.  See
 
 (defconst org-element-all-elements
   '(babel-call center-block clock comment comment-block diary-sexp drawer
-	       dynamic-block example-block export-block fixed-width
-	       footnote-definition headline horizontal-rule inlinetask item
-	       keyword latex-environment node-property paragraph plain-list
-	       planning property-drawer quote-block section
-	       special-block src-block table table-row verse-block)
+	       dynamic-block example-block fixed-width footnote-definition
+	       headline horizontal-rule inlinetask item keyword
+	       latex-environment node-property paragraph plain-list
+	       planning property-drawer quote-block section special-block
+	       src-block table table-row verse-block)
   "Complete list of element types.")
 
 (defconst org-element-greater-elements
@@ -198,7 +198,7 @@ is not sufficient to know if point is at a paragraph ending.  See
 	 superscript table-cell underline)
   "List of recursive object types.")
 
-(defvar org-element-block-name-alist
+(defconst org-element-block-name-alist
   '(("CENTER" . org-element-center-block-parser)
     ("COMMENT" . org-element-comment-block-parser)
     ("EXAMPLE" . org-element-example-block-parser)
@@ -343,11 +343,6 @@ still has an entry since one of its properties (`:title') does.")
     (inlinetask . :title)
     (item . :tag))
   "Alist between element types and location of secondary value.")
-
-(defconst org-element-object-variables '(org-link-abbrev-alist-local)
-  "List of buffer-local variables used when parsing objects.
-These variables are copied to the temporary buffer created by
-`org-export-secondary-string'.")
 
 
 
@@ -1523,8 +1518,9 @@ keyword and CDR is a plist of affiliated keywords along with
 their value.
 
 Return a list whose CAR is `special-block' and CDR is a plist
-containing `:type', `:begin', `:end', `:contents-begin',
-`:contents-end', `:post-blank' and `:post-affiliated' keywords.
+containing `:type', `:raw-value', `:begin', `:end',
+`:contents-begin', `:contents-end', `:post-blank' and
+`:post-affiliated' keywords.
 
 Assume point is at the beginning of the block."
   (let* ((case-fold-search t)
@@ -1553,6 +1549,10 @@ Assume point is at the beginning of the block."
 	    (list 'special-block
 		  (nconc
 		   (list :type type
+			 :raw-value
+			 (and contents-begin
+			      (buffer-substring-no-properties
+			       contents-begin contents-end))
 			 :begin begin
 			 :end end
 			 :contents-begin contents-begin
@@ -1899,60 +1899,6 @@ CONTENTS is nil."
 	    "#+END_EXAMPLE")))
 
 
-;;;; Export Block
-
-(defun org-element-export-block-parser (limit affiliated)
-  "Parse an export block.
-
-LIMIT bounds the search.  AFFILIATED is a list of which CAR is
-the buffer position at the beginning of the first affiliated
-keyword and CDR is a plist of affiliated keywords along with
-their value.
-
-Return a list whose CAR is `export-block' and CDR is a plist
-containing `:begin', `:end', `:type', `:value', `:post-blank' and
-`:post-affiliated' keywords.
-
-Assume point is at export-block beginning."
-  (let* ((case-fold-search t)
-	 (type (progn (looking-at "[ \t]*#\\+BEGIN_\\(\\S-+\\)")
-		      (upcase (org-match-string-no-properties 1)))))
-    (if (not (save-excursion
-	       (re-search-forward
-		(format "^[ \t]*#\\+END_%s[ \t]*$" type) limit t)))
-	;; Incomplete block: parse it as a paragraph.
-	(org-element-paragraph-parser limit affiliated)
-      (let ((contents-end (match-beginning 0)))
-	(save-excursion
-	  (let* ((begin (car affiliated))
-		 (post-affiliated (point))
-		 (contents-begin (progn (forward-line) (point)))
-		 (pos-before-blank (progn (goto-char contents-end)
-					  (forward-line)
-					  (point)))
-		 (end (progn (skip-chars-forward " \r\t\n" limit)
-			     (if (eobp) (point) (line-beginning-position))))
-		 (value (buffer-substring-no-properties contents-begin
-							contents-end)))
-	    (list 'export-block
-		  (nconc
-		   (list :begin begin
-			 :end end
-			 :type type
-			 :value value
-			 :post-blank (count-lines pos-before-blank end)
-			 :post-affiliated post-affiliated)
-		   (cdr affiliated)))))))))
-
-(defun org-element-export-block-interpreter (export-block contents)
-  "Interpret EXPORT-BLOCK element as Org syntax.
-CONTENTS is nil."
-  (let ((type (org-element-property :type export-block)))
-    (concat (format "#+BEGIN_%s\n" type)
-	    (org-element-property :value export-block)
-	    (format "#+END_%s" type))))
-
-
 ;;;; Fixed-width
 
 (defun org-element-fixed-width-parser (limit affiliated)
@@ -2084,6 +2030,18 @@ CONTENTS is nil."
 
 ;;;; Latex Environment
 
+(defconst org-element--latex-begin-environment
+  "^[ \t]*\\\\begin{\\([A-Za-z0-9*]+\\)}"
+  "Regexp matching the beginning of a LaTeX environment.
+The environment is captured by the first group.
+
+See also `org-element--latex-end-environment'.")
+
+(defconst org-element--latex-end-environment
+  "\\\\end{%s}[ \t]*$"
+  "Format string matching the ending of a LaTeX environment.
+See also `org-element--latex-begin-environment'.")
+
 (defun org-element-latex-environment-parser (limit affiliated)
   "Parse a LaTeX environment.
 
@@ -2100,8 +2058,8 @@ Assume point is at the beginning of the latex environment."
   (save-excursion
     (let ((case-fold-search t)
 	  (code-begin (point)))
-      (looking-at "[ \t]*\\\\begin{\\([A-Za-z0-9]+\\*?\\)}")
-      (if (not (re-search-forward (format "^[ \t]*\\\\end{%s}[ \t]*$"
+      (looking-at org-element--latex-begin-environment)
+      (if (not (re-search-forward (format org-element--latex-end-environment
 					  (regexp-quote (match-string 1)))
 				  limit t))
 	  ;; Incomplete latex environment: parse it as a paragraph.
@@ -2219,11 +2177,10 @@ Assume point is at the beginning of the paragraph."
 					  (org-match-string-no-properties 1)))
 				 limit t)))
 			 ;; Stop at valid latex environments.
-			 (and (looking-at
-			       "[ \t]*\\\\begin{\\([A-Za-z0-9]+\\*?\\)}")
+			 (and (looking-at org-element--latex-begin-environment)
 			      (save-excursion
 				(re-search-forward
-				 (format "^[ \t]*\\\\end{%s}[ \t]*$"
+				 (format org-element--latex-end-environment
 					 (regexp-quote
 					  (org-match-string-no-properties 1)))
 				 limit t)))
@@ -3006,16 +2963,20 @@ Assume point is at the beginning of the link."
 	(cond
 	 ;; File type.
 	 ((or (file-name-absolute-p raw-link)
-	      (string-match "^\\.\\.?/" raw-link))
+	      (string-match "\\`\\.\\.?/" raw-link))
 	  (setq type "file" path raw-link))
 	 ;; Explicit type (http, irc, bbdb...).  See `org-link-types'.
-	 ((string-match org-link-re-with-space3 raw-link)
-	  (setq type (match-string 1 raw-link) path (match-string 2 raw-link)))
+	 ((string-match org-link-types-re raw-link)
+	  (setq type (match-string 1 raw-link)
+		;; According to RFC 3986, extra whitespace should be
+		;; ignored when a URI is extracted.
+		path (replace-regexp-in-string
+		      "[ \t]*\n[ \t]*" "" (substring raw-link (match-end 0)))))
 	 ;; Id type: PATH is the id.
-	 ((string-match "^id:\\([-a-f0-9]+\\)" raw-link)
+	 ((string-match "\\`id:\\([-a-f0-9]+\\)" raw-link)
 	  (setq type "id" path (match-string 1 raw-link)))
 	 ;; Code-ref type: PATH is the name of the reference.
-	 ((string-match "^(\\(.*\\))$" raw-link)
+	 ((string-match "\\`(\\(.*\\))\\'" raw-link)
 	  (setq type "coderef" path (match-string 1 raw-link)))
 	 ;; Custom-id type: PATH is the name of the custom id.
 	 ((= (aref raw-link 0) ?#)
@@ -3707,8 +3668,7 @@ element it has to parse."
 	      (goto-char (car affiliated))
 	      (org-element-keyword-parser limit nil))
 	     ;; LaTeX Environment.
-	     ((looking-at
-	       "[ \t]*\\\\begin{[A-Za-z0-9*]+}\\(\\[.*?\\]\\|{.*?}\\)*[ \t]*$")
+	     ((looking-at org-element--latex-begin-environment)
 	      (org-element-latex-environment-parser limit affiliated))
 	     ;; Drawer and Property Drawer.
 	     ((looking-at org-drawer-regexp)
@@ -3907,21 +3867,18 @@ looked after.
 Optional argument PARENT, when non-nil, is the element or object
 containing the secondary string.  It is used to set correctly
 `:parent' property within the string."
-  ;; Copy buffer-local variables listed in
-  ;; `org-element-object-variables' into temporary buffer.  This is
-  ;; required since object parsing is dependent on these variables.
-  (let ((pairs (delq nil (mapcar (lambda (var)
-				   (when (boundp var)
-				     (cons var (symbol-value var))))
-				 org-element-object-variables))))
+  (let ((local-variables (buffer-local-variables)))
     (with-temp-buffer
-      (mapc (lambda (pair) (org-set-local (car pair) (cdr pair))) pairs)
+      (dolist (v local-variables)
+	(ignore-errors
+	  (if (symbolp v) (makunbound v)
+	    (org-set-local (car v) (cdr v)))))
       (insert string)
+      (restore-buffer-modified-p nil)
       (let ((secondary (org-element--parse-objects
 			(point-min) (point-max) nil restriction)))
 	(when parent
-	  (mapc (lambda (obj) (org-element-put-property obj :parent parent))
-		secondary))
+	  (dolist (o secondary) (org-element-put-property o :parent parent)))
 	secondary))))
 
 (defun org-element-map
@@ -5006,7 +4963,7 @@ Properties are modified by side-effect."
 			(plist-get properties key))))
 	(and value (plist-put properties key (+ offset value)))))))
 
-(defun org-element--cache-sync (buffer &optional threshold extra)
+(defun org-element--cache-sync (buffer &optional threshold future-change)
   "Synchronize cache with recent modification in BUFFER.
 
 When optional argument THRESHOLD is non-nil, do the
@@ -5015,9 +4972,9 @@ then exit.  Otherwise, synchronize cache for as long as
 `org-element-cache-sync-duration' or until Emacs leaves idle
 state.
 
-EXTRA, when non-nil, is an additional offset for changes not
-registered yet in the cache.  It is used in
-`org-element--cache-submit-request', where cache is partially
+FUTURE-CHANGE, when non-nil, is a buffer position where changes
+not registered yet in the cache are going to happen.  It is used
+in `org-element--cache-submit-request', where cache is partially
 updated before current modification are actually submitted."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
@@ -5035,13 +4992,12 @@ updated before current modification are actually submitted."
 	     (and (not threshold)
 		  (time-add (current-time)
 			    org-element-cache-sync-duration))
-	     (or extra 0))
+	     future-change)
 	    ;; Request processed.  Merge current and next offsets and
-	    ;; transfer phase number and ending position.
+	    ;; transfer ending position.
 	    (when next
 	      (incf (aref next 3) (aref request 3))
-	      (aset next 2 (aref request 2))
-	      (aset next 6 (aref request 6)))
+	      (aset next 2 (aref request 2)))
 	    (setq org-element--cache-sync-requests
 		  (cdr org-element--cache-sync-requests))))
 	;; If more requests are awaiting, set idle timer accordingly.
@@ -5051,7 +5007,7 @@ updated before current modification are actually submitted."
 	  (clrhash org-element--cache-sync-keys))))))
 
 (defun org-element--cache-process-request
-  (request next threshold time-limit extra)
+  (request next threshold time-limit future-change)
   "Process synchronization REQUEST for all entries before NEXT.
 
 REQUEST is a vector, built by `org-element--cache-submit-request'.
@@ -5064,15 +5020,15 @@ stops as soon as a shifted element begins after it.
 When non-nil, TIME-LIMIT is a time value.  Synchronization stops
 after this time or when Emacs exits idle state.
 
-EXTRA is an additional offset taking into consideration changes
-not registered yet.  See `org-element--cache-submit-request' for
-more information.
+When non-nil, FUTURE-CHANGE is a buffer position where changes
+not registered yet in the cache are going to happen.  See
+`org-element--cache-submit-request' for more information.
 
 Throw `interrupt' if the process stops before completing the
 request."
   (catch 'quit
     (when (= (aref request 6) 0)
-      ;; Phase 1.
+      ;; Phase 0.
       ;;
       ;; Delete all elements starting after BEG, but not after buffer
       ;; position END or past element with key NEXT.
@@ -5119,12 +5075,11 @@ request."
 		;; cache: further processing is futile.
 		(throw 'quit t)))))))
     (when (= (aref request 6) 1)
-      ;; Phase 2.
+      ;; Phase 1.
       ;;
-      ;; Phase 1 left a hole in the parse tree.  Some elements after
-      ;; it could have parents within.  For example, in the following
+      ;; Phase 0 left a hole in the cache.  Some elements after it
+      ;; could have parents within.  For example, in the following
       ;; buffer:
-      ;;
       ;;
       ;;   - item
       ;;
@@ -5133,7 +5088,6 @@ request."
       ;;
       ;;     Paragraph2
       ;;
-      ;;
       ;; if we remove a blank line between "item" and "Paragraph1",
       ;; everything down to "Paragraph2" is removed from cache.  But
       ;; the paragraph now belongs to the list, and its `:parent'
@@ -5141,26 +5095,37 @@ request."
       ;;
       ;; Therefore we need to parse again elements in the hole, or at
       ;; least in its last section, so that we can re-parent
-      ;; subsequent elements, during phase 3.
+      ;; subsequent elements, during phase 2.
       ;;
       ;; Note that we only need to get the parent from the first
       ;; element in cache after the hole.
       ;;
-      ;; Also, this part can be delayed if we don't need to retrieve
-      ;; an element after the hole.
-      (catch 'end-phase
-	;; Next element will start at its beginning position plus
-	;; offset, since it hasn't been shifted yet.  Therefore, LIMIT
-	;; contains the real beginning position of the first element
-	;; to shift and re-parent.
-	(when (equal (aref request 0) next) (throw 'quit t))
-	(let ((limit (+ (aref request 1) (aref request 3) extra)))
-	  (when (and threshold (< threshold limit)) (throw 'interrupt nil))
-	  (let ((parent (org-element--parse-to limit t time-limit)))
-	    (aset request 5 parent)
-	    (aset request 6 2)
-	    (throw 'end-phase nil)))))
-    ;; Phase 3.
+      ;; When next key is lesser or equal to the current one, delegate
+      ;; phase 1 processing to next request in order to preserve key
+      ;; order among requests.
+      (let ((key (aref request 0)))
+	(when (and next (not (org-element--cache-key-less-p key next)))
+	  (let ((next-request (nth 1 org-element--cache-sync-requests)))
+	    (aset next-request 0 key)
+	    (aset next-request 1 (aref request 1))
+	    (aset next-request 6 1))
+	  (throw 'quit t)))
+      ;; Next element will start at its beginning position plus
+      ;; offset, since it hasn't been shifted yet.  Therefore, LIMIT
+      ;; contains the real beginning position of the first element to
+      ;; shift and re-parent.
+      (let ((limit (+ (aref request 1) (aref request 3))))
+	(cond ((and threshold (> limit threshold)) (throw 'interrupt nil))
+	      ((and future-change (>= limit future-change))
+	       ;; Changes are going to happen around this element and
+	       ;; they will trigger another phase 1 request.  Skip the
+	       ;; current one.
+	       (aset request 6 2))
+	      (t
+	       (let ((parent (org-element--parse-to limit t time-limit)))
+		 (aset request 5 parent)
+		 (aset request 6 2))))))
+    ;; Phase 2.
     ;;
     ;; Shift all elements starting from key START, but before NEXT, by
     ;; OFFSET, and re-parent them when appropriate.
@@ -5203,12 +5168,21 @@ request."
 		  (dolist (object (cddr object-data))
 		    (org-element--cache-shift-positions object offset))))
 	      (let ((begin (org-element-property :begin data)))
-		;; Re-parent it.
+		;; Update PARENT and re-parent DATA, only when
+		;; necessary.  Propagate new structures for lists.
 		(while (and parent
 			    (<= (org-element-property :end parent) begin))
 		  (setq parent (org-element-property :parent parent)))
-		(cond (parent (org-element-put-property data :parent parent))
-		      ((zerop offset) (throw 'quit t)))
+		(cond ((and (not parent) (zerop offset)) (throw 'quit nil))
+		      ((and parent
+			    (let ((p (org-element-property :parent data)))
+			      (or (not p)
+				  (< (org-element-property :begin p)
+				     (org-element-property :begin parent)))))
+		       (org-element-put-property data :parent parent)
+		       (let ((s (org-element-property :structure parent)))
+			 (when (and s (org-element-property :structure data))
+			   (org-element-put-property data :structure s)))))
 		;; Cache is up-to-date past THRESHOLD.  Request
 		;; interruption.
 		(when (and threshold (> begin threshold)) (setq exit-flag t))))
@@ -5360,9 +5334,9 @@ the process stopped before finding the expected result."
    ;; Blocks
    "#\\+\\(?:BEGIN[:_]\\|END\\(?:_\\|:?[ \t]*$\\)\\)" "\\|"
    ;; LaTeX environments.
-   "\\\\\\(?:begin{[A-Za-z0-9]+\\*?}\\|end{[A-Za-z0-9]+\\*?}[ \t]*$\\)" "\\|"
+   "\\\\\\(?:begin{[A-Za-z0-9*]+}\\|end{[A-Za-z0-9*]+}[ \t]*$\\)" "\\|"
    ;; Drawers.
-   ":\\S-+:[ \t]*$"
+   ":\\(?:\\w\\|[-_]\\)+:[ \t]*$"
    "\\)")
   "Regexp matching a sensitive line, structure wise.
 A sensitive line is a headline, inlinetask, block, drawer, or
@@ -5446,24 +5420,31 @@ changes."
 	 (before (car elements))
 	 (after (cdr elements)))
     (if (not before) after
-      (let ((up before))
-	(while (setq up (org-element-property :parent up))
+      (let ((up before)
+	    (robust-flag t))
+	(while up
 	  (if (and (memq (org-element-type up)
-			 '(center-block
-			   drawer dynamic-block inlinetask
-			   property-drawer quote-block special-block))
+			 '(center-block drawer dynamic-block
+					property-drawer quote-block
+					special-block))
 		   (<= (org-element-property :contents-begin up) beg)
 		   (> (org-element-property :contents-end up) end))
 	      ;; UP is a robust greater element containing changes.
 	      ;; We only need to extend its ending boundaries.
 	      (org-element--cache-shift-positions
 	       up offset '(:contents-end :end))
-	    (setq before up)))
+	    (setq before up)
+	    (when robust-flag (setq robust-flag nil)))
+	  (setq up (org-element-property :parent up)))
 	;; We're at top level element containing ELEMENT: if it's
 	;; altered by buffer modifications, it is first element in
 	;; cache to be removed.  Otherwise, that first element is the
 	;; following one.
-	(if (< (org-element-property :end before) beg) after before)))))
+	;;
+	;; As a special case, do not remove BEFORE if it is a robust
+	;; container for current changes.
+	(if (or (< (org-element-property :end before) beg) robust-flag) after
+	  before)))))
 
 (defun org-element--cache-submit-request (beg end offset)
   "Submit a new cache synchronization request for current buffer.
@@ -5500,16 +5481,16 @@ change, as an integer."
       ;; optional parameter since current modifications are not known
       ;; yet to the otherwise correct part of the cache (i.e, before
       ;; the first request).
-      (when next (org-element--cache-sync (current-buffer) end offset))
+      (when next (org-element--cache-sync (current-buffer) end beg))
       (let ((first (org-element--cache-for-removal beg end offset)))
 	(if first
 	    (push (let ((beg (org-element-property :begin first))
 			(key (org-element--cache-key first)))
 		    (cond
 		     ;; When changes happen before the first known
-		     ;; element, shift the rest of the cache.
-		     ((> beg end)
-		      (vector key nil nil offset nil nil 2))
+		     ;; element, re-parent and shift the rest of the
+		     ;; cache.
+		     ((> beg end) (vector key beg nil offset nil nil 1))
 		     ;; Otherwise, we find the first non robust
 		     ;; element containing END.  All elements between
 		     ;; FIRST and this one are to be removed.

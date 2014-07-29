@@ -443,15 +443,11 @@ available parameters."
 					   "[ \t]*|[ \t]*")))))))
 
 (defvar org-table-clean-did-remove-column nil) ; dynamically scoped
-(defun org-table-clean-before-export (lines &optional maybe-quoted)
+(defun org-table-clean-before-export (lines)
   "Check if the table has a marking column.
 If yes remove the column and the special lines."
-  (let ((special (if maybe-quoted
-		     "^[ \t]*| *\\\\?[\#!$*_^/ ] *|"
-		   "^[ \t]*| *[\#!$*_^/ ] *|"))
-	(ignore  (if maybe-quoted
-		     "^[ \t]*| *\\\\?[!$_^/] *|"
-		   "^[ \t]*| *[!$_^/] *|")))
+  (let ((special "^[ \t]*| *[#!$*_^/] *|")
+	(ignore "^[ \t]*| *[!$_^/] *|"))
     (setq org-table-clean-did-remove-column
 	  (not (memq nil
 		     (mapcar
@@ -2762,15 +2758,17 @@ not overwrite the stored one."
 	(while (string-match "\\$\\(\\([-+]\\)?[0-9]+\\)" form)
 	  (setq n (+ (string-to-number (match-string 1 form))
 		     (if (match-end 2) n0 0))
-		x (nth (1- (if (= n 0) n0 (max n 1))) fields))
-	  (unless x (user-error "Invalid field specifier \"%s\""
-			   (match-string 0 form)))
-	  (setq form (replace-match
-		      (save-match-data
-			(org-table-make-reference
-			 x keep-empty numbers lispp))
-		      t t form)))
-
+		x (nth (1- (if (= n 0) n0 (max n 1))) fields)
+		formrpl (save-match-data
+			  (org-table-make-reference
+			   x keep-empty numbers lispp)))
+	  (when (or (not x)
+		    (save-match-data
+		      (string-match (regexp-quote formula) formrpl)))
+	    (user-error "Invalid field specifier \"%s\""
+			(match-string 0 form)))
+	  (setq form (replace-match repl t t form)))
+	
 	(if lispp
 	    (setq ev (condition-case nil
 			 (eval (eval (read form)))
@@ -3935,10 +3933,10 @@ With prefix ARG, apply the new formulas to the table."
 	(push org-table-current-begin-pos org-show-positions)
 	(let ((min (apply 'min org-show-positions))
 	      (max (apply 'max org-show-positions)))
-	  (set-window-start (selected-window) (point-min))
+	  (set-window-start (selected-window) min)
 	  (goto-char max)
 	  (or (pos-visible-in-window-p max)
-	      (set-window-start (selected-window) (point-max)))))
+	      (set-window-start (selected-window) max))))
       (select-window win))))
 
 (defun org-table-force-dataline ()

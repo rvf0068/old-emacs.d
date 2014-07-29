@@ -43,7 +43,6 @@
     (dynamic-block . org-odt-dynamic-block)
     (entity . org-odt-entity)
     (example-block . org-odt-example-block)
-    (export-block . org-odt-export-block)
     (export-snippet . org-odt-export-snippet)
     (fixed-width . org-odt-fixed-width)
     (footnote-definition . org-odt-footnote-definition)
@@ -1684,15 +1683,6 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
     (org-element-property :value export-snippet)))
 
 
-;;;; Export Block
-
-(defun org-odt-export-block (export-block contents info)
-  "Transcode a EXPORT-BLOCK element from Org to ODT.
-CONTENTS is nil.  INFO is a plist holding contextual information."
-  (when (string= (org-element-property :type export-block) "ODT")
-    (org-remove-indentation (org-element-property :value export-block))))
-
-
 ;;;; Fixed Width
 
 (defun org-odt-fixed-width (fixed-width contents info)
@@ -1761,7 +1751,8 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 			       :transcoders
 			       '((paragraph . (lambda (p c i)
 						(org-odt--format-paragraph
-						 p c "Footnote"
+						 p c i
+						 "Footnote"
 						 "OrgFootnoteCenter"
 						 "OrgFootnoteQuotations")))))
 			      info))))
@@ -2864,33 +2855,44 @@ information."
 
 ;;;; Paragraph
 
-(defun org-odt--format-paragraph (paragraph contents default center quote)
+(defun org-odt--paragraph-style (paragraph)
+  "Return style of PARAGRAPH.
+Style is a symbol among `quoted', `centered' and nil."
+  (let ((up paragraph))
+    (while (and (setq up (org-element-property :parent up))
+		(not (memq (org-element-type up)
+			   '(center-block quote-block section)))))
+    (case (org-element-type up)
+      (center-block 'centered)
+      (quote-block 'quoted))))
+
+(defun org-odt--format-paragraph (paragraph contents info default center quote)
   "Format paragraph according to given styles.
 PARAGRAPH is a paragraph type element.  CONTENTS is the
-transcoded contents of that paragraph, as a string.  DEFAULT,
-CENTER and QUOTE are, respectively, style to use when paragraph
-belongs to no special environment, a center block, or a quote
-block."
-  (let* ((parent (org-export-get-parent paragraph))
-	 (parent-type (org-element-type parent))
-	 (style (case parent-type
-		  (quote-block quote)
-		  (center-block center)
-		  (t default))))
-    ;; If this paragraph is a leading paragraph in an item and the
-    ;; item has a checkbox, splice the checkbox and paragraph contents
-    ;; together.
-    (when (and (eq (org-element-type parent) 'item)
-	       (eq paragraph (car (org-element-contents parent))))
-      (setq contents (concat (org-odt--checkbox parent) contents)))
-    (format "\n<text:p text:style-name=\"%s\">%s</text:p>" style contents)))
+transcoded contents of that paragraph, as a string.  INFO is
+a plist used as a communication channel.  DEFAULT, CENTER and
+QUOTE are, respectively, style to use when paragraph belongs to
+no special environment, a center block, or a quote block."
+  (format "\n<text:p text:style-name=\"%s\">%s</text:p>"
+	  (case (org-odt--paragraph-style paragraph)
+	    (quoted quote)
+	    (centered center)
+	    (otherwise default))
+	  ;; If PARAGRAPH is a leading paragraph in an item that has
+	  ;; a checkbox, splice checkbox and paragraph contents
+	  ;; together.
+	  (concat (let ((parent (org-element-property :parent paragraph)))
+		    (and (eq (org-element-type parent) 'item)
+			 (not (org-export-get-previous-element paragraph info))
+			 (org-odt--checkbox parent)))
+		  contents)))
 
 (defun org-odt-paragraph (paragraph contents info)
   "Transcode a PARAGRAPH element from Org to ODT.
 CONTENTS is the contents of the paragraph, as a string.  INFO is
 the plist used as a communication channel."
   (org-odt--format-paragraph
-   paragraph contents
+   paragraph contents info
    (or (org-element-property :style paragraph) "Text_20_body")
    "OrgCenter"
    "Quotations"))
@@ -3048,37 +3050,40 @@ contextual information."
   "Transcode a SPECIAL-BLOCK element from Org to ODT.
 CONTENTS holds the contents of the block.  INFO is a plist
 holding contextual information."
-  (let ((type (downcase (org-element-property :type special-block)))
-	(attributes (org-export-read-attribute :attr_odt special-block)))
-    (cond
-     ;; Annotation.
-     ((string= type "annotation")
-      (let* ((author (or (plist-get attributes :author)
-			 (let ((author (plist-get info :author)))
-			   (and author (org-export-data author info)))))
-	     (date (or (plist-get attributes :date)
-		       ;; FIXME: Is `car' right thing to do below?
-		       (car (plist-get info :date)))))
-	(format "\n<text:p>%s</text:p>"
-		(format "<office:annotation>\n%s\n</office:annotation>"
-			(concat
-			 (and author
-			      (format "<dc:creator>%s</dc:creator>" author))
-			 (and date
-			      (format "<dc:date>%s</dc:date>"
-				      (org-odt--format-timestamp date nil 'iso-date)))
-			 contents)))))
-     ;; Textbox.
-     ((string= type "textbox")
-      (let ((width (plist-get attributes :width))
-	    (height (plist-get attributes :height))
-	    (style (plist-get attributes :style))
-	    (extra (plist-get attributes :extra))
-	    (anchor (plist-get attributes :anchor)))
-	(format "\n<text:p text:style-name=\"%s\">%s</text:p>"
-		"Text_20_body" (org-odt--textbox contents width height
+  (if (org-export-raw-special-block-p special-block info)
+      (org-remove-indentation (org-element-property :raw-value special-block))
+    (let ((type (downcase (org-element-property :type special-block)))
+	  (attributes (org-export-read-attribute :attr_odt special-block)))
+      (cond
+       ;; Annotation.
+       ((string= type "annotation")
+	(let* ((author (or (plist-get attributes :author)
+			   (let ((author (plist-get info :author)))
+			     (and author (org-export-data author info)))))
+	       (date (or (plist-get attributes :date)
+			 ;; FIXME: Is `car' right thing to do below?
+			 (car (plist-get info :date)))))
+	  (format "\n<text:p>%s</text:p>"
+		  (format "<office:annotation>\n%s\n</office:annotation>"
+			  (concat
+			   (and author
+				(format "<dc:creator>%s</dc:creator>" author))
+			   (and date
+				(format "<dc:date>%s</dc:date>"
+					(org-odt--format-timestamp
+					 date nil 'iso-date)))
+			   contents)))))
+       ;; Textbox.
+       ((string= type "textbox")
+	(let ((width (plist-get attributes :width))
+	      (height (plist-get attributes :height))
+	      (style (plist-get attributes :style))
+	      (extra (plist-get attributes :extra))
+	      (anchor (plist-get attributes :anchor)))
+	  (format "\n<text:p text:style-name=\"%s\">%s</text:p>"
+		  "Text_20_body" (org-odt--textbox contents width height
 						   style extra anchor))))
-     (t contents))))
+       (t contents)))))
 
 
 ;;;; Src Block

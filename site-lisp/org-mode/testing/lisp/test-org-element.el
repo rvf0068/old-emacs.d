@@ -777,39 +777,6 @@ Some other text
 	(org-element-property :label-fmt (org-element-at-point)))))))
 
 
-;;;; Export Block
-
-(ert-deftest test-org-element/export-block-parser ()
-  "Test `export-block' parser."
-  ;; Standard test.
-  (should
-   (org-test-with-temp-text "#+BEGIN_LATEX\nText\n#+END_LATEX"
-     (org-element-map
-      (let ((org-element-block-name-alist
-	     '(("LATEX" . org-element-export-block-parser))))
-	(org-element-parse-buffer))
-      'export-block 'identity)))
-  ;; Ignore case.
-  (should
-   (let ((org-element-block-name-alist
-	  '(("LATEX" . org-element-export-block-parser))))
-     (org-test-with-temp-text "#+begin_latex\nText\n#+end_latex"
-       (org-element-map (org-element-parse-buffer) 'export-block 'identity))))
-  ;; Ignore incomplete block.
-  (should-not
-   (let ((org-element-block-name-alist
-	  '(("LATEX" . org-element-export-block-parser))))
-     (org-test-with-temp-text "#+BEGIN_LATEX"
-       (org-element-map (org-element-parse-buffer) 'export-block
-	 'identity nil t))))
-  ;; Handle non-empty blank line at the end of buffer.
-  (should
-   (let ((org-element-block-name-alist
-	  '(("LATEX" . org-element-export-block-parser))))
-     (org-test-with-temp-text "#+BEGIN_LATEX\nC\n#+END_LATEX\n "
-       (= (org-element-property :end (org-element-at-point)) (point-max))))))
-
-
 ;;;; Export Snippet
 
 (ert-deftest test-org-element/export-snippet-parser ()
@@ -1310,9 +1277,29 @@ e^{i\\pi}+1=0
    (eq 'latex-environment
        (org-test-with-temp-text "\\begin{env}{arg}\nvalue\n\\end{env}"
 	 (org-element-type (org-element-at-point)))))
+  ;; Allow environments without newline after \begin{.}.
+  (should
+   (eq 'latex-environment
+       (org-test-with-temp-text "\\begin{env}{arg}something\nvalue\n\\end{env}"
+	 (org-element-type (org-element-at-point)))))
+  ;; Allow one-line environments.
+  (should
+   (eq 'latex-environment
+       (org-test-with-temp-text "\\begin{env}{arg}something\\end{env}"
+	 (org-element-type (org-element-at-point)))))
+  ;; Should not allow different tags.
   (should-not
    (eq 'latex-environment
-       (org-test-with-temp-text "\\begin{env}{arg} something\nvalue\n\\end{env}"
+       (org-test-with-temp-text "\\begin{env*}{arg}something\\end{env}"
+				(org-element-type (org-element-at-point)))))
+  ;; LaTeX environments must be on separate lines.
+  (should-not
+   (eq 'latex-environment
+       (org-test-with-temp-text "\\begin{env} x \\end{env} y"
+	 (org-element-type (org-element-at-point)))))
+  (should-not
+   (eq 'latex-environment
+       (org-test-with-temp-text "y \\begin{env} x<point> \\end{env}"
 	 (org-element-type (org-element-at-point)))))
   ;; Handle non-empty blank line at the end of buffer.
   (should
@@ -1452,19 +1439,19 @@ e^{i\\pi}+1=0
     (org-test-with-temp-text "[[file:projects.org::*task title]]"
       (org-element-map (org-element-parse-buffer) 'link
 	(lambda (l) (list (org-element-property :type l)
-		     (org-element-property :path l)
-		     (org-element-property :search-option l)))))))
-  ;; ... file-type link with application.
+			  (org-element-property :path l)
+			  (org-element-property :search-option l)))))))
+  ;; ... file-type link with application...
   (should
    (equal
-    '(("file" "projects.org" "docview"))
+    '("file" "projects.org" "docview")
     (org-test-with-temp-text "[[docview:projects.org]]"
-      (org-element-map (org-element-parse-buffer) 'link
-	(lambda (l) (list (org-element-property :type l)
-		     (org-element-property :path l)
-		     (org-element-property :application l)))))))
+      (let ((l (org-element-context)))
+	(list (org-element-property :type l)
+	      (org-element-property :path l)
+	      (org-element-property :application l))))))
   ;; ... `:path' in a file-type link must be compatible with "file"
-  ;; scheme in URI syntax, even if Org syntax isn't.
+  ;; scheme in URI syntax, even if Org syntax isn't...
   (should
    (org-test-with-temp-text-in-file ""
      (let ((file (expand-file-name (buffer-file-name))))
@@ -1482,6 +1469,11 @@ e^{i\\pi}+1=0
      (let ((file (file-relative-name (buffer-file-name))))
        (insert (format "[[file:%s]]" file))
        (list (org-element-property :path (org-element-context)) file))))
+  ;; ... multi-line link.
+  (should
+   (equal "//orgmode.org"
+	  (org-test-with-temp-text "[[http://orgmode.\norg]]"
+	    (org-element-property :path (org-element-context)))))
   ;; Plain link.
   (should
    (org-test-with-temp-text "A link: http://orgmode.org"
@@ -2407,12 +2399,6 @@ CLOCK: [2012-01-01 sun. 00:01]--[2012-01-01 sun. 00:02] =>  0:01"))))
 	   "#+BEGIN_EXAMPLE\n,* Headline\n ,#+keyword\nText #+END_EXAMPLE")
 	  "#+BEGIN_EXAMPLE\n,* Headline\n ,#+keyword\nText #+END_EXAMPLE\n")))
 
-(ert-deftest test-org-element/export-block-interpreter ()
-  "Test export block interpreter."
-  (should (equal (org-test-parse-and-interpret
-		  "#+BEGIN_HTML\nTest\n#+END_HTML")
-		 "#+BEGIN_HTML\nTest\n#+END_HTML\n")))
-
 (ert-deftest test-org-element/fixed-width-interpreter ()
   "Test fixed width interpreter."
   ;; Standard test.
@@ -2825,47 +2811,57 @@ Paragraph \\alpha."
 
 (ert-deftest test-org-element/secondary-string-parsing ()
   "Test if granularity correctly toggles secondary strings parsing."
-  ;; 1. With a granularity bigger than `object', no secondary string
-  ;;    should be parsed.
-  ;;
-  ;; 1.1. Test with `headline' type.
-  (org-test-with-temp-text "* Headline"
-    (let ((headline
-	   (org-element-map (org-element-parse-buffer 'headline) 'headline
-			    'identity
-			    nil
-			    'first-match)))
-      (should (stringp (org-element-property :title headline)))))
-  ;; 1.2. Test with `item' type.
-  (org-test-with-temp-text "* Headline\n- tag :: item"
-    (let ((item (org-element-map (org-element-parse-buffer 'element)
-				 'item
-				 'identity
-				 nil
-				 'first-match)))
-      (should (stringp (org-element-property :tag item)))))
-  ;; 1.3. Test with `inlinetask' type, if avalaible.
+  ;; With a granularity bigger than `object', no secondary string
+  ;; should be parsed.
+  (should
+   (stringp
+    (org-test-with-temp-text "* Headline"
+      (let ((headline
+	     (org-element-map (org-element-parse-buffer 'headline) 'headline
+	       #'identity nil 'first-match)))
+	(org-element-property :title headline)))))
+  (should
+   (stringp
+    (org-test-with-temp-text "* Headline\n- tag :: item"
+      (let ((item (org-element-map (org-element-parse-buffer 'element) 'item
+		    #'identity nil 'first-match)))
+	(org-element-property :tag item)))))
   (when (featurep 'org-inlinetask)
-    (let ((org-inlinetask-min-level 15))
-      (org-test-with-temp-text "*************** Inlinetask"
-	(let ((inlinetask (org-element-map (org-element-parse-buffer 'element)
-					   'inlinetask
-					   'identity
-					   nil
-					   'first-match)))
-	  (should (stringp (org-element-property :title inlinetask)))))))
-  ;; 2. With a default granularity, secondary strings should be
-  ;;    parsed.
-  (org-test-with-temp-text "* Headline"
-    (let ((headline
-	   (org-element-map (org-element-parse-buffer) 'headline
-			    'identity
-			    nil
-			    'first-match)))
-      (should (listp (org-element-property :title headline)))))
-  ;; 3. `org-element-at-point' should never parse a secondary string.
-  (org-test-with-temp-text "* Headline"
-    (should (stringp (org-element-property :title (org-element-at-point))))))
+    (should
+     (stringp
+      (let ((org-inlinetask-min-level 15))
+	(org-test-with-temp-text "*************** Inlinetask"
+	  (let ((inlinetask (org-element-map (org-element-parse-buffer 'element)
+				'inlinetask
+			      #'identity nil 'first-match)))
+	    (org-element-property :title inlinetask)))))))
+  ;; With a default granularity, secondary strings should be parsed.
+  (should
+   (listp
+    (org-test-with-temp-text "* Headline"
+      (let ((headline
+	     (org-element-map (org-element-parse-buffer) 'headline
+	       #'identity nil 'first-match)))
+	(org-element-property :title headline)))))
+  ;; `org-element-at-point' should never parse a secondary string.
+  (should-not
+   (listp
+    (org-test-with-temp-text "* Headline"
+      (org-element-property :title (org-element-at-point)))))
+  ;; Preserve current local variables when parsing a secondary string.
+  (should
+   (let ((org-entities nil)
+	 (org-entities-user nil))
+     (org-test-with-temp-text "
+#+CAPTION: \\foo
+Text
+# Local Variables:
+# org-entities-user: ((\"foo\"))
+# End:"
+       (let ((safe-local-variable-values '((org-entities-user . (("foo"))))))
+	 (hack-local-variables))
+       (org-element-map (org-element-parse-buffer) 'entity
+	 #'identity nil nil nil t)))))
 
 
 
@@ -3186,6 +3182,40 @@ Paragraph \\alpha."
 	   (goto-char (point-max))
 	   (org-element-type
 	    (org-element-property :parent (org-element-at-point)))))))
+  ;; Preserve local structures when re-parenting.
+  (should
+   (eq 'table
+       (org-test-with-temp-text
+	   "#+begin_center\nP0\n\n<point>\n\n  P1\n  | a | b |\n| c | d |\n#+end_center"
+	 (let ((org-element-use-cache t))
+	   (save-excursion (search-forward "| c |") (org-element-at-point))
+	   (insert "- item")
+	   (search-forward "| c |")
+	   (beginning-of-line)
+	   (org-element-type
+	    (org-element-property :parent (org-element-at-point)))))))
+  (should-not
+   (eq 'center-block
+       (org-test-with-temp-text
+	   "#+begin_center\nP0\n\n<point>\n\n  P1\n  | a | b |\n#+end_center"
+	 (let ((org-element-use-cache t))
+	   (save-excursion (search-forward "| a |") (org-element-at-point))
+	   (insert "- item")
+	   (search-forward "| a |")
+	   (beginning-of-line)
+	   (org-element-type
+	    (org-element-property :parent (org-element-at-point)))))))
+  ;; When re-parenting, also propagate changes to list structures.
+  (should
+   (= 2
+      (org-test-with-temp-text "\n  Para\n  - item<point>"
+	(let ((org-element-use-cache t))
+	  (org-element-at-point)
+	  (goto-char (point-min))
+	  (insert "- Top\n")
+	  (search-forward "- item")
+	  (beginning-of-line)
+	  (length (org-element-property :structure (org-element-at-point)))))))
   ;; Modifying the last line of an element alters the element below.
   (should
    (org-test-with-temp-text "para1\n\npara2"

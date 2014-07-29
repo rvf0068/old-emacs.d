@@ -9,7 +9,50 @@ See the end of the file for license conditions.
 Please send Org bug reports to emacs-orgmode@gnu.org.
 
 * Version 8.3
+** Incompatible changes
+*** Remove ~export-block~ element type
+For export back-end developers.
 
+So called "Export blocks" are now raw "Special blocks".  As
+a consequence ~export-block~ type doesn't exist anymore in parser, and
+should not have a translator associated in an export back-end.
+
+In order to tell the difference between a special block and a former
+export block, a new predicate, ~org-export-raw-special-block-p~ is
+implemented.
+
+To put it simply, two steps may be needed to update a back-end
+defining export blocks.
+
+1. Remove any ~org-BACKEND-export-block~ function, associated filter
+   and remove ~export-block~ entry from back-end definition.  This
+   step can be omitted if you want to preserve backward-compatibility
+   with Org 8.2.  In this case, the function and filter will be used
+   in Org 8.2 but ignored in Org 8.3.
+
+2. If there is a translator for special blocks, e.g.,
+   ~org-BACKEND-special-block~, first check if the current block is an
+   export block using the predicate and, if that is true, simply
+   insert raw value, obtained through block's ~:raw-value~
+   property. E.g.,
+   
+   #+BEGIN_SRC emacs-lisp
+   (defun org-latex-special-block (special-block contents info)
+     (if (org-export-raw-special-block-p special-block info)
+         (org-element-property :raw-value special-block)
+       ;; Usual handling for special blocks goes here.
+       ))
+   #+END_SRC
+
+   Note that If BACKEND is a derived back-end and doesn't implement
+   its own special block translator already, there is nothing to
+   change.  The parent back-end will take care of such blocks.
+** Removed functions
+*** Removed function ~org-beamer-insert-options-template~
+This function inserted a Beamer specific template at point or in
+current subtree.  Use ~org-export-insert-default-template~ instead, as
+it provides more features and covers all export back-ends.  It is also
+accessible from the export dispatcher.
 ** Removed options
 *** Removed option =org-babel-sh-command=
 This undocumented option defaulted to the value of =shell-file-name=
@@ -32,7 +75,29 @@ If the argument =:hlines yes= is present in a babel call, an optional
 argument =:hlines-string= can be used to define a string to use as a
 representation for the lisp symbol ='hline= in the shell program.  The
 default is =hline=.
+*** Drawers do not need anymore to be referenced in =#+DRAWERS=
+One can use a drawer without listing it in the =#+DRAWERS= keyword,
+which is now obsolete.  As a consequence, this change also deprecates
+~org-drawers~ variable.
+*** Markdown export supports switches in source blocks
+For example, it is now possible to number lines using the =-n= switch
+in a source block.
+*** New blocks in ASCII export
+ASCII export now supports =#+BEGIN_JUSTIFYRIGHT= and
+=#+BEGIN_JUSTIFYLEFT= blocks.  See documentation for details.
 ** Miscellaneous
+*** File names in links accept are now compatible with URI syntax
+Absolute file names can now start with =///= in addition to =/=. E.g.,
+=[[file:///home/me/unicorn.jpg]]=.
+*** Footnotes in included files are now local to the file
+As a consequence, it is possible to include multiple Org files with
+footnotes in a master document without being concerned about footnote
+labels colliding.
+*** Mailto links now use regular URI syntax
+This change deprecates old Org syntax for mailto links:
+=mailto:user@domain::Subject=.
+*** =QUOTE= keywords do not exist anymore
+=QUOTES= keywords have been deprecated since Org 8.2.
 *** Select tests to perform with the build system
 The build system has been enhanced to allow test selection with a
 regular expression by defining =BTEST_RE= during the test invocation.
