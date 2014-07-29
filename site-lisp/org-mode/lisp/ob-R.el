@@ -93,6 +93,44 @@ this variable.")
     (when (and session (string-match "^\\*\\(.+?\\)\\*$" session))
       (save-match-data (org-babel-R-initiate-session session nil)))))
 
+(defconst ob-R-transfer-variable-table-with-header
+  "%s <- local({
+     con <- textConnection(
+       %S
+     )
+     res <- read.table(
+       con,
+       header    = %s,
+       row.names = %s,
+       sep       = \"\\t\",
+       as.is     = TRUE
+     )
+     close(con)
+     res
+   })"
+  "R code used to transfer a table defined as a variable from org to R.
+This function is used when the table contains a header.")
+
+(defconst ob-R-transfer-variable-table-without-header
+  "%s <- local({
+     con <- textConnection(
+       %S
+     )
+     res <- read.table(
+       con,
+       header    = %s,
+       row.names = %s,
+       sep       = \"\\t\",
+       as.is     = TRUE,
+       fill      = TRUE,
+       col.names = paste(\"V\", seq_len(%d), sep =\"\")
+     )
+     close(con)
+     res
+   })"
+  "R code used to transfer a table defined as a variable from org to R.
+This function is used when the table does not contain a header.")
+
 (defun org-babel-expand-body:R (body params &optional graphics-file)
   "Expand BODY according to PARAMS, return the expanded body."
   (mapconcat 'identity
@@ -190,33 +228,23 @@ This function is called by `org-babel-execute-src-block'."
   (if (listp value)
       (let* ((lengths (mapcar 'length (org-remove-if-not 'sequencep value)))
 	     (max (if lengths (apply 'max lengths) 0))
-	     (min (if lengths (apply 'min lengths) 0))
-	     (transition-file (org-babel-temp-file "R-import-")))
+	     (min (if lengths (apply 'min lengths) 0)))
         ;; Ensure VALUE has an orgtbl structure (depth of at least 2).
         (unless (listp (car value)) (setq value (list value)))
-        (with-temp-file transition-file
-          (insert
-	   (orgtbl-to-tsv value '(:fmt org-babel-R-quote-tsv-field))
-	   "\n"))
-	(let ((file (org-babel-process-file-name transition-file 'noquote))
+	(let ((file (orgtbl-to-tsv value '(:fmt org-babel-R-quote-tsv-field)))
 	      (header (if (or (eq (nth 1 value) 'hline) colnames-p)
 			  "TRUE" "FALSE"))
 	      (row-names (if rownames-p "1" "NULL")))
 	  (if (= max min)
-	      (format "%s <- read.table(\"%s\",
-                      header=%s,
-                      row.names=%s,
-                      sep=\"\\t\",
-                      as.is=TRUE)" name file header row-names)
-	    (format "%s <- read.table(\"%s\",
-                   header=%s,
-                   row.names=%s,
-                   sep=\"\\t\",
-                   as.is=TRUE,
-                   fill=TRUE,
-                   col.names = paste(\"V\", seq_len(%d), sep =\"\"))"
+	      (format ob-R-transfer-variable-table-with-header
+		      name file header row-names)
+	    (format ob-R-transfer-variable-table-without-header
 		    name file header row-names max))))
-    (format "%s <- %s" name (org-babel-R-quote-tsv-field value))))
+    (cond ((integerp value) (format "%s <- %s" name (concat (number-to-string value) "L")))
+	  ((floatp   value) (format "%s <- %s" name value))
+	  ((stringp  value) (format "%s <- %S" name value))
+	  (t                (format "%s <- %S" name (prin1-to-string value))))))
+
 
 (defvar ess-ask-for-ess-directory) ; dynamically scoped
 (defun org-babel-R-initiate-session (session params)

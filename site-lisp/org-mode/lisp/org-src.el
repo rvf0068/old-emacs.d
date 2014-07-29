@@ -39,7 +39,6 @@
 
 (declare-function org-do-remove-indentation "org" (&optional n))
 (declare-function org-at-table.el-p "org" ())
-(declare-function org-in-src-block-p "org" (&optional inside))
 (declare-function org-in-block-p "org" (names))
 (declare-function org-get-indentation "org" (&optional line))
 (declare-function org-switch-to-buffer-other-window "org" (&rest args))
@@ -906,7 +905,7 @@ fontification of code blocks see `org-src-fontify-block' and
 	    (delete-region (point-min) (point-max))
 	    (insert string " ") ;; so there's a final property change
 	    (unless (eq major-mode lang-mode) (funcall lang-mode))
-	    (font-lock-ensure)
+	    (font-lock-fontify-buffer)
 	    (setq pos (point-min))
 	    (while (setq next (next-single-property-change pos 'face))
 	      (put-text-property

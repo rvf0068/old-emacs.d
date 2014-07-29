@@ -5930,15 +5930,7 @@ by a #."
 	      (cond
 	       ((and lang (not (string= lang "")) org-src-fontify-natively)
 		(org-src-font-lock-fontify-block lang block-start block-end)
-		;; remove old background overlays
-		(mapc (lambda (ov)
-			(if (eq (overlay-get ov 'face) 'org-block-background)
-			    (delete-overlay ov)))
-		      (overlays-at (/ (+ beg1 block-end) 2)))
-		;; add a background overlay
-		(setq ovl (make-overlay beg1 block-end))
-                (overlay-put ovl 'face 'org-block-background)
-                (overlay-put ovl 'evaporate t)) ; make it go away when empty
+		(add-text-properties beg1 block-end '(src-block t)))
 	       (quoting
 		(add-text-properties beg1 (min (point-max) (1+ end1))
 				     '(face org-block))) ; end of source block
@@ -6364,6 +6356,7 @@ needs to be inserted at a specific position in the font-lock sequence.")
 			     ":\\).*$")
 		     '(1 'org-tag-group prepend)))
 	   ;; Special keywords
+	   (list (concat "\\<" org-comment-string) '(0 'org-special-keyword t))
 	   (list (concat "\\<" org-deadline-string) '(0 'org-special-keyword t))
 	   (list (concat "\\<" org-scheduled-string) '(0 'org-special-keyword t))
 	   (list (concat "\\<" org-closed-string) '(0 'org-special-keyword t))
@@ -8417,7 +8410,7 @@ useful if the caller implements cut-and-paste as copy-then-paste-then-cut."
 	       (if cut "Cut" "Copied")
 	       (length org-subtree-clip)))))
 
-(defun org-paste-subtree (&optional level tree for-yank)
+(defun org-paste-subtree (&optional level tree for-yank remove)
   "Paste the clipboard as a subtree, with modification of headline level.
 The entire subtree is promoted or demoted in order to match a new headline
 level.
@@ -8440,7 +8433,9 @@ If optional TREE is given, use this text instead of the kill ring.
 
 When FOR-YANK is set, this is called by `org-yank'.  In this case, do not
 move back over whitespace before inserting, and move point to the end of
-the inserted text when done."
+the inserted text when done.
+
+When REMOVE is non-nil, remove the subtree from the clipboard."
   (interactive "P")
   (setq tree (or tree (and kill-ring (current-kill 0))))
   (unless (org-kill-is-subtree-p tree)
@@ -8459,7 +8454,7 @@ the inserted text when done."
 				   (string-match
 				    "^\\*+$" (buffer-substring
 					      (point-at-bol) (point))))
-			      (- (match-end 1) (match-beginning 1)))
+			      (- (match-end 0) (match-beginning 0)))
 			     ((and (bolp)
 				   (looking-at org-outline-regexp))
 			      (- (match-end 0) (point) 1))))
@@ -8524,7 +8519,8 @@ the inserted text when done."
 	      org-subtree-clip-folded)
 	 ;; The tree was folded before it was killed/copied
 	 (hide-subtree))
-     (and for-yank (goto-char newend)))))
+     (and for-yank (goto-char newend))
+     (and remove (setq kill-ring (cdr kill-ring))))))
 
 (defun org-kill-is-subtree-p (&optional txt)
   "Check if the current kill is an outline subtree, or a set of trees.
@@ -9478,7 +9474,7 @@ The refresh happens only for the current tree (not subtree)."
 	 (goto-char (point-min))
 	 (put-text-property (point) (point-max) 'org-category def-cat)
 	 (while (re-search-forward
-		 "^[ \t]*\\(#\\+CATEGORY:\\|[ \t]*:CATEGORY:\\)\\(.*\\)" nil t)
+		 "^[ \t]*\\(#\\+CATEGORY:\\|*:CATEGORY:\\)\\(.*\\)" nil t)
 	   (setq pos (match-end 0)
 		 optionp (equal (char-after (match-beginning 0)) ?#)
 		 cat (org-trim (match-string 2)))
@@ -10618,8 +10614,8 @@ specify a buffer from where the link search should happen.  This
 is used internally by `org-open-link-from-string'.
 
 On top of syntactically correct links, this function will open
-the link at point in comments and the first link in a property
-drawer line."
+the link at point in comments or comment blocks and the first
+link in a property drawer line."
   (interactive "P")
   ;; On a code block, open block's results.
   (unless (call-interactively 'org-babel-open-src-block-result)
@@ -10632,7 +10628,8 @@ drawer line."
 	;; On an unsupported type, check if point is contained within
 	;; a support one.
 	(while (and (not (memq (setq type (org-element-type context))
-			       '(comment headline inlinetask link
+			       '(comment comment-block
+					 headline inlinetask link
 					 footnote-definition footnote-reference
 					 node-property timestamp)))
 		    (setq context (org-element-property :parent context))))
@@ -10646,20 +10643,22 @@ drawer line."
 	   (and (string-match org-any-link-re value)
 		(match-string-no-properties 0 value))))
 	 ;; Exception n°2: links in comments.
-	 ((eq type 'comment)
-	  (let ((string-rear (replace-regexp-in-string
-			      "^[ \t]*# [ \t]*" ""
-			      (buffer-substring (point) (line-beginning-position))))
-		(string-front (buffer-substring (point) (line-end-position))))
-	    (with-temp-buffer
-	      (let ((org-inhibit-startup t)) (org-mode))
-	      (insert value)
-	      (goto-char (point-min))
-	      (when (and (search-forward string-rear nil t)
-			 (search-forward string-front (line-end-position) t))
-		(goto-char (match-beginning 0))
-		(org-open-at-point)
-		(when (string= string-rear "") (forward-char))))))
+	 ((memq type '(comment comment-block))
+	  (save-excursion
+	    (skip-chars-forward "\\S-" (point-at-eol))
+	    (let ((string-rear (replace-regexp-in-string
+				"^[ \t]*# [ \t]*" ""
+				(buffer-substring (point) (line-beginning-position))))
+		  (string-front (buffer-substring (point) (line-end-position))))
+	      (with-temp-buffer
+		(let ((org-inhibit-startup t)) (org-mode))
+		(insert value)
+		(goto-char (point-min))
+		(when (and (search-forward string-rear nil t)
+			   (search-forward string-front (line-end-position) t))
+		  (goto-char (match-beginning 0))
+		  (org-open-at-point)
+		  (when (string= string-rear "") (forward-char)))))))
 	 ;; On a headline or an inlinetask, but not on a timestamp,
 	 ;; a link, a footnote reference or on tags.
 	 ((and (memq type '(headline inlinetask))
@@ -11871,7 +11870,7 @@ prefix argument (`C-u C-u C-u C-c C-w')."
 		      (goto-char (point-min))
 		      (or (outline-next-heading) (goto-char (point-max)))))
 		  (if (not (bolp)) (newline))
-		  (org-paste-subtree level)
+		  (org-paste-subtree level nil nil t)
 		  (when org-log-refile
 		    (org-add-log-setup 'refile nil nil 'findpos org-log-refile)
 		    (unless (eq org-log-refile 'note)
@@ -18560,38 +18559,41 @@ The images can be removed again with \\[org-ctrl-c-ctrl-c]."
   (interactive "P")
   (unless buffer-file-name
     (user-error "Can't preview LaTeX fragment in a non-file buffer"))
-  (when (display-graphic-p)
-    (org-remove-latex-fragment-image-overlays)
-    (save-excursion
-      (save-restriction
-	(let (beg end at msg)
-	  (cond
-	   ((or (equal subtree '(16))
-		(not (save-excursion
-		       (re-search-backward org-outline-regexp-bol nil t))))
-	    (setq beg (point-min) end (point-max)
-		  msg "Creating images for buffer...%s"))
-	   ((equal subtree '(4))
-	    (org-back-to-heading)
-	    (setq beg (point) end (org-end-of-subtree t)
-		  msg "Creating images for subtree...%s"))
-	   (t
-	    (if (setq at (org-inside-LaTeX-fragment-p))
-		(goto-char (max (point-min) (- (cdr at) 2)))
-	      (org-back-to-heading))
-	    (setq beg (point) end (progn (outline-next-heading) (point))
-		  msg (if at "Creating image...%s"
-			"Creating images for entry...%s"))))
-	  (message msg "")
-	  (narrow-to-region beg end)
-	  (goto-char beg)
-	  (org-format-latex
-	   (concat org-latex-preview-ltxpng-directory (file-name-sans-extension
-						       (file-name-nondirectory
-							buffer-file-name)))
-	   default-directory 'overlays msg at 'forbuffer
-	   org-latex-create-formula-image-program)
-	  (message msg "done.  Use `C-c C-c' to remove images."))))))
+  (if org-latex-fragment-image-overlays
+      (progn (org-remove-latex-fragment-image-overlays)
+	     (message "LaTeX fragments images removed"))
+    (when (display-graphic-p)
+      (org-remove-latex-fragment-image-overlays)
+      (save-excursion
+	(save-restriction
+	  (let (beg end at msg)
+	    (cond
+	     ((or (equal subtree '(16))
+		  (not (save-excursion
+			 (re-search-backward org-outline-regexp-bol nil t))))
+	      (setq beg (point-min) end (point-max)
+		    msg "Creating images for buffer...%s"))
+	     ((equal subtree '(4))
+	      (org-back-to-heading)
+	      (setq beg (point) end (org-end-of-subtree t)
+		    msg "Creating images for subtree...%s"))
+	     (t
+	      (if (setq at (org-inside-LaTeX-fragment-p))
+		  (goto-char (max (point-min) (- (cdr at) 2)))
+		(org-back-to-heading))
+	      (setq beg (point) end (progn (outline-next-heading) (point))
+		    msg (if at "Creating image...%s"
+			  "Creating images for entry...%s"))))
+	    (message msg "")
+	    (narrow-to-region beg end)
+	    (goto-char beg)
+	    (org-format-latex
+	     (concat org-latex-preview-ltxpng-directory
+		     (file-name-sans-extension
+		      (file-name-nondirectory buffer-file-name)))
+	     default-directory 'overlays msg at 'forbuffer
+	     org-latex-create-formula-image-program)
+	    (message msg "done.  Use `C-c C-x C-l' to remove images.")))))))
 
 (defun org-format-latex (prefix &optional dir overlays msg at
 				forbuffer processing-type)
@@ -19675,7 +19677,7 @@ overwritten, and the table is not marked as requiring realignment."
        ;; check if we blank the field, and if that triggers align
        (and (featurep 'org-table) org-table-auto-blank-field
 	    (member last-command
-		    '(org-cycle org-return org-shifttab org-ctrl-c-ctrl-c yas/expand))
+		    '(org-cycle org-return org-shifttab org-ctrl-c-ctrl-c yas-expand))
 	    (if (or (equal (char-after) ?\ ) (looking-at "[^|\n]*  |"))
 		;; got extra space, this field does not determine column width
 		(let (org-table-may-need-update) (org-table-blank-field))
@@ -21818,9 +21820,7 @@ and end of string."
 When INSIDE is non-nil, don't consider we are within a src block
 when point is at #+BEGIN_SRC or #+END_SRC."
   (let ((case-fold-search t) ov)
-    (or (and (setq ov (overlays-at (point)))
-	     (memq 'org-block-background
-		   (overlay-properties (car ov))))
+    (or (and (eq (get-char-property (point) 'src-block) t))
 	(and (not inside)
 	     (save-match-data
 	       (save-excursion
@@ -23185,8 +23185,8 @@ strictly within a source block, use appropriate comment syntax."
 		(forward-line)))))))))
 
 (defun org-comment-dwim (arg)
-  (interactive "*P")
   "Call `comment-dwim' within a source edit buffer if needed."
+  (interactive "*P")
   (if (org-in-src-block-p)
       (org-babel-do-in-edit-buffer (call-interactively 'comment-dwim))
     (call-interactively 'comment-dwim)))
@@ -23476,15 +23476,15 @@ cursor is at the beginning of a line or after the stars of a currently
 empty headline, then the yank is handled specially.  How exactly depends
 on the value of the following variables, both set by default.
 
-org-yank-folded-subtrees
+`org-yank-folded-subtrees'
     When set, the subtree(s) will be folded after insertion, but only
     if doing so would now swallow text after the yanked text.
 
-org-yank-adjusted-subtrees
+`org-yank-adjusted-subtrees'
     When set, the subtree will be promoted or demoted in order to
-    fit into the local outline tree structure, which means that the level
-    will be adjusted so that it becomes the smaller one of the two
-    *visible* surrounding headings.
+    fit into the local outline tree structure, which means that the
+    level will be adjusted so that it becomes the smaller one of the
+    two *visible* surrounding headings.
 
 Any prefix to this command will cause `yank' to be called directly with
 no special treatment.  In particular, a simple \\[universal-argument] prefix \
