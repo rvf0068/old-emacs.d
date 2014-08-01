@@ -1,0 +1,8 @@
+# -*- mode: snippet -*-
+# name: uci-engine
+# key: uci
+# add uci engine configuration to engines.conf
+# --
+engine = $1
+bin    = /home/rafael/Dropbox/chess/engines-ja/$1/$1.sh
+

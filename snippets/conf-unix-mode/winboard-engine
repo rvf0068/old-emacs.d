@@ -1,0 +1,8 @@
+# -*- mode: snippet -*-
+# name: winboard-engine
+# key: wbd
+# add winboard engine configuration to engines.conf
+# --
+engine = $1
+bin    = /home/rafael/Dropbox/chess/engines-ja/$1/$1
+dir    = /home/rafael/Dropbox/chess/engines-ja/$1/

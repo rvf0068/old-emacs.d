@@ -1,0 +1,14 @@
+# -*- mode: snippet -*-
+# name: new-tikz-graph
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: ntikz
+# --
+#+caption: $1
+#+headers: :imagemagick yes :iminoptions -density 300 -resize 400
+#+headers: :packages '(("" "tikz")) :border 1pt
+#+header: :headers '("\\\\usetikzlibrary{graphs}\\\\usetikzlibrary{graphs.standard}")
+#+header: :results raw :exports both
+#+begin_src latex :file $2.png 
+    $0
+#+end_src
+
