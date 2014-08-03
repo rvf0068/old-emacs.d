@@ -162,8 +162,6 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-table-maybe-eval-formula "org-table" ())
 (declare-function org-table-maybe-recalculate-line "org-table" ())
 
-(declare-function org-element--parse-objects "org-element"
-		  (beg end acc restriction))
 (declare-function org-element-at-point "org-element" ())
 (declare-function org-element-cache-reset "org-element" (&optional all))
 (declare-function org-element-cache-refresh "org-element" (pos))
@@ -171,8 +169,6 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-element-context "org-element" (&optional element))
 (declare-function org-element-interpret-data "org-element"
 		  (data &optional parent))
-(declare-function org-element-map "org-element"
-		  (data types fun &optional info first-match no-recursion))
 (declare-function org-element-nested-p "org-element" (elem-a elem-b))
 (declare-function org-element-parse-buffer "org-element"
 		  (&optional granularity visible-only))
@@ -180,11 +176,8 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-element-put-property "org-element"
 		  (element property value))
 (declare-function org-element-swap-A-B "org-element" (elem-a elem-b))
-(declare-function org-element--parse-objects "org-element"
-		  (beg end acc restriction))
 (declare-function org-element-parse-buffer "org-element"
 		  (&optional granularity visible-only))
-(declare-function org-element-restriction "org-element" (element))
 (declare-function org-element-type "org-element" (element))
 
 (defsubst org-uniquify (list)
@@ -1049,7 +1042,7 @@ When nil, just use the standard three dots.
 When a string, use that string instead.
 When a face, use the standard 3 dots, but with the specified face.
 The change affects only Org-mode (which will then use its own display table).
-Changing this requires executing `M-x org-mode RET' in a buffer to become
+Changing this requires executing \\[org-mode] in a buffer to become
 effective."
   :group 'org-startup
   :type '(choice (const :tag "Default" nil)
@@ -1605,9 +1598,9 @@ changed by an edit command."
 (defcustom org-remove-highlights-with-change t
   "Non-nil means any change to the buffer will remove temporary highlights.
 Such highlights are created by `org-occur' and `org-clock-display'.
-When nil, `C-c C-c needs to be used to get rid of the highlights.
-The highlights created by `org-preview-latex-fragment' always need
-`C-c C-c' to be removed."
+When nil, `C-c C-c' needs to be used to get rid of the highlights.
+The highlights created by `org-toggle-latex-fragment' always need
+`C-c C-x C-l' to be removed."
   :group 'org-sparse-trees
   :group 'org-time
   :type 'boolean)
@@ -5547,7 +5540,7 @@ The following commands are available:
      (when org-startup-with-inline-images
        (org-display-inline-images))
      (when org-startup-with-latex-preview
-       (org-preview-latex-fragment))
+       (org-toggle-latex-fragment))
      (unless org-inhibit-startup-visibility-stuff
        (org-set-startup-visibility))
      (org-refresh-effort-properties)))
@@ -7325,41 +7318,55 @@ Optional arguments START and END can be used to limit the range."
       nil))) ;; to signal that we did not
 
 (defun org-hide-block-toggle (&optional force)
-  "Toggle the visibility of the current block."
+  "Toggle the visibility of the current block.
+When optional argument FORCE is `off', make block visible.  If it
+is non-nil, hide it unconditionally."
   (interactive)
-  (save-excursion
-    (beginning-of-line)
-    (if (re-search-forward org-block-regexp nil t)
-        (let ((start (- (match-beginning 4) 1)) ;; beginning of body
-              (end (match-end 0)) ;; end of entire body
-              ov)
-          (if (memq t (mapcar (lambda (overlay)
-                                (eq (overlay-get overlay 'invisible)
-				    'org-hide-block))
-                              (overlays-at start)))
-              (if (or (not force) (eq force 'off))
-                  (mapc (lambda (ov)
-                          (when (member ov org-hide-block-overlays)
-                            (setq org-hide-block-overlays
-                                  (delq ov org-hide-block-overlays)))
-                          (when (eq (overlay-get ov 'invisible)
-                                    'org-hide-block)
-                            (delete-overlay ov)))
-                        (overlays-at start)))
-            (setq ov (make-overlay start end))
-            (overlay-put ov 'invisible 'org-hide-block)
-            ;; make the block accessible to isearch
-            (overlay-put
-             ov 'isearch-open-invisible
-             (lambda (ov)
-               (when (member ov org-hide-block-overlays)
-                 (setq org-hide-block-overlays
-                       (delq ov org-hide-block-overlays)))
-               (when (eq (overlay-get ov 'invisible)
-                         'org-hide-block)
-                 (delete-overlay ov))))
-            (push ov org-hide-block-overlays)))
-      (user-error "Not looking at a source block"))))
+  (let ((element (org-element-at-point)))
+    (unless (memq (org-element-type element)
+		  '(center-block comment-block example-block quote-block
+				 src-block verse-block))
+      (user-error "Not at a block"))
+    (let* ((start (save-excursion
+		    (goto-char (org-element-property :post-affiliated element))
+		    (line-end-position)))
+	   (end (save-excursion
+		  (goto-char (org-element-property :end element))
+		  (skip-chars-backward " \r\t\n")
+		  (line-end-position)))
+	   (overlays (overlays-at start)))
+      (cond
+       ;; Do nothing when not before or at the block opening line or
+       ;; at the block closing line.
+       ((let ((eol (line-end-position)))
+	  (and (> eol start) (/= eol end))))
+       ((and (not (eq force 'off))
+	     (not (memq t (mapcar
+			   (lambda (o)
+			     (eq (overlay-get o 'invisible) 'org-hide-block))
+			   overlays))))
+	(let ((ov (make-overlay start end)))
+	  (overlay-put ov 'invisible 'org-hide-block)
+	  ;; Make the block accessible to `isearch'.
+	  (overlay-put
+	   ov 'isearch-open-invisible
+	   (lambda (ov)
+	     (when (memq ov org-hide-block-overlays)
+	       (setq org-hide-block-overlays (delq ov org-hide-block-overlays)))
+	     (when (eq (overlay-get ov 'invisible) 'org-hide-block)
+	       (delete-overlay ov))))
+	  (push ov org-hide-block-overlays)
+	  ;; When the block is hidden away, make sure point is left in
+	  ;; a visible part of the buffer.
+	  (when (> (line-beginning-position) start)
+	    (goto-char start)
+	    (beginning-of-line))))
+       ((or (not force) (eq force 'off))
+	(dolist (ov overlays)
+	  (when (memq ov org-hide-block-overlays)
+	    (setq org-hide-block-overlays (delq ov org-hide-block-overlays)))
+	  (when (eq (overlay-get ov 'invisible) 'org-hide-block)
+	    (delete-overlay ov))))))))
 
 ;; org-tab-after-check-for-cycling-hook
 (add-hook 'org-tab-first-hook 'org-hide-block-toggle-maybe)
@@ -18546,7 +18553,9 @@ looks only before point, not after."
   (mapc 'delete-overlay org-latex-fragment-image-overlays)
   (setq org-latex-fragment-image-overlays nil))
 
-(defun org-preview-latex-fragment (&optional subtree)
+(define-obsolete-function-alias
+  'org-preview-latex-fragment 'org-toggle-latex-fragment "24.4")
+(defun org-toggle-latex-fragment (&optional subtree)
   "Preview the LaTeX fragment at point, or all locally or globally.
 If the cursor is in a LaTeX fragment, create the image and overlay
 it over the source code.  If there is no fragment at point, display
@@ -18555,7 +18564,7 @@ prefix SUBTREE, display all fragments in the current subtree.  With a
 double prefix arg \\[universal-argument] \\[universal-argument], or when \
 the cursor is before the first headline,
 display all fragments in the buffer.
-The images can be removed again with \\[org-ctrl-c-ctrl-c]."
+The images can be removed again with \\[org-toggle-latex-fragment]."
   (interactive "P")
   (unless buffer-file-name
     (user-error "Can't preview LaTeX fragment in a non-file buffer"))
@@ -19474,7 +19483,7 @@ boundaries."
 (org-defkey org-mode-map "\C-c\C-x\C-d" 'org-clock-display)
 (org-defkey org-mode-map "\C-c\C-x\C-r" 'org-clock-report)
 (org-defkey org-mode-map "\C-c\C-x\C-u" 'org-dblock-update)
-(org-defkey org-mode-map "\C-c\C-x\C-l" 'org-preview-latex-fragment)
+(org-defkey org-mode-map "\C-c\C-x\C-l" 'org-toggle-latex-fragment)
 (org-defkey org-mode-map "\C-c\C-x\C-v" 'org-toggle-inline-images)
 (org-defkey org-mode-map "\C-c\C-x\C-\M-v" 'org-redisplay-inline-images)
 (org-defkey org-mode-map "\C-c\C-x\\"   'org-toggle-pretty-entities)
@@ -22842,25 +22851,19 @@ a footnote definition, try to fill the first paragraph within."
 			  (concat "^" message-cite-prefix-regexp) end t))
 		   (setq end (match-beginning 0))))
 	       ;; Fill paragraph, taking line breaks into account.
-	       ;; For that, slice the paragraph using line breaks as
-	       ;; separators, and fill the parts in reverse order to
-	       ;; avoid messing with markers.
 	       (save-excursion
-		 (goto-char end)
-		 (mapc
-		  (lambda (pos)
-		    (fill-region-as-paragraph pos (point) justify)
-		    (goto-char pos))
-		  ;; Find the list of ending positions for line breaks
-		  ;; in the current paragraph.  Add paragraph
-		  ;; beginning to include first slice.
-		  (nreverse
-		   (cons beg
-			 (org-element-map
-			     (org-element--parse-objects
-			      beg end nil (org-element-restriction 'paragraph))
-			     'line-break
-			   (lambda (lb) (org-element-property :end lb)))))))
+		 (goto-char beg)
+		 (let ((starters (list beg)))
+		   (while (re-search-forward "\\\\\\\\[ \t]*\\(\n\\)" end t)
+		     (when (eq 'line-break
+			       (org-element-type
+				(progn
+				  (backward-char)
+				  (save-match-data (org-element-context)))))
+		       (push (point) starters)))
+		   (dolist (s starters)
+		     (fill-region-as-paragraph s end justify)
+		     (setq end s))))
 	       t)))
 	  ;; Contents of `comment-block' type elements should be
 	  ;; filled as plain text, but only if point is within block
