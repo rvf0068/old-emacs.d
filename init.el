@@ -157,6 +157,8 @@
     (load "~/.emacs.d/rvf-personal.el")
   )
 
+(require 'chess)
+(setq chess-images-directory (concat "~/.emacs.d/elpa/chess-" chess-version "/pieces/xboard"))
 (setq chess-images-separate-frame nil)
 (setq chess-images-default-size 33)
 ;; Next row is needed for C-c C-c in pgn files to display position

@@ -1063,7 +1063,7 @@ drops support for Emacs 24.1 and 24.2."
     (org-open-at-point)
     (and (switch-to-buffer "*info*")
 	 (prog1
-	     (looking-at "\nOrg Mode Manual")
+	     (looking-at "\nThe Emacs Editor")
 	   (kill-buffer))))))
 
 
@@ -1900,6 +1900,55 @@ Text.
    (org-test-with-temp-text ":DRAWER:\ncontents\n:END:"
      (goto-char (point-max))
      (org-flag-drawer t)
+     (get-char-property (point) 'invisible))))
+
+(ert-deftest test-org/hide-block-toggle ()
+  "Test `org-hide-block-toggle' specifications."
+  ;; Error when not at a block.
+  (should-error
+   (org-test-with-temp-text "#+BEGIN_QUOTE\ncontents"
+     (org-hide-block-toggle 'off)
+     (get-char-property (line-end-position) 'invisible)))
+  ;; Hide block.
+  (should
+   (org-test-with-temp-text "#+BEGIN_CENTER\ncontents\n#+END_CENTER"
+     (org-hide-block-toggle)
+     (get-char-property (line-end-position) 'invisible)))
+  (should
+   (org-test-with-temp-text "#+BEGIN_EXAMPLE\ncontents\n#+END_EXAMPLE"
+     (org-hide-block-toggle)
+     (get-char-property (line-end-position) 'invisible)))
+  ;; Show block unconditionally when optional argument is `off'.
+  (should-not
+   (org-test-with-temp-text "#+BEGIN_QUOTE\ncontents\n#+END_QUOTE"
+     (org-hide-block-toggle)
+     (org-hide-block-toggle 'off)
+     (get-char-property (line-end-position) 'invisible)))
+  (should-not
+   (org-test-with-temp-text "#+BEGIN_QUOTE\ncontents\n#+END_QUOTE"
+     (org-hide-block-toggle 'off)
+     (get-char-property (line-end-position) 'invisible)))
+  ;; Hide block unconditionally when optional argument is non-nil.
+  (should
+   (org-test-with-temp-text "#+BEGIN_QUOTE\ncontents\n#+END_QUOTE"
+     (org-hide-block-toggle t)
+     (get-char-property (line-end-position) 'invisible)))
+  (should
+   (org-test-with-temp-text "#+BEGIN_QUOTE\ncontents\n#+END_QUOTE"
+     (org-hide-block-toggle)
+     (org-hide-block-toggle t)
+     (get-char-property (line-end-position) 'invisible)))
+  ;; Do not hide block when called from final blank lines.
+  (should-not
+   (org-test-with-temp-text "#+BEGIN_QUOTE\ncontents\n#+END_QUOTE\n\n<point>"
+     (org-hide-block-toggle)
+     (goto-char (point-min))
+     (get-char-property (line-end-position) 'invisible)))
+  ;; Don't leave point in an invisible part of the buffer when hiding
+  ;; a block away.
+  (should-not
+   (org-test-with-temp-text "#+BEGIN_QUOTE\ncontents\n<point>#+END_QUOTE"
+     (org-hide-block-toggle)
      (get-char-property (point) 'invisible))))
 
 

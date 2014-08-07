@@ -129,6 +129,7 @@
     (:html-allow-name-attribute-in-anchors
      nil nil org-html-allow-name-attribute-in-anchors)
     (:html-divs nil nil org-html-divs)
+    (:html-checkbox-type nil nil org-html-checkbox-type)
     (:html-extension nil nil org-html-extension)
     (:html-footnote-format nil nil org-html-footnote-format)
     (:html-footnote-separator nil nil org-html-footnote-separator)
@@ -142,7 +143,7 @@
     (:html-infojs-options nil nil org-html-infojs-options)
     (:html-infojs-template nil nil org-html-infojs-template)
     (:html-inline-image-rules nil nil org-html-inline-image-rules)
-    (:html-link-org-as-html nil nil org-html-link-org-files-as-html)
+    (:html-link-org-files-as-html nil nil org-html-link-org-files-as-html)
     (:html-mathjax-options nil nil org-html-mathjax-options)
     (:html-mathjax-template nil nil org-html-mathjax-template)
     (:html-metadata-timestamp-format nil nil org-html-metadata-timestamp-format)
@@ -2341,9 +2342,8 @@ holding contextual information."
 		     (org-html-end-plain-list type)))))
      ;; Case 3: Standard headline.  Export it as a section.
      (t
-      (let* ((headline-number
-	      (and numberedp (org-export-get-headline-number headline info)))
-	     (section-number (mapconcat #'number-to-string headline-number "-"))
+      (let* ((numbers (org-export-get-headline-number headline info))
+	     (section-number (mapconcat #'number-to-string numbers "-"))
 	     (ids (remq nil
 			(list (org-element-property :CUSTOM_ID headline)
 			      (concat "sec-" section-number)
@@ -2371,8 +2371,11 @@ holding contextual information."
 			     (org-html--anchor id nil nil info)))
 			 extra-ids "")
 			(concat
-			 (mapconcat #'number-to-string headline-number ".")
-			 (and headline-number " ")
+			 (and numberedp
+			      (format
+			       "<span class=\"section-number-%d\">%s</span> "
+			       level
+			       (mapconcat #'number-to-string numbers ".")))
 			 full-text)
 			level)
 		;; When there is no section, pretend there is an empty

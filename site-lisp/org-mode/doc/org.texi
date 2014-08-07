@@ -9595,10 +9595,6 @@ The title of the exported document is taken from the special line
 #+TITLE: This is the title of the document
 @end example
 
-@noindent
-If this line does not exist, the title will be the name of the file
-associated with the buffer, without extension, or the buffer name.
-
 @cindex property, EXPORT_TITLE
 If you are exporting only a subtree, its heading will become the title of the
 document.  If the subtree has a property @code{EXPORT_TITLE}, that will take
@@ -10043,10 +10039,10 @@ Conversely, backslash characters before a comma, and only them, need to be
 escaped with another backslash character.}.
 
 These references, called macros, can be inserted anywhere Org markup is
-recognized: paragraphs, headlines, verse and example blocks, tables cells,
-lists and comments.  They cannot be used within ordinary keywords (starting
-with @code{#+:}) but are allowed in @code{#+CAPTION}, @code{#+TITLE},
-@code{#+AUTHOR} and @code{#+EMAIL}.
+recognized: paragraphs, headlines, verse blocks, tables cells and lists.
+They cannot be used within ordinary keywords (starting with @code{#+}) but
+are allowed in @code{#+CAPTION}, @code{#+TITLE}, @code{#+AUTHOR} and
+@code{#+EMAIL}.
 
 In addition to user-defined macros, a set of already defined macros can be
 used: @code{@{@{@{title@}@}@}}, @code{@{@{@{author@}@}@}}, etc., will
@@ -10060,7 +10056,7 @@ and to the modification time of the file being exported, respectively.
 The surrounding brackets can be made invisible by setting
 @code{org-hide-macro-markers} to @code{t}.
 
-Macro expansion takes place during export.
+Macro expansion takes place during the very beginning of the export process.
 
 
 @node Embedded @LaTeX{}
@@ -10580,8 +10576,7 @@ be executed during export even though the subtree is not exported.
 
 @item TITLE
 @cindex #+TITLE
-The title to be shown (otherwise derived from buffer's name).  You can use
-several such keywords for long titles.
+The title to be shown.  You can use several such keywords for long titles.
 @end table
 
 The @code{#+OPTIONS} keyword is a compact@footnote{If you want to configure
@@ -13528,7 +13523,7 @@ however, override everything.
 @item @code{:html-inline-image-rules}         @tab @code{org-html-inline-image-rules}
 @item @code{:html-inline-images}              @tab @code{org-html-inline-images}
 @item @code{:html-link-home}                  @tab @code{org-html-link-home}
-@item @code{:html-link-org-as-html}           @tab @code{org-html-link-org-files-as-html}
+@item @code{:html-link-org-files-as-html}     @tab @code{org-html-link-org-files-as-html}
 @item @code{:html-link-up}                    @tab @code{org-html-link-up}
 @item @code{:html-link-use-abs-url}           @tab @code{org-html-link-use-abs-url}
 @item @code{:html-mathjax-options}            @tab @code{org-html-mathjax-options}
