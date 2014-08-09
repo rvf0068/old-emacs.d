@@ -26,6 +26,7 @@
     concurrent
     dash
     deferred
+    ess
     gap-mode
     helm
     helm-bibtex
