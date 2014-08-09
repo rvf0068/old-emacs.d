@@ -135,19 +135,11 @@ CONTENTS is its contents, as a string or nil.  INFO is ignored."
 
 (defun org-org-keyword (keyword contents info)
   "Transcode KEYWORD element back into Org syntax.
-CONTENTS is nil.  INFO is ignored.  This function ignores
-keywords targeted at other export back-ends."
+CONTENTS is nil.  INFO is ignored."
   (let ((key (org-element-property :key keyword)))
-    (unless (or (member key
-			(mapcar
-			 (lambda (block-cons)
-			   (and (eq (cdr block-cons)
-				    'org-element-export-block-parser)
-				(car block-cons)))
-			 org-element-block-name-alist))
-		(member key
-			'("AUTHOR" "CREATOR" "DATE" "DESCRIPTION" "EMAIL"
-			  "KEYWORDS" "TITLE")))
+    (unless (member key
+		    '("AUTHOR" "CREATOR" "DATE" "DESCRIPTION" "EMAIL" "KEYWORDS"
+		      "OPTIONS" "TITLE"))
       (org-element-keyword-interpreter keyword nil))))
 
 (defun org-org-template (contents info)
@@ -157,6 +149,14 @@ as a communication channel."
   (concat
    (and (plist-get info :time-stamp-file)
 	(format-time-string "# Created %Y-%m-%d %a %H:%M\n"))
+   (org-element-normalize-string
+    (mapconcat #'identity
+	       (org-element-map (plist-get info :parse-tree) 'keyword
+		 (lambda (k)
+		   (and (string-equal (org-element-property :key k) "OPTIONS")
+			(concat "#+OPTIONS: "
+				(org-element-property :value k)))))
+	       "\n"))
    (format "#+TITLE: %s\n" (org-export-data (plist-get info :title) info))
    (and (plist-get info :with-date)
 	(let ((date (org-export-data (org-export-get-date info) info)))

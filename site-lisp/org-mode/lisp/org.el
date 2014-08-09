@@ -18412,7 +18412,7 @@ When a buffer is unmodified, it is just killed.  When modified, it is saved
 (org-defkey org-cdlatex-mode-map "^" 'org-cdlatex-underscore-caret)
 (org-defkey org-cdlatex-mode-map "`" 'cdlatex-math-symbol)
 (org-defkey org-cdlatex-mode-map "'" 'org-cdlatex-math-modify)
-(org-defkey org-cdlatex-mode-map "\C-c{" 'cdlatex-environment)
+(org-defkey org-cdlatex-mode-map "\C-c{" 'org-cdlatex-environment-indent)
 
 (defvar org-cdlatex-texmathp-advice-is-done nil
   "Flag remembering if we have applied the advice to texmathp already.")
@@ -18490,6 +18490,13 @@ Revert to the normal definition outside of these fragments."
     (let (org-cdlatex-mode)
       (call-interactively (key-binding (vector last-input-event))))))
 
+(defun org-cdlatex-environment-indent (&optional environment item)
+  "Execute `cdlatex-environment' and indent the inserted environment."
+  (interactive)
+  (cdlatex-environment environment item)
+  (let ((element (org-element-at-point)))
+    (org-indent-region (org-element-property :begin element)
+		       (org-element-property :end element))))
 
 
 ;;;; LaTeX fragments
@@ -19177,13 +19184,13 @@ boundaries."
 			     (when paragraph
 			       (save-excursion
 				 (goto-char (org-element-property :begin paragraph))
-				 (when (save-match-data
-					 (re-search-forward
-					  "^[ \t]*#\\+attr_.*?: +.*?:width +\\(\\S-+\\)"
-					  (org-element-property
-					   :post-affiliated paragraph)
-					  t))
-				   (string-to-number (match-string 1))))))
+				   (when
+				       (re-search-forward
+					"^[ \t]*#\\+attr_.*?: +.*?:width +\\(\\S-+\\)"
+					(org-element-property
+					 :post-affiliated paragraph)
+					t)
+				     (string-to-number (match-string 1))))))
 			   ;; Otherwise, fall-back to provided number.
 			   (car org-image-actual-width)))
 			 ((numberp org-image-actual-width)
@@ -19193,11 +19200,10 @@ boundaries."
 			     'org-image-overlay)))
 		   (if (and (car-safe old) refresh)
 		       (image-refresh (overlay-get (cdr old) 'display))
-		     (let ((image (save-match-data
-				    (create-image file
+		     (let ((image (create-image file
 						  (and width 'imagemagick)
 						  nil
-						  :width width))))
+						  :width width)))
 		       (when image
 			 (let* ((link
 				 ;; If inline image is the description
