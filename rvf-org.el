@@ -199,6 +199,39 @@
 (add-to-list 'org-export-filter-final-output-functions
 	     'my-math-replacement-2)
 
+;; for some reason, either mathjax or kramdown has problems with "|"
+(defun my-math-replacement-3 (contents backend info)
+  (when (eq backend 'md)
+    (replace-regexp-in-string "|" "\\\\vert " contents)
+    ))
+
+(add-to-list 'org-export-filter-latex-fragment-functions
+	     'my-math-replacement-3)
+
+
+;; In my presentations in spanish, I add a heading called "Esquema",
+;; to include the toc in beamer. This looks bad in the blog.
+(defun my-md-replacement-1 (contents backend info)
+  (when (eq backend 'md)
+    (replace-regexp-in-string "# Esquema\n" "" contents)
+    ))
+
+(add-to-list 'org-export-filter-final-output-functions
+	     'my-md-replacement-1)
+
+;; Many of the frames on my slides have no title. They are translated
+;; to ## alone in markdown, and then to ## in html
+(defun my-md-replacement-2 (contents backend info)
+  (when (eq backend 'md)
+    (replace-regexp-in-string "## $" "" contents)
+    ))
+
+(add-to-list 'org-export-filter-final-output-functions
+	     'my-md-replacement-2)
+
+
+
+
 (defun my-space-replacement (contents backend info)
   (when (eq backend 'md)
     (replace-regexp-in-string "\n\s *" " " contents)
