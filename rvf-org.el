@@ -184,7 +184,7 @@
 ;; filters for octopress
 (defun my-math-replacement (contents backend info)
   (when (eq backend 'md)
-    (replace-regexp-in-string "\\\\(\\|\\\\)\\|\\\\\\[\\|\\\\\\]" "$" contents)
+    (replace-regexp-in-string "\\\\(\\|\\\\)\\|\\\\\\[\\|\\\\\\]" "$$" contents)
     ))
 
 (add-to-list 'org-export-filter-latex-fragment-functions
