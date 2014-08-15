@@ -184,11 +184,20 @@
 ;; filters for octopress
 (defun my-math-replacement (contents backend info)
   (when (eq backend 'md)
-    (replace-regexp-in-string "\\\\(\\|\\\\)\\|\\\\\\[\\|\\\\\\]" "$$" contents)
+    (replace-regexp-in-string "\\\\(\\|\\\\)\\|\\\\\\[\\|\\\\\\]" "$" contents)
     ))
 
 (add-to-list 'org-export-filter-latex-fragment-functions
 	     'my-math-replacement)
+
+;; filters for octopress
+(defun my-math-replacement-2 (contents backend info)
+  (when (eq backend 'md)
+    (replace-regexp-in-string "\\\\begin{displaymath}\\|\\\\end{displaymath}" "$$" contents)
+    ))
+
+(add-to-list 'org-export-filter-final-output-functions
+	     'my-math-replacement-2)
 
 (defun my-space-replacement (contents backend info)
   (when (eq backend 'md)

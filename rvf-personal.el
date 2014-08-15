@@ -70,6 +70,55 @@
         ("galois" . (:components ("galois-org" "galois-pdf")))
         ))
 
+;; from http://www.railsonmaui.com/blog/2014/03/05/octopress-setup-with-github-and-org-mode-v2/
+
+(setq my-common-octopress-settings
+      '(:base-extension "org"
+                        :with-toc nil
+                        ;; :with-sub-superscript nil
+			:exclude "options.org\\|opciones.org\\|exercises.*org"
+                        :section-numbers nil
+                        :recursive t
+                        :publishing-function org-md-publish-to-md
+                        ;; :headline-levels 4
+                        ;; :body-only t
+			))
+
+;; (setq my-static-directories '("about" "meta" "tips"))
+(setq my-static-directories '("index"))
+
+(setq my-base-directory "~/Dropbox/paginas/sistemas-dinamicos/source/")
+
+(defun my-create-octopress-static (prj)
+  (let ((base-dir (expand-file-name prj)))
+    `(,prj . (:base-directory ,base-dir
+                              :publishing-directory ,base-dir
+                              ,@my-common-octopress-settings))))
+
+(defun my-static-components ()
+  (mapcar 'my-create-octopress-static my-static-directories))
+
+(let ((default-directory my-base-directory))
+(setq org-publish-project-alist
+      `(
+        ;; components
+        ;; ("blog" . (:components ("blog-org" "blog-extra" "about" "meta" "tips")))
+        ("blog" . (:components ("index" "blog-org" "blog-pdf")))
+
+        ;; blog articles
+        ("blog-org" .  (:base-directory ,(expand-file-name "org")
+                                        :publishing-directory ,(expand-file-name "_posts")
+                                        ,@my-common-octopress-settings))
+        ;; ("blog-extra" . (:base-directory ,(expand-file-name "org_posts")
+        ;;                                  :publishing-directory ,(expand-file-name ".")
+        ;;                                  :base-extension "css\\|pdf\\|png\\|jpg\\|gif\\|svg"
+        ;;                                  :publishing-function org-publish-attachment
+        ;;                                  :recursive t
+        ;;                                  :author nil))
+
+        ;; static articles
+        ,@(my-static-components))))
+
 (load "~/.emacs.d/rvf-captures.el")
 
 (setq diary-file "~/Dropbox/emacs/diary")
