@@ -22,6 +22,7 @@
     bibretrieve
     bibslurp
     calfw
+    cdlatex
     chess
     concurrent
     dash
