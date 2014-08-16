@@ -103,18 +103,18 @@
       `(
         ;; components
         ;; ("blog" . (:components ("blog-org" "blog-extra" "about" "meta" "tips")))
-        ("blog" . (:components ("index" "blog-org" "blog-pdf")))
+        ("blog" . (:components ("blog-org" "blog-extra")))
 
         ;; blog articles
         ("blog-org" .  (:base-directory ,(expand-file-name "org")
                                         :publishing-directory ,(expand-file-name "_posts")
                                         ,@my-common-octopress-settings))
-        ;; ("blog-extra" . (:base-directory ,(expand-file-name "org_posts")
-        ;;                                  :publishing-directory ,(expand-file-name ".")
-        ;;                                  :base-extension "css\\|pdf\\|png\\|jpg\\|gif\\|svg"
-        ;;                                  :publishing-function org-publish-attachment
-        ;;                                  :recursive t
-        ;;                                  :author nil))
+        ("blog-extra" . (:base-directory ,(expand-file-name "org")
+                                         :publishing-directory ,(expand-file-name "images")
+                                         :base-extension "css\\|png\\|jpg\\|gif\\|svg"
+                                         :publishing-function org-publish-attachment
+                                         :recursive t
+                                         :author nil))
 
         ;; static articles
         ,@(my-static-components))))
