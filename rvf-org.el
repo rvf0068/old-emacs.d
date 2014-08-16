@@ -229,8 +229,14 @@
 (add-to-list 'org-export-filter-final-output-functions
 	     'my-md-replacement-2)
 
+;; Add the correct folder for images
+(defun my-md-replacement-3 (contents backend info)
+  (when (eq backend 'md)
+    (replace-regexp-in-string "!\\[img\\](" "![img](/images/" contents)
+    ))
 
-
+(add-to-list 'org-export-filter-final-output-functions
+	     'my-md-replacement-3)
 
 (defun my-space-replacement (contents backend info)
   (when (eq backend 'md)
