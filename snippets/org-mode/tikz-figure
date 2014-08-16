@@ -6,9 +6,9 @@
 # --
 
 #+name: $1
-#+headers: :imagemagick yes :iminoptions -density 300 -resize 400
+#+headers: :imagemagick yes :iminoptions -density 300 -resize 800
 #+headers: :packages '(("" "tikz") ("" "tkz-berge")) :border 1pt
-#+header: :file (by-backend (html "$1.png") (latex 'nil) (t "$1.png"))
+#+header: :file (by-backend (html "$1.png") (latex 'nil) (beamer 'nil) (t "$1.png"))
 #+header: :results raw :cache yes
 #+begin_src latex
   \begin{tikzpicture}
