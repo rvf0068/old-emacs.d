@@ -74,18 +74,17 @@
 
 (setq my-common-octopress-settings
       '(:base-extension "org"
-                        :with-toc nil
+                        ;; :with-toc t
                         ;; :with-sub-superscript nil
 			:exclude "options.org\\|opciones.org\\|exercises.*org"
-                        :section-numbers nil
                         :recursive t
-                        :publishing-function org-md-publish-to-md
+			:author nil
                         ;; :headline-levels 4
                         ;; :body-only t
 			))
 
 ;; (setq my-static-directories '("about" "meta" "tips"))
-(setq my-static-directories '("index"))
+(setq my-static-directories '("page"))
 
 (setq my-base-directory "~/Dropbox/paginas/sistemas-dinamicos/source/")
 
@@ -93,6 +92,7 @@
   (let ((base-dir (expand-file-name prj)))
     `(,prj . (:base-directory ,base-dir
                               :publishing-directory ,base-dir
+			      :publishing-function org-md-publish-to-md
                               ,@my-common-octopress-settings))))
 
 (defun my-static-components ()
@@ -103,18 +103,29 @@
       `(
         ;; components
         ;; ("blog" . (:components ("blog-org" "blog-extra" "about" "meta" "tips")))
-        ("blog" . (:components ("blog-org" "blog-extra")))
+        ("blog" . (:components ("blog-org" "blog-extra" "blog-pdf" "index")))
+
+	;; home page
+	("index" . (:base-directory ,(expand-file-name "index")
+				    :publishing-directory ,(expand-file-name ".")
+				    :publishing-function org-md-publish-to-md
+				    ,@my-common-octopress-settings))
 
         ;; blog articles
         ("blog-org" .  (:base-directory ,(expand-file-name "org")
                                         :publishing-directory ,(expand-file-name "_posts")
+					:section-numbers nil
+					:publishing-function org-md-publish-to-md
+                                        ,@my-common-octopress-settings))
+        ("blog-pdf" .  (:base-directory ,(expand-file-name "org")
+                                        :publishing-directory ,(expand-file-name "org")
+					:publishing-function org-beamer-publish-to-pdf
                                         ,@my-common-octopress-settings))
         ("blog-extra" . (:base-directory ,(expand-file-name "org")
                                          :publishing-directory ,(expand-file-name "images")
                                          :base-extension "css\\|png\\|jpg\\|gif\\|svg"
                                          :publishing-function org-publish-attachment
-                                         :recursive t
-                                         :author nil))
+                                         :recursive t))
 
         ;; static articles
         ,@(my-static-components))))

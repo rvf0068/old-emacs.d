@@ -255,6 +255,8 @@
 (add-to-list 'org-export-filter-final-output-functions
 	     'my-beamer-replacement)
 
+(defvar org-octopress-is-post t)
+
 ;; modified from https://github.com/spacemanaki/octorgopress
 (defun org-octopress-template (contents backend info)
   (when (eq backend 'md)
@@ -264,19 +266,21 @@
         (keywords (plist-get info :keywords))
         (frontmatter
          "---
-layout: post
+layout: %s
 title: %s
 date: %s %s
 comments: true
 categories: %s
 ---
 "))
-    (if keywords
-        (concat (format frontmatter title date time keywords) contents)
-        (concat (format frontmatter title date time "") contents)
+    (if keywords ;; if it has keywords, then it is not a page
+        (concat (format frontmatter "post" title date time keywords) contents)
+      (if org-octopress-is-post
+	  (concat (format frontmatter "post" title date time "") contents)
+        (concat (format frontmatter "page" title date time "") contents)
+	)
       )
     )))
-
 
 (add-to-list 'org-export-filter-final-output-functions
 	     'org-octopress-template)
