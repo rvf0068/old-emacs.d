@@ -229,10 +229,18 @@
 (add-to-list 'org-export-filter-final-output-functions
 	     'my-md-replacement-2)
 
-;; Add the correct folder for images
+;; Transforms
+;; ![img](mosaicos.png) to
+;; {% img center /images/mosaicos.png %}
+;; This was very useful
+;; http://stackoverflow.com/questions/16241957/how-can-i-regexp-replace-a-string-in-an-elisp-function
+
 (defun my-md-replacement-3 (contents backend info)
   (when (eq backend 'md)
-    (replace-regexp-in-string "!\\[img\\](" "![img](/images/" contents)
+    (replace-regexp-in-string
+     "!\\[img\\](\\(.*\\).png)"
+     "{% img center /images/\\1.png %}"
+     contents)
     ))
 
 (add-to-list 'org-export-filter-final-output-functions
