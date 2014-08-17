@@ -6,11 +6,11 @@
 # --
 
 #+name: $1
-#+headers: :imagemagick yes :iminoptions -density 300 -resize 800
-#+headers: :packages '(("" "tikz") ("" "tkz-berge")) :border 1pt
-#+header: :file (by-backend (html "$1.png") (latex 'nil) (beamer 'nil) (t "$1.png"))
-#+header: :results raw :cache yes
-#+begin_src latex
+#+header: :imagemagick yes :iminoptions -density 300 -resize 400
+#+header: :packages '(("" "tikz") ("" "tkz-berge")) :border 1pt
+#+header: :file (by-backend (latex "$1.tikz") (beamer "$1.tikz") (t "$1.png"))
+#+header: :cache yes
+#+begin_src latex :results raw file
   \begin{tikzpicture}
     $0
   \end{tikzpicture}
@@ -18,4 +18,5 @@
 
 #+caption: $2
 #+attr_html: :width 400 :alt $2 :align center
+#+attr_latex: :float t :width ""
 #+results: $1
