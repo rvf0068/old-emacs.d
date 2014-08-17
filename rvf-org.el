@@ -293,10 +293,6 @@ categories: %s
 (add-to-list 'org-export-filter-final-output-functions
 	     'org-octopress-template)
 
-;; This works for "sistemas-dinamicos". Clearly will have to be modified somehow
-(add-to-list 'org-link-abbrev-alist
-	     '("pres" . "https://github.com/rvf0068/sistemas-dinamicos/blob/gh-pages/org/%s.pdf?raw=true"))
-
 ;; from http://mbork.pl/2013-09-23_Automatic_insertion_of_habit_templates_%28en%29
 (defun org-insert-habit ()
   "Insert a new TODO subheading and set its properties so that it becomes a habit."
