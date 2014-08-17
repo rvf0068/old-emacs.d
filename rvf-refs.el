@@ -36,12 +36,13 @@
 
 ;(add-hook 'org-mode-hook 'org-mode-reftex-setup)
 
-;; here we should add to the list, not setting it
-(setq org-link-abbrev-alist
-      '(("bib" . "~/Dropbox/texmf/bibtex/bib/misc/rvf.bib::%s")
-	("notes" . "~/Dropbox/org/math/lit.org::#%s")
-        ("ref" . org-reflibrary-determine-link)
-        ))
+;; we add a list to a list
+(setq org-link-abbrev-alist (nconc org-link-abbrev-alist
+				   '(("bib" . "~/Dropbox/texmf/bibtex/bib/misc/rvf.bib::%s")
+				     ("notes" . "~/Dropbox/org/math/lit.org::#%s")
+				     ("ref" . org-reflibrary-determine-link)
+				     )
+				   ))
 
 ;; Possible names
 ;; reference.pdf
