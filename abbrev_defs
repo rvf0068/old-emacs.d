@@ -156,7 +156,7 @@
 (define-abbrev-table 'org-mode-abbrev-table
   '(
     ("cd" "campo de descomposición" nil 2)
-    ("iff" "if an only if" nil 0)
+    ("iff" "if and only if" nil 0)
     ("mcd" "máximo común divisor" nil 3)
     ("pm" "polinomio mínimo" nil 5)
     ("ssi" "si y solo si" nil 0)
