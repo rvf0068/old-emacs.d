@@ -130,10 +130,6 @@
         ;; static articles
         ,@(my-static-components))))
 
-;; This works for "sistemas-dinamicos". Clearly will have to be modified somehow
-(add-to-list 'org-link-abbrev-alist
-	     '("pres" . "https://github.com/rvf0068/sistemas-dinamicos/blob/gh-pages/org/%s.pdf?raw=true"))
-
 (load "~/.emacs.d/rvf-captures.el")
 
 (setq diary-file "~/Dropbox/emacs/diary")
