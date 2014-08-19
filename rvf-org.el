@@ -257,7 +257,7 @@
 ;; filters for beamer export
 (defun my-beamer-replacement (contents backend info)
   (when (eq backend 'beamer)
-    (replace-regexp-in-string "\\\\usepackage\\[margin=2.5cm\\]{geometry}\n\\|\\\\usepackage\\[colorlinks=true, linkcolor=blue\\]{hyperref}\n" "" contents)
+    (replace-regexp-in-string "\\\\usepackage\\[margin=2.5cm\\]{geometry}\n\\|\\\\usepackage\\[colorlinks=true, linkcolor=blue\\]{hyperref}\n\\|\\\\usepackage\\[T1\\]{fontenc}\n\\|\\\\usepackage\\[libertine,timesmathacc\\]{newtxmath}\n" "" contents)
     ))
 
 (add-to-list 'org-export-filter-final-output-functions
