@@ -130,6 +130,12 @@
         ;; static articles
         ,@(my-static-components))))
 
+
+(setq my-base-directories '(
+			    "~/Dropbox/paginas/sistemas-dinamicos/"
+			    "~/Downloads/scratch/grad-topology"
+			    ))
+
 (load "~/.emacs.d/rvf-captures.el")
 
 (setq diary-file "~/Dropbox/emacs/diary")
