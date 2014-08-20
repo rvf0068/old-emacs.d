@@ -86,7 +86,7 @@
 ;; (setq my-static-directories '("about" "meta" "tips"))
 (setq my-static-directories '("page"))
 
-(setq my-base-directory "~/Dropbox/paginas/sistemas-dinamicos/source/")
+;; (setq my-base-directory "~/Dropbox/paginas/sistemas-dinamicos/source/")
 
 (defun my-create-octopress-static (prj)
   (let ((base-dir (expand-file-name prj)))
@@ -98,43 +98,50 @@
 (defun my-static-components ()
   (mapcar 'my-create-octopress-static my-static-directories))
 
-(let ((default-directory my-base-directory))
-(setq org-publish-project-alist
+(defun my-octopress-projects (my-pair)
+(let (
+      (code (car my-pair))
+      (default-directory (nth 1 my-pair))
+      )
+(setq org-publish-project-alist (nconc org-publish-project-alist
       `(
         ;; components
-        ;; ("blog" . (:components ("blog-org" "blog-extra" "about" "meta" "tips")))
-        ("blog" . (:components ("blog-org" "blog-extra" "blog-pdf" "index")))
-
+        (,code . (:components (,(concat code "-org") ,(concat code "-extra") ,(concat code "-pdf") ,(concat code "-index"))))
 	;; home page
-	("index" . (:base-directory ,(expand-file-name "index")
+	(,(concat code "-index") . (:base-directory ,(expand-file-name "index")
 				    :publishing-directory ,(expand-file-name ".")
 				    :publishing-function org-md-publish-to-md
 				    ,@my-common-octopress-settings))
-
         ;; blog articles
-        ("blog-org" .  (:base-directory ,(expand-file-name "org")
+        (,(concat code "-org") .  (:base-directory ,(expand-file-name "org")
                                         :publishing-directory ,(expand-file-name "_posts")
 					:section-numbers nil
 					:publishing-function org-md-publish-to-md
                                         ,@my-common-octopress-settings))
-        ("blog-pdf" .  (:base-directory ,(expand-file-name "org")
+        (,(concat code "-pdf") .  (:base-directory ,(expand-file-name "org")
                                         :publishing-directory ,(expand-file-name "org")
 					:publishing-function org-beamer-publish-to-pdf
                                         ,@my-common-octopress-settings))
-        ("blog-extra" . (:base-directory ,(expand-file-name "org")
+        (,(concat code "-extra") . (:base-directory ,(expand-file-name "org")
                                          :publishing-directory ,(expand-file-name "images")
                                          :base-extension "css\\|png\\|jpg\\|gif\\|svg"
                                          :publishing-function org-publish-attachment
                                          :recursive t))
-
         ;; static articles
         ,@(my-static-components))))
-
+))
 
 (setq my-base-directories '(
-			    "~/Dropbox/paginas/sistemas-dinamicos/"
-			    "~/Downloads/scratch/grad-topology"
+			    ("sd" "sistemas-dinamicos")
+			    ("top" "grad-topology")
 			    ))
+
+(defun form-octopress-project (pair)
+  (let ((dir (nth 1 pair)))
+  (list (car pair) (concat "~/Dropbox/paginas/" dir "/source/"))
+  ))
+
+(mapcar 'my-octopress-projects (mapcar 'form-octopress-project my-base-directories))
 
 (load "~/.emacs.d/rvf-captures.el")
 
