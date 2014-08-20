@@ -86,7 +86,7 @@
 ;; (setq my-static-directories '("about" "meta" "tips"))
 (setq my-static-directories '("page"))
 
-(setq my-base-directory "~/Dropbox/paginas/sistemas-dinamicos/source/")
+;; (setq my-base-directory "~/Dropbox/paginas/sistemas-dinamicos/source/")
 
 (defun my-create-octopress-static (prj)
   (let ((base-dir (expand-file-name prj)))
@@ -98,19 +98,17 @@
 (defun my-static-components ()
   (mapcar 'my-create-octopress-static my-static-directories))
 
+(defun my-octopress-projects (my-base-directory)
 (let ((default-directory my-base-directory))
-(setq org-publish-project-alist
+(setq org-publish-project-alist (nconc org-publish-project-alist
       `(
         ;; components
-        ;; ("blog" . (:components ("blog-org" "blog-extra" "about" "meta" "tips")))
         ("blog" . (:components ("blog-org" "blog-extra" "blog-pdf" "index")))
-
 	;; home page
 	("index" . (:base-directory ,(expand-file-name "index")
 				    :publishing-directory ,(expand-file-name ".")
 				    :publishing-function org-md-publish-to-md
 				    ,@my-common-octopress-settings))
-
         ;; blog articles
         ("blog-org" .  (:base-directory ,(expand-file-name "org")
                                         :publishing-directory ,(expand-file-name "_posts")
@@ -126,15 +124,20 @@
                                          :base-extension "css\\|png\\|jpg\\|gif\\|svg"
                                          :publishing-function org-publish-attachment
                                          :recursive t))
-
         ;; static articles
         ,@(my-static-components))))
-
+))
 
 (setq my-base-directories '(
 			    "~/Dropbox/paginas/sistemas-dinamicos/"
-			    "~/Downloads/scratch/grad-topology"
+			    "~/Downloads/scratch/grad-topology/"
 			    ))
+
+(defun form-octopress-project (dir)
+  (concat dir "source")
+     )
+
+(mapcar 'my-octopress-projects (mapcar 'form-octopress-project my-base-directories))
 
 (load "~/.emacs.d/rvf-captures.el")
 
