@@ -45,13 +45,6 @@
 					    :publishing-directory "~/Dropbox/paginas/topology/source/org/"
 					    :publishing-function org-beamer-publish-to-pdf
 					    ))
-        ;; ("blog-extra" . (:base-directory "~/git/blog/source/org_posts/"
-        ;;                                  :publishing-directory "~/git/blog/source/"
-        ;;                                  :base-extension "css\\|pdf\\|png\\|jpg\\|gif\\|svg"
-        ;;                                  :publishing-function org-publish-attachment
-        ;;                                  :recursive t
-        ;;                                  :author nil
-        ;;                                  ))
         ("topology" . (:components ("topology-org" "topology-pdf")))
 	("galois-org" .  (
 			    :base-directory "~/Dropbox/paginas/galois/source/org"
@@ -74,19 +67,12 @@
 
 (setq my-common-octopress-settings
       '(:base-extension "org"
-                        ;; :with-toc t
-                        ;; :with-sub-superscript nil
 			:exclude "options.org\\|opciones.org\\|exercises.*org"
                         :recursive t
 			:author nil
-                        ;; :headline-levels 4
-                        ;; :body-only t
 			))
 
-;; (setq my-static-directories '("about" "meta" "tips"))
 (setq my-static-directories '("page"))
-
-;; (setq my-base-directory "~/Dropbox/paginas/sistemas-dinamicos/source/")
 
 (defun my-create-octopress-static (prj)
   (let ((base-dir (expand-file-name prj)))
@@ -134,6 +120,7 @@
 (setq my-base-directories '(
 			    ("sd" "sistemas-dinamicos")
 			    ("top" "grad-topology")
+			    ("rvf" "rvf0068")
 			    ))
 
 (defun form-octopress-project (pair)
