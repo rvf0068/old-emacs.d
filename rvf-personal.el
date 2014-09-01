@@ -121,6 +121,7 @@
 			    ("sd" "sistemas-dinamicos")
 			    ("top" "grad-topology")
 			    ("rvf" "rvf0068")
+			    ("sage" "ejemplos-sage")
 			    ))
 
 (defun form-octopress-project (pair)
