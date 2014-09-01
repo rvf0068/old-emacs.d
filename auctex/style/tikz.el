@@ -6,6 +6,7 @@
      '("draw")
      '("foreach")
      '("pgfmathsetmacro" 2)
+     '("tikzset" 1)
      '("usetikzlibrary" 1)
      )
      (LaTeX-add-environments
