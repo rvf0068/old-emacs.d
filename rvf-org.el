@@ -118,6 +118,7 @@
 (setq org-publish-timestamp-directory "~/Dropbox/org/org-timestamps/")
 (setq org-return-follows-link t)
 (setq org-src-fontify-natively t)
+(setq org-src-preserve-indentation t)
 (setq org-support-shift-select 'always)
 
 ; the space at the beginning is useful to move the cursor
