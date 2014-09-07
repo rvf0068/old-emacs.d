@@ -130,6 +130,7 @@
 (add-hook 'LaTeX-mode-hook (lambda () (load "~/.emacs.d/rvf-latex.el")))
 
 (load "~/.emacs.d/rvf-org.el")
+(load "~/.emacs.d/rvf-kramdown.el")
 
 (require 'calfw)
 (require 'calfw-org) 

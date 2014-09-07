@@ -182,118 +182,24 @@
 (defmacro by-backend (&rest body)
   `(case (if (boundp 'backend) (org-export-backend-name backend) nil) ,@body))
 
-;; filters for octopress
-(defun my-math-replacement (contents backend info)
-  (when (eq backend 'md)
-    (replace-regexp-in-string "\\\\(\\|\\\\)\\|\\\\\\[\\|\\\\\\]" "$$" contents)
-    ))
+;; (defun my-space-replacement (contents backend info)
+;;   (when (eq backend 'md)
+;;     (replace-regexp-in-string "\n\s *" " " contents)
+;;     ))
 
-(add-to-list 'org-export-filter-latex-fragment-functions
-	     'my-math-replacement)
-
-;; filters for octopress
-(defun my-math-replacement-2 (contents backend info)
-  (when (eq backend 'md)
-    (replace-regexp-in-string "\\\\begin{displaymath}\\|\\\\end{displaymath}" "$$" contents)
-    ))
-
-(add-to-list 'org-export-filter-final-output-functions
-	     'my-math-replacement-2)
-
-;; for some reason, either mathjax or kramdown has problems with "|"
-(defun my-math-replacement-3 (contents backend info)
-  (when (eq backend 'md)
-    (replace-regexp-in-string "|" "\\\\vert " contents)
-    ))
-
-(add-to-list 'org-export-filter-latex-fragment-functions
-	     'my-math-replacement-3)
-
-
-;; In my presentations in spanish, I add a heading called "Esquema",
-;; to include the toc in beamer. This looks bad in the blog.
-(defun my-md-replacement-1 (contents backend info)
-  (when (eq backend 'md)
-    (replace-regexp-in-string "# Esquema\n" "" contents)
-    ))
-
-(add-to-list 'org-export-filter-final-output-functions
-	     'my-md-replacement-1)
-
-;; Many of the frames on my slides have no title. They are translated
-;; to ## alone in markdown, and then to ## in html
-(defun my-md-replacement-2 (contents backend info)
-  (when (eq backend 'md)
-    (replace-regexp-in-string "## $" "" contents)
-    ))
-
-(add-to-list 'org-export-filter-final-output-functions
-	     'my-md-replacement-2)
-
-;; Transforms
-;; ![img](mosaicos.png) to
-;; {% img center /images/mosaicos.png %}
-;; This was very useful
-;; http://stackoverflow.com/questions/16241957/how-can-i-regexp-replace-a-string-in-an-elisp-function
-
-(defun my-md-replacement-3 (contents backend info)
-  (when (eq backend 'md)
-    (replace-regexp-in-string
-     "!\\[img\\](\\(.*\\).png)"
-     "{% img center /images/\\1.png %}"
-     contents)
-    ))
-
-(add-to-list 'org-export-filter-final-output-functions
-	     'my-md-replacement-3)
-
-(defun my-space-replacement (contents backend info)
-  (when (eq backend 'md)
-    (replace-regexp-in-string "\n\s *" " " contents)
-    ))
-
-(add-to-list 'org-export-filter-latex-fragment-functions
-	     'my-space-replacement)
+;; (add-to-list 'org-export-filter-latex-fragment-functions
+;; 	     'my-space-replacement)
 
 ;; filters for beamer export
 (defun my-beamer-replacement (contents backend info)
   (when (eq backend 'beamer)
-    (replace-regexp-in-string "\\\\usepackage\\[margin=2.5cm\\]{geometry}\n\\|\\\\usepackage\\[colorlinks=true, linkcolor=blue\\]{hyperref}\n\\|\\\\usepackage\\[T1\\]{fontenc}\n\\|\\\\usepackage\\[libertine,timesmathacc\\]{newtxmath}\n" "" contents)
+    (replace-regexp-in-string "\\\\usepackage\\[margin=2.5cm\\]{geometry}\n\\|\\\\usepackage\\[colorlinks=true, linkcolor=blue\\]{hyperref}\n\\|\\\\usepackage\\[libertine,timesmathacc\\]{newtxmath}\n" "" contents)
     ))
 
 (add-to-list 'org-export-filter-final-output-functions
 	     'my-beamer-replacement)
 
 (defvar org-octopress-is-post t)
-
-;; modified from https://github.com/spacemanaki/octorgopress
-(defun org-octopress-template (contents backend info)
-  (when (eq backend 'md)
-  (let ((title (or (car (plist-get info :title)) ""))
-        (date (or (car (plist-get info :date)) ""))
-        (time "")
-        (keywords (plist-get info :keywords))
-        (frontmatter
-         "---
-layout: %s
-title: %s
-date: %s %s
-comments: true
-categories: %s
----
-"))
-    (if keywords ;; if it has keywords, then it is not a page
-        (concat (format frontmatter "post" title date time keywords) contents)
-      (if org-octopress-is-post
-	  (concat (format frontmatter "post" title date time "") contents)
-        (concat (format frontmatter "page" title date time "") contents)
-	)
-      )
-    )
-    ))
-
-(add-to-list 'org-export-filter-final-output-functions
-	     'org-octopress-template)
 
 ;; from http://mbork.pl/2013-09-23_Automatic_insertion_of_habit_templates_%28en%29
 (defun org-insert-habit ()
