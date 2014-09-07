@@ -21,3 +21,8 @@ channel."
 	 lang name value)
 	)
       ))
+(defun org-kramdown-export-as-kramdown
+   (&optional async subtreep visible-only body-only ext-plist)
+   (interactive)
+   (org-export-to-buffer 'kramdown "*Org KRAMDOWN Export*"
+     async subtreep visible-only body-only ext-plist (lambda () (markdown-mode))))
