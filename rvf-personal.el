@@ -110,7 +110,7 @@
                                         ,@my-common-octopress-settings))
         (,(concat code "-extra") . (:base-directory ,(expand-file-name "org")
                                          :publishing-directory ,(expand-file-name "images")
-                                         :base-extension "css\\|png\\|jpg\\|gif\\|svg"
+                                         :base-extension "png\\|jpg\\|jpeg"
                                          :publishing-function org-publish-attachment
                                          :recursive t))
         ;; static articles
