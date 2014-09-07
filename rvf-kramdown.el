@@ -8,16 +8,16 @@
   "Transcode SRC-BLOCK element into kramdown format.
 CONTENTS is nil.  INFO is a plist used as a communication
 channel."
-  (when (eq backend 'md)
-    (let (
-  	  (lang (org-element-property :language info))
-  	  (value (org-element-property :value info)))
-      (message "Language is %s. Value is %s" lang value)
-      (when (eq lang "sage" )
+    (let ((lang (org-element-property :language src-block))
+  	  (value (org-element-property :value src-block))
+  	  (name (or (org-element-property :name src-block) ""))
+	  )
+      (if (string= lang "sage")
         (format
-         "<div class=\"sage\">
-         <script type=\"text/x-sage\">%s</script>
-         </div>\n"
-         value
-         ))
-      )))
+         "<div class=\"sage\"><script type=\"text/x-sage\">\n%s</script></div>\n"
+         value)
+	(format
+	 "``` %s %s\n%s```"
+	 lang name value)
+	)
+      ))
