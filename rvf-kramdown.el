@@ -3,6 +3,7 @@
 		     (latex-environment . org-kramdown-latex-environment)
 		     (latex-fragment . org-kramdown-latex-fragment)
 		     (src-block . org-kramdown-src-block)
+		     (template . org-kramdown-template)
 		     )
   )
 
@@ -42,8 +43,39 @@ channel."
   bars-removed
   ))
 
+(defun org-kramdown-template (contents info)
+  (let* ((title (or (car (plist-get info :title)) ""))
+        (date (or (car (plist-get info :date)) ""))
+        (time "")
+        (keywords (plist-get info :keywords))
+	(body (replace-regexp-in-string "## $" "" contents))
+	(images (replace-regexp-in-string
+		 "!\\[img\\](\\(.*\\).png)"
+		 "{% img center /images/\\1.png %}"
+		 body))
+        (frontmatter
+         "---
+layout: %s
+title: %s
+date: %s %s
+comments: true
+categories: %s
+---
+"))
+    (if keywords ;; if it has keywords, then it is not a page
+        (concat (format frontmatter "post" title date time keywords) images)
+      (if org-octopress-is-post
+	  (concat (format frontmatter "post" title date time "") images)
+        (concat (format frontmatter "page" title date time "") images)
+	)
+      )
+    )
+    )
+
+
 (defun org-kramdown-export-as-kramdown
    (&optional async subtreep visible-only body-only ext-plist)
    (interactive)
    (org-export-to-buffer 'kramdown "*Org KRAMDOWN Export*"
      async subtreep visible-only body-only ext-plist (lambda () (markdown-mode))))
+
