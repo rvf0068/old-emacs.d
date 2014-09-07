@@ -1,5 +1,6 @@
 (org-export-define-derived-backend 'kramdown 'md
   :translate-alist '(
+		     (latex-environment . org-kramdown-latex-environment)
 		     (latex-fragment . org-kramdown-latex-fragment)
 		     (src-block . org-kramdown-src-block)
 		     )
@@ -23,10 +24,18 @@ channel."
 	)
       ))
 
+(defun org-kramdown-latex-environment (latex-environment contents info)
+  (let* (
+	(value (org-element-property :value latex-environment))
+	(replaced (replace-regexp-in-string "\\\\begin{displaymath}\\|\\\\end{displaymath}" "$$" value))
+	)
+    replaced
+  ))
+
 (defun org-kramdown-latex-fragment (latex-fragment contents info)
   (let* (
-	(latex (org-element-property :value latex-fragment))
-	(inline-latex (replace-regexp-in-string "\\\\(\\|\\\\)" "$$" latex))
+	 (latex (org-element-property :value latex-fragment))
+	 (inline-latex (replace-regexp-in-string "\\\\(\\|\\\\)" "$$" latex))
 	)
   ;; (message "Latex-fragment is %s" latex)
   inline-latex
