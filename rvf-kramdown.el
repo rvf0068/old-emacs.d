@@ -36,9 +36,10 @@ channel."
   (let* (
 	 (latex (org-element-property :value latex-fragment))
 	 (inline-latex (replace-regexp-in-string "\\\\(\\|\\\\)" "$$" latex))
-	)
+	 (bars-removed (replace-regexp-in-string "|" "\\\\vert " inline-latex))
+	 )
   ;; (message "Latex-fragment is %s" latex)
-  inline-latex
+  bars-removed
   ))
 
 (defun org-kramdown-export-as-kramdown
