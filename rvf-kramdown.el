@@ -1,5 +1,6 @@
 (org-export-define-derived-backend 'kramdown 'md
   :translate-alist '(
+		     (latex-fragment . org-kramdown-latex-fragment)
 		     (src-block . org-kramdown-src-block)
 		     )
   )
@@ -21,6 +22,16 @@ channel."
 	 lang name value)
 	)
       ))
+
+(defun org-kramdown-latex-fragment (latex-fragment contents info)
+  (let* (
+	(latex (org-element-property :value latex-fragment))
+	(inline-latex (replace-regexp-in-string "\\\\(\\|\\\\)" "$$" latex))
+	)
+  ;; (message "Latex-fragment is %s" latex)
+  inline-latex
+  ))
+
 (defun org-kramdown-export-as-kramdown
    (&optional async subtreep visible-only body-only ext-plist)
    (interactive)
