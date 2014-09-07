@@ -78,10 +78,11 @@ categories: %s
     )
     )
 
-
 (defun org-kramdown-export-as-kramdown
    (&optional async subtreep visible-only body-only ext-plist)
    (interactive)
    (org-export-to-buffer 'kramdown "*Org KRAMDOWN Export*"
      async subtreep visible-only body-only ext-plist (lambda () (markdown-mode))))
 
+(defun org-kramdown-publish-to-kramdown (plist filename pub-dir)
+  (org-publish-org-to 'kramdown filename ".md" plist pub-dir))
