@@ -56,8 +56,8 @@ channel."
         (keywords (plist-get info :keywords))
 	(body (replace-regexp-in-string "## $" "" contents))
 	(images (replace-regexp-in-string
-		 "!\\[img\\](\\(.*\\).png)"
-		 "{% img center /images/\\1.png %}"
+		 "!\\[img\\](\\(.*\\)\.\\(png\\|jpg\\|jpeg\\))"
+		 "{% img center /images/\\1.\\2 %}"
 		 body))
         (frontmatter
          "---
