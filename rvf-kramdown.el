@@ -43,6 +43,12 @@ channel."
   bars-removed
   ))
 
+;; Transforms
+;; ![img](mosaicos.png) to
+;; {% img center /images/mosaicos.png %}
+;; This was very useful
+;; http://stackoverflow.com/questions/16241957/how-can-i-regexp-replace-a-string-in-an-elisp-function
+
 (defun org-kramdown-template (contents info)
   (let* ((title (or (car (plist-get info :title)) ""))
         (date (or (car (plist-get info :date)) ""))
