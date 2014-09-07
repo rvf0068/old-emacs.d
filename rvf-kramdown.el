@@ -25,8 +25,10 @@ channel."
 
 (defun org-kramdown-latex-environment (latex-environment contents info)
   (let* (
-	 (value (org-element-property :value latex-environment))
-	 (replaced (replace-regexp-in-string "\\\\begin{displaymath}\\|\\\\end{displaymath}" "$$" value))
+	 (value (org-remove-indentation
+		 (org-element-property :value latex-environment)))
+	 (replaced (replace-regexp-in-string
+		    "\\\\begin{displaymath}\\|\\\\end{displaymath}" "$$" value))
 	 )
     replaced
     ))

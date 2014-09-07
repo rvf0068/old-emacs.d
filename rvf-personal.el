@@ -78,7 +78,7 @@
   (let ((base-dir (expand-file-name prj)))
     `(,prj . (:base-directory ,base-dir
                               :publishing-directory ,base-dir
-			      :publishing-function org-md-publish-to-md
+			      :publishing-function org-kramdown-publish-to-kramdown
                               ,@my-common-octopress-settings))))
 
 (defun my-static-components ()
@@ -96,13 +96,13 @@
 	;; home page
 	(,(concat code "-index") . (:base-directory ,(expand-file-name "index")
 				    :publishing-directory ,(expand-file-name ".")
-				    :publishing-function org-md-publish-to-md
+				    :publishing-function org-kramdown-publish-to-kramdown
 				    ,@my-common-octopress-settings))
         ;; blog articles
         (,(concat code "-org") .  (:base-directory ,(expand-file-name "org")
                                         :publishing-directory ,(expand-file-name "_posts")
 					:section-numbers nil
-					:publishing-function org-md-publish-to-md
+					:publishing-function org-kramdown-publish-to-kramdown
                                         ,@my-common-octopress-settings))
         (,(concat code "-pdf") .  (:base-directory ,(expand-file-name "org")
                                         :publishing-directory ,(expand-file-name "org")
