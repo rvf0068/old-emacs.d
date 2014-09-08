@@ -4,7 +4,11 @@
 		     (latex-fragment . org-kramdown-latex-fragment)
 		     (src-block . org-kramdown-src-block)
 		     (template . org-kramdown-template)
-		     ))
+		     )
+  :options-alist '(
+		   (:published "PUBLISHED" nil "true")
+		   )
+)
 
 (defun org-kramdown-src-block (src-block contents info)
   "Transcode SRC-BLOCK element into kramdown format.
@@ -54,18 +58,19 @@ channel."
 	 (date (or (car (plist-get info :date)) ""))
 	 (time "")
 	 (keywords (plist-get info :keywords))
+	 (published (plist-get info :published))
 	 (body (replace-regexp-in-string "## $" "" contents))
 	 (images (replace-regexp-in-string
 		  "!\\[img\\](\\(.*\\)\.\\(png\\|jpg\\|jpeg\\))"
 		  "{% img center /images/\\1.\\2 %}"
 		  body))
 	 (frontmatter
-	  "---\nlayout: %s\ntitle: %s\ndate: %s %s\ncomments: true\ncategories: %s\n---\n\n"))
+	  "---\nlayout: %s\ntitle: %s\ndate: %s %s\ncomments: true\npublished: %s\ncategories: %s\n---\n\n"))
     (if keywords ;; if it has keywords, then it is not a page
-        (concat (format frontmatter "post" title date time keywords) images)
+        (concat (format frontmatter "post" title date time published keywords) images)
       (if org-octopress-is-post
-	  (concat (format frontmatter "post" title date time "") images)
-        (concat (format frontmatter "page" title date time "") images)
+	  (concat (format frontmatter "post" title date time published "") images)
+        (concat (format frontmatter "page" title date time published "") images)
 	)
       )))
 
