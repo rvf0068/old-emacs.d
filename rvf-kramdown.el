@@ -7,6 +7,7 @@
 		     )
   :options-alist '(
 		   (:published "PUBLISHED" nil "true")
+		   (:layout "LAYOUT" nil "post")
 		   )
 )
 
@@ -57,8 +58,9 @@ channel."
   (let* ((title (or (car (plist-get info :title)) ""))
 	 (date (or (car (plist-get info :date)) ""))
 	 (time "")
-	 (keywords (plist-get info :keywords))
+	 (keywords (or (plist-get info :keywords) ""))
 	 (published (plist-get info :published))
+	 (layout (plist-get info :layout))
 	 (body (replace-regexp-in-string "## $" "" contents))
 	 (images (replace-regexp-in-string
 		  "!\\[img\\](\\(.*\\)\.\\(png\\|jpg\\|jpeg\\))"
@@ -66,13 +68,8 @@ channel."
 		  body))
 	 (frontmatter
 	  "---\nlayout: %s\ntitle: %s\ndate: %s %s\ncomments: true\npublished: %s\ncategories: %s\n---\n\n"))
-    (if keywords ;; if it has keywords, then it is not a page
-        (concat (format frontmatter "post" title date time published keywords) images)
-      (if org-octopress-is-post
-	  (concat (format frontmatter "post" title date time published "") images)
-        (concat (format frontmatter "page" title date time published "") images)
-	)
-      )))
+    (concat (format frontmatter layout title date time published keywords) images)
+    ))
 
 (defun org-kramdown-export-as-kramdown
   (&optional async subtreep visible-only body-only ext-plist)
