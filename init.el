@@ -88,7 +88,6 @@
 (require 'smartparens)
 (sp-with-modes '(
                  org-mode
-                 markdown-mode
                  )
   (sp-local-pair "`" nil :actions nil)
   (sp-local-pair "'" nil :actions nil)

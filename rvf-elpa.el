@@ -32,6 +32,7 @@
     helm
     helm-bibtex
     magit
+    markdown-mode
     org-journal
     org2blog
     orgbox
