@@ -10,23 +10,20 @@
 (require 'ox-latex)
 (require 'ox-md)
 
-(add-to-list 'org-latex-packages-alist '("" "listings"))
-
 (setq org-latex-default-packages-alist
       (remove '("" "hyperref" nil)
 	      org-latex-default-packages-alist))
 
-(add-to-list 'org-latex-packages-alist '("colorlinks=true, linkcolor=blue" "hyperref"))
-
-(add-to-list 'org-latex-packages-alist '("margin=2.5cm" "geometry"))
-
-(add-to-list 'org-latex-packages-alist '("mono=false" "libertine"))
-
-(add-to-list 'org-latex-packages-alist '("libertine,timesmathacc" "newtxmath"))
-
-(add-to-list 'org-latex-packages-alist '("scaled=0.7" "luximono"))
-
-(add-to-list 'org-latex-packages-alist '("" "amsthm"))
+(setq org-latex-default-packages-alist
+      (nconc org-latex-default-packages-alist
+	     '(("" "listings")
+	       ("colorlinks=true, linkcolor=blue" "hyperref")
+	       ("margin=2.5cm" "geometry")
+	       ("mono=false" "libertine")
+	       ("libertine,timesmathacc" "newtxmath")
+	       ("scaled=0.7" "luximono")
+	       ("" "amsthm")
+	       )))
 
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (add-to-list 'org-beamer-environments-extra
