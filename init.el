@@ -1,6 +1,7 @@
 (load "~/.emacs.d/rvf-elpa.el")
 
-(load "~/.emacs.d/custom.el")
+(if (file-exists-p "~/.emacs.d/custom.el")
+    (load "~/.emacs.d/custom.el"))
 
 ;; From http://www.emacswiki.org/emacs/LoadPath#AddSubDirectories
 ;; to add a directory and its subdirectories
