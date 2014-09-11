@@ -191,15 +191,20 @@
  (lambda nil (interactive)
    (find-file "~/Dropbox/org/remember.org")
    ))
+;; (global-set-key
+;;  (kbd "<f12> s")
+;;  (lambda nil (interactive)
+;;    (find-file "~/Dropbox/emacs/site-lisp/scratch.el")
+;;    ))
 (global-set-key
  (kbd "<f12> s")
  (lambda nil (interactive)
-   (find-file "~/Dropbox/emacs/site-lisp/scratch.el")
+   (dired "~/Dropbox/paginas/sistemas-dinamicos/source/org/")
    ))
 (global-set-key
  (kbd "<f12> t")
  (lambda nil (interactive)
-   (dired "~/Dropbox/paginas/topology/source/org/")
+   (dired "~/Dropbox/paginas/grad-topology/source/org/")
    ))
 ;; (global-set-key
 ;;  (kbd "<f12> t")
