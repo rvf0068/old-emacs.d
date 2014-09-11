@@ -33,48 +33,9 @@
 	       ("lemma"     "l" "\\begin{lemma}%a%U"     "\\end{lemma}")
 	       )))
 
-(add-hook 'org-mode-hook 'turn-on-auto-revert-mode)
-
-(add-hook 'org-mode-hook 'turn-on-org-cdlatex)
-
-(add-hook 'org-mode-hook 'smartparens-mode)
-
-(add-hook 'org-mode-hook 'abbrev-mode)
-
 ;; from the info documentation
 (defun yas/org-very-safe-expand ()
   (let ((yas/fallback-behavior 'return-nil)) (yas/expand)))
-
-(add-hook 'org-mode-hook
-          (lambda ()
-            (yas/minor-mode-on)
-            (make-variable-buffer-local 'yas/trigger-key)
-            (setq yas/trigger-key [tab])
-            (add-to-list 'org-tab-first-hook 'yas/org-very-safe-expand)
-            (define-key yas/keymap [tab] 'yas/next-field)))
-
-;; useful for math in org-mode
-(add-hook 'org-mode-hook
-	  (lambda ()
-	    (local-set-key (kbd "$")
-			   (lambda () (interactive)
-			     (insert "\\(\\)")
-			     (forward-char -2)))
-	    ))
-
-
-;; (defun org-cdlatex-complex-numbers ()
-;;   (interactive)
-;;   (if (org-inside-LaTeX-fragment-p)
-;;       (insert "\\mathbb{C}")
-;;       (insert "C")
-;;      ))
-
-;; (add-hook 'org-mode-hook
-;; 	  (lambda ()
-;; 	    (local-set-key (kbd "C")
-;; 		'org-cdlatex-complex-numbers
-;; 	    )))
 
 (defun org-cdlatex-real-numbers ()
   (interactive)
@@ -83,12 +44,6 @@
       (insert "R")
      ))
 
-(add-hook 'org-mode-hook
-	  (lambda ()
-	    (local-set-key (kbd "R")
-		'org-cdlatex-real-numbers
-	    )))
-
 (defun org-cdlatex-rational-numbers ()
   (interactive)
   (if (org-inside-LaTeX-fragment-p)
@@ -96,11 +51,26 @@
       (insert "Q")
      ))
 
+;; see http://stackoverflow.com/a/25778692/577007
 (add-hook 'org-mode-hook
 	  (lambda ()
-	    (local-set-key (kbd "Q")
-		'org-cdlatex-rational-numbers
-	    )))
+	    (turn-on-auto-revert-mode)
+	    (turn-on-org-cdlatex)
+	    (smartparens-mode 1)
+	    (abbrev-mode 1)
+	    ;; yasnippets
+            (yas/minor-mode-on)
+            (make-variable-buffer-local 'yas/trigger-key)
+            (setq yas/trigger-key [tab])
+            (add-to-list 'org-tab-first-hook 'yas/org-very-safe-expand)
+            (define-key yas/keymap [tab] 'yas/next-field)
+	    (local-set-key (kbd "$")
+			   (lambda () (interactive)
+			     (insert "\\(\\)")
+			     (forward-char -2)))
+	    (local-set-key (kbd "R") 'org-cdlatex-real-numbers)
+	    (local-set-key (kbd "Q") 'org-cdlatex-rational-numbers)
+	    ))
 
 ;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
 (add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
@@ -194,8 +164,6 @@
 
 (add-to-list 'org-export-filter-final-output-functions
 	     'my-beamer-replacement)
-
-(defvar org-octopress-is-post t)
 
 ;; from http://mbork.pl/2013-09-23_Automatic_insertion_of_habit_templates_%28en%29
 (defun org-insert-habit ()
