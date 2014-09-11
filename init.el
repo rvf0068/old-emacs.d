@@ -59,20 +59,6 @@
 
 (setq cdlatex-simplify-sub-super-scripts nil)
 
-;; markdown
-
-(defun my-markdown-mode-hook()
-  (local-set-key (kbd "$")
-                 (lambda () (interactive)
-                   (insert "$$$$")
-                   (forward-char -2)))
-  (setq markdown-enable-math t)
-  )
-
-(add-hook 'markdown-mode-hook 'turn-on-org-cdlatex)
-(add-hook 'markdown-mode-hook 'smartparens-mode)
-(add-hook 'markdown-mode-hook 'my-markdown-mode-hook)
-
 ;; yasnippet: https://github.com/capitaomorte/yasnippet
 
 (require 'yasnippet) 
