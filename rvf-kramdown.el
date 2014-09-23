@@ -61,7 +61,7 @@ channel."
 	 (keywords (or (plist-get info :keywords) ""))
 	 (published (plist-get info :published))
 	 (layout (plist-get info :layout))
-	 (body (replace-regexp-in-string "## $" "" contents))
+	 (body (replace-regexp-in-string "#+ $" "" contents))
 	 (images (replace-regexp-in-string
 		  "!\\[img\\](\\(.*\\)\.\\(png\\|jpg\\|jpeg\\))"
 		  "{% img center /images/\\1.\\2 %}"
