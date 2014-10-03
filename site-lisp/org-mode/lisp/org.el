@@ -640,6 +640,7 @@ For export specific modules, see also `org-export-backends'."
 	(const :tag "C  eshell             Support for links to working directories in eshell" org-eshell)
 	(const :tag "C  eval-light:        Evaluate inbuffer-code on demand" org-eval-light)
 	(const :tag "C  eval:              Include command output as text" org-eval)
+	(const :tag "C  eww:               Store link to url of eww" org-eww)
 	(const :tag "C  expiry:            Expiry mechanism for Org-mode entries" org-expiry)
 	(const :tag "C  favtable:          Lookup table of favorite references and links" org-favtable)
 	(const :tag "C  git-link:          Provide org links to specific file version" org-git-link)
@@ -19693,9 +19694,11 @@ overwritten, and the table is not marked as requiring realignment."
   (org-check-before-invisible-edit 'insert)
   (cond
    ((and org-use-speed-commands
-	 (setq org-speed-command
-	       (run-hook-with-args-until-success
-		'org-speed-command-hook (this-command-keys))))
+	 (let ((kv (this-command-keys-vector)))
+	   (setq org-speed-command
+		 (run-hook-with-args-until-success
+		  'org-speed-command-hook
+		  (make-string 1 (aref kv (1- (length kv))))))))
     (cond
      ((commandp org-speed-command)
       (setq this-command org-speed-command)
@@ -20522,9 +20525,17 @@ Otherwise, return a user error."
 		       session params))))))
       (keyword
        (if (member (org-element-property :key element) '("INCLUDE" "SETUPFILE"))
-           (find-file-other-window
-            (org-remove-double-quotes
-             (car (org-split-string (org-element-property :value element)))))
+           (org-open-link-from-string
+	    (format "[[%s]]"
+		    (expand-file-name
+		     (let ((value (org-element-property :value element)))
+		       (cond ((not (org-string-nw-p value))
+			      (user-error "No file to edit"))
+			     ((string-match "\\`\"\\(.*?\\)\"" value)
+			      (match-string 1 value))
+			     ((string-match "\\`[^ \t\"]\\S-*" value)
+			      (match-string 0 value))
+			     (t (user-error "No valid file specified")))))))
          (user-error "No special environment to edit here")))
       (table
        (if (eq (org-element-property :type element) 'table.el)
