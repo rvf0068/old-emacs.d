@@ -1,5 +1,4 @@
 (require 'org-protocol)
-(require 'org-beamer)
 
 (require 'ob-latex)
 (require 'ob-org)
