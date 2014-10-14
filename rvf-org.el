@@ -21,8 +21,39 @@
 	       ("mono=false" "libertine")
 	       ("libertine,timesmathacc" "newtxmath")
 	       ("scaled=0.7" "luximono")
-	       ("" "amsthm")
+;;	       ("" "amsthm")
 	       )))
+
+(add-to-list 'org-latex-classes
+	     '("two-column"
+	       "\\documentclass[twocolumn]{article}
+               \\usepackage[AUTO]{inputenc}
+               \\usepackage[AUTO,mexico]{babel}
+	       \[NO-DEFAULT-PACKAGES]"
+	       ("\\section{%s}" . "\\section*{%s}")
+	       ("\\subsection{%s}" . "\\subsection*{%s}")
+	       ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
+
+(add-to-list 'org-latex-classes
+	       '("beamer-talk"
+		 "\\documentclass{beamer}
+\\usepackage[AUTO]{inputenc}
+\\usepackage{tikz}
+\\usepackage{enumitem}
+\\setitemize{label=\\usebeamerfont*{itemize item}%
+  \\usebeamercolor\[fg]{itemize item}
+  \\usebeamertemplate{itemize item}}
+\\setlist{leftmargin=*,labelindent=0cm}
+\\setenumerate\[1]{%
+  label=\\protect\\usebeamerfont{enumerate item}%
+        \\protect\\usebeamercolor\[fg]{enumerate item}%
+        \\insertenumlabel.}
+\\setbeamertemplate{navigation symbols}{}
+\\usefonttheme{professionalfonts}
+\[NO-DEFAULT-PACKAGES]"
+		 ("\\section{%s}" . "\\section*{%s}")
+		 ("\\subsection{%s}" . "\\subsection*{%s}")
+		 ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
 
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (setq org-beamer-environments-extra
