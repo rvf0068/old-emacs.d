@@ -1,0 +1,21 @@
+# -*- mode: snippet -*-
+# name: newgraph
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: newg
+# --
+
+#+name: $1
+#+header: :imagemagick yes :iminoptions -density 300 -resize 400
+#+header: :packages '(("" "tikz")) :border 1pt
+#+header: :headers '("\\\\usetikzlibrary{graphs}\\\\usetikzlibrary{graphs.standard}")
+#+header: :file (by-backend (latex "$1.tikz") (beamer "$1.tikz") (t "$1.png"))
+#+header: :cache yes
+#+begin_src latex :results raw file :exports both
+\\begin{tikzpicture}[every node/.style={draw,very thick}]
+$0
+\\end{tikzpicture}
+#+end_src
+
+#+attr_html: :width 400 :alt $1 :align center
+#+attr_latex: :float t :width ""
+#+results: $1
