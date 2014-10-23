@@ -10,7 +10,7 @@
 #+header: :headers '("\\\\usetikzlibrary{graphs,graphs.standard}")
 #+header: :file (by-backend (latex "$1.tikz") (beamer "$1.tikz") (t "$1.png"))
 #+header: :cache yes
-#+begin_src latex :results raw file :exports both
+#+begin_src latex :results raw file 
 \\begin{tikzpicture}[every node/.style={draw,very thick}]
 $0
 \\end{tikzpicture}
