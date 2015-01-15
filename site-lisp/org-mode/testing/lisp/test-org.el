@@ -191,7 +191,87 @@
   ;; Parse Europeans dates without year.
   (should (string-match "2[0-9]\\{3\\}-03-29 16:40"
 			(let ((org-time-was-given t))
-			  (org-read-date t nil "29.03. 16:40")))))
+			  (org-read-date t nil "29.03. 16:40"))))
+  ;; Relative date applied to current time if there is single
+  ;; plus/minus, or to default date when there are two of them.
+  (should
+   (equal
+    "2015-03-04"
+    (flet ((current-time () (apply #'encode-time
+				   (org-parse-time-string "2014-03-04"))))
+      (org-read-date
+       t nil "+1y" nil
+       (apply #'encode-time (org-parse-time-string "2012-03-29"))))))
+  (should
+   (equal
+    "2013-03-29"
+    (flet ((current-time () (apply #'encode-time
+				   (org-parse-time-string "2014-03-04"))))
+      (org-read-date
+       t nil "++1y" nil
+       (apply #'encode-time (org-parse-time-string "2012-03-29"))))))
+  ;; When `org-read-date-prefer-future' is non-nil, prefer future
+  ;; dates (relatively to now) when incomplete.  Otherwise, use
+  ;; default date.
+  (should
+   (equal
+    "2014-04-01"
+    (flet ((current-time () (apply #'encode-time
+				   (org-parse-time-string "2014-03-04"))))
+      (let ((org-read-date-prefer-future t))
+	(org-read-date t nil "1")))))
+  (should
+   (equal
+    "2013-03-04"
+    (flet ((current-time () (apply #'encode-time
+				   (org-parse-time-string "2012-03-29"))))
+      (let ((org-read-date-prefer-future t))
+	(org-read-date t nil "3-4")))))
+  (should
+   (equal
+    "2012-03-04"
+    (flet ((current-time () (apply #'encode-time
+				   (org-parse-time-string "2012-03-29"))))
+      (let ((org-read-date-prefer-future nil))
+	(org-read-date t nil "3-4")))))
+  ;; When set to `org-read-date-prefer-future' is set to `time', read
+  ;; day is moved to tomorrow if specified hour is before current
+  ;; time.  However, it only happens in no other part of the date is
+  ;; specified.
+  (should
+   (equal
+    "2012-03-30"
+    (flet ((current-time () (apply #'encode-time
+				   (org-parse-time-string "2012-03-29 16:40"))))
+      (let ((org-read-date-prefer-future 'time))
+	(org-read-date t nil "00:40" nil)))))
+  (should-not
+   (equal
+    "2012-03-30"
+    (flet ((current-time () (apply #'encode-time
+				   (org-parse-time-string "2012-03-29 16:40"))))
+      (let ((org-read-date-prefer-future 'time))
+	(org-read-date t nil "29 00:40" nil)))))
+  ;; Caveat: `org-read-date-prefer-future' always refers to current
+  ;; time, not default time, when they differ.
+  (should
+   (equal
+    "2014-04-01"
+    (flet ((current-time
+	    () (apply #'encode-time (org-parse-time-string "2014-03-04"))))
+      (let ((org-read-date-prefer-future t))
+	(org-read-date
+	 t nil "1" nil
+	 (apply #'encode-time (org-parse-time-string "2012-03-29")))))))
+  (should
+   (equal
+    "2014-03-25"
+    (flet ((current-time
+	    () (apply #'encode-time (org-parse-time-string "2014-03-04"))))
+      (let ((org-read-date-prefer-future t))
+	(org-read-date
+	 t nil "25" nil
+	 (apply #'encode-time (org-parse-time-string "2012-03-29"))))))))
 
 (ert-deftest test-org/org-parse-time-string ()
   "Test `org-parse-time-string'."
@@ -205,6 +285,59 @@
 		 '(0 0 0 29 3 2012 nil nil nil)))
   (should (equal (org-parse-time-string "<2012-03-29>" t)
 		 '(0 nil nil 29 3 2012 nil nil nil))))
+
+
+;;; Drawers
+
+(ert-deftest test-org/insert-property-drawer ()
+  "Test `org-insert-property-drawer' specifications."
+  ;; Error before first headline.
+  (should-error (org-test-with-temp-text "" (org-insert-property-drawer)))
+  ;; Insert drawer right after headline if there is no planning line,
+  ;; or after it otherwise.
+  (should
+   (equal "* H\n:PROPERTIES:\n:END:\nParagraph"
+	  (org-test-with-temp-text "* H\nParagraph<point>"
+	    (let ((org-adapt-indentation nil)) (org-insert-property-drawer))
+	    (buffer-string))))
+  (should
+   (equal "* H\nDEADLINE: <2014-03-04 tue.>\n:PROPERTIES:\n:END:\nParagraph"
+	  (org-test-with-temp-text
+	      "* H\nDEADLINE: <2014-03-04 tue.>\nParagraph<point>"
+	    (let ((org-adapt-indentation nil)) (org-insert-property-drawer))
+	    (buffer-string))))
+  ;; Indent inserted drawer.
+  (should
+   (equal "* H\n  :PROPERTIES:\n  :END:\nParagraph"
+	  (org-test-with-temp-text "* H\nParagraph<point>"
+	    (let ((org-adapt-indentation t)) (org-insert-property-drawer))
+	    (buffer-string))))
+  ;; Handle insertion at eob.
+  (should
+   (equal "* H\n:PROPERTIES:\n:END:\n"
+	  (org-test-with-temp-text "* H"
+	    (let ((org-adapt-indentation nil)) (org-insert-property-drawer))
+	    (buffer-string))))
+  ;; Skip inlinetasks before point.
+  (when (featurep 'org-inlinetask)
+    (should
+     (equal "* H\n:PROPERTIES:\n:END:\n*************** I\n*************** END\nP"
+	    (org-test-with-temp-text
+		"* H\n*************** I\n*************** END\nP<point>"
+	      (let ((org-adapt-indentation nil)
+		    (org-inlinetask-min-level 15))
+		(org-insert-property-drawer))
+	      (buffer-string)))))
+  ;; Correctly set drawer in an inlinetask.
+  (when (featurep 'org-inlinetask)
+    (should
+     (equal "* H\n*************** I\n:PROPERTIES:\n:END:\nP\n*************** END"
+	    (org-test-with-temp-text
+		"* H\n*************** I\nP<point>\n*************** END"
+	      (let ((org-adapt-indentation nil)
+		    (org-inlinetask-min-level 15))
+		(org-insert-property-drawer))
+	      (buffer-string))))))
 
 
 ;;; Filling
@@ -534,6 +667,13 @@
 	(forward-line 2)
 	(org-indent-line)
 	(org-get-indentation))))
+  ;; On blank lines after a paragraph, indent like its last non-empty
+  ;; line.
+  (should
+   (= 1
+      (org-test-with-temp-text " Paragraph\n\n<point>"
+	(org-indent-line)
+	(org-get-indentation))))
   ;; At the first line of an element, indent like previous element's
   ;; first line, ignoring footnotes definitions and inline tasks, or
   ;; according to parent.
@@ -584,19 +724,15 @@
   ;; Align node properties according to `org-property-format'.  Handle
   ;; nicely empty values.
   (should
-   (equal ":PROPERTIES:\n:key:      value\n:END:"
-	  (org-test-with-temp-text ":PROPERTIES:\n:key: value\n:END:"
-	    (forward-line)
-	    (let ((org-property-format "%-10s %s"))
-	      (org-indent-line)
-	      (buffer-string)))))
+   (equal "* H\n:PROPERTIES:\n:key:      value\n:END:"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n<point>:key: value\n:END:"
+	    (let ((org-property-format "%-10s %s")) (org-indent-line))
+	    (buffer-string))))
   (should
-   (equal ":PROPERTIES:\n:key:\n:END:"
-	  (org-test-with-temp-text ":PROPERTIES:\n:key:\n:END:"
-	    (forward-line)
-	    (let ((org-property-format "%-10s %s"))
-	      (org-indent-line)
-	      (buffer-string))))))
+   (equal "* H\n:PROPERTIES:\n:key:\n:END:"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n<point>:key:\n:END:"
+	    (let ((org-property-format "%-10s %s")) (org-indent-line))
+	    (buffer-string)))))
 
 (ert-deftest test-org/indent-region ()
   "Test `org-indent-region' specifications."
@@ -644,16 +780,18 @@
   ;; Align node properties according to `org-property-format'.  Handle
   ;; nicely empty values.
   (should
-   (equal ":PROPERTIES:\n:key:      value\n:END:"
-	  (org-test-with-temp-text ":PROPERTIES:\n:key: value\n:END:"
-	    (let ((org-property-format "%-10s %s"))
-	      (org-indent-region (point-min) (point-max)))
+   (equal "* H\n:PROPERTIES:\n:key:      value\n:END:"
+	  (org-test-with-temp-text "* H\n<point>:PROPERTIES:\n:key: value\n:END:"
+	    (let ((org-property-format "%-10s %s")
+		  (org-adapt-indentation nil))
+	      (org-indent-region (point) (point-max)))
 	    (buffer-string))))
   (should
-   (equal ":PROPERTIES:\n:key:\n:END:"
-	  (org-test-with-temp-text ":PROPERTIES:\n:key:\n:END:"
-	    (let ((org-property-format "%-10s %s"))
-	      (org-indent-region (point-min) (point-max)))
+   (equal "* H\n:PROPERTIES:\n:key:\n:END:"
+	  (org-test-with-temp-text "* H\n<point>:PROPERTIES:\n:key:\n:END:"
+	    (let ((org-property-format "%-10s %s")
+		  (org-adapt-indentation nil))
+	      (org-indent-region (point) (point-max)))
 	    (buffer-string))))
   ;; Indent plain lists.
   (should
@@ -683,10 +821,56 @@
 
 ;;; Editing
 
-;;;; Insert elements
+(ert-deftest test-org/return ()
+  "Test RET (`org-return') specifications."
+  ;; Regular test.
+  (should
+   (equal "Para\ngraph"
+	  (org-test-with-temp-text "Para<point>graph"
+	    (org-return)
+	    (buffer-string))))
+  ;; With optional argument, indent line.
+  (should
+   (equal "  Para\n  graph"
+	  (org-test-with-temp-text "  Para<point>graph"
+	    (org-return t)
+	    (buffer-string))))
+  ;; On a table, call `org-table-next-row'.
+  (should
+   (org-test-with-temp-text "| <point>a |\n| b |"
+     (org-return)
+     (org-looking-at-p "b")))
+  ;; Open link or timestamp under point when `org-return-follows-link'
+  ;; is non-nil.
+  (should
+   (org-test-with-temp-text "Link [[target<point>]] <<target>>"
+     (let ((org-return-follows-link t)) (org-return))
+     (org-looking-at-p "<<target>>")))
+  (should-not
+   (org-test-with-temp-text "Link [[target<point>]] <<target>>"
+     (let ((org-return-follows-link nil)) (org-return))
+     (org-looking-at-p "<<target>>")))
+  ;; However, do not open link when point is in a table.
+  (should
+   (org-test-with-temp-text "| [[target<point>]] |\n| between |\n| <<target>> |"
+     (let ((org-return-follows-link t)) (org-return))
+     (org-looking-at-p "between")))
+  ;; Special case: in a list, when indenting, do not break structure.
+  (should
+   (equal "- A\n  B"
+	  (org-test-with-temp-text "- A <point>B"
+	    (org-return t)
+	    (buffer-string))))
+  ;; Special case: on tags part of a headline, add a newline below it
+  ;; instead of breaking it.
+  (should
+   (equal "* H :tag:\n"
+	  (org-test-with-temp-text "* H :<point>tag:"
+	    (org-return)
+	    (buffer-string)))))
 
 (ert-deftest test-org/meta-return ()
-  "Test M-RET (`org-meta-return')."
+  "Test M-RET (`org-meta-return') specifications."
   ;; In a table field insert a row above.
   (should
    (org-test-with-temp-text "| a |"
@@ -743,6 +927,36 @@
 	  (org-test-with-temp-text "Para<point>graph"
 	    (let ((org-M-RET-may-split-line '((default . nil))))
 	      (org-insert-heading))
+	    (buffer-string))))
+  ;; When on a list, insert an item instead, unless called with an
+  ;; universal argument or if list is invisible.  In this case, create
+  ;; a new headline after contents.
+  (should
+   (equal "* H\n- item\n- "
+	  (org-test-with-temp-text "* H\n- item<point>"
+	    (let ((org-insert-heading-respect-content nil))
+	      (org-insert-heading))
+	    (buffer-string))))
+  (should
+   (equal "* H\n- item\n- item 2\n* "
+	  (org-test-with-temp-text "* H\n- item<point>\n- item 2"
+	    (let ((org-insert-heading-respect-content nil))
+	      (org-insert-heading '(4)))
+	    (buffer-string))))
+  (should
+   (equal "* H\n- item\n* "
+	  (org-test-with-temp-text "* H\n- item"
+	    (org-cycle)
+	    (goto-char (point-max))
+	    (let ((org-insert-heading-respect-content nil)) (org-insert-heading))
+	    (buffer-string))))
+  ;; When called with two universal arguments, insert a new headline
+  ;; at the end of the grandparent subtree.
+  (should
+   (equal "* H1\n** H3\n- item\n** H2\n** "
+	  (org-test-with-temp-text "* H1\n** H3\n- item<point>\n** H2"
+	    (let ((org-insert-heading-respect-content nil))
+	      (org-insert-heading '(16)))
 	    (buffer-string))))
   ;; Corner case: correctly insert a headline after an empty one.
   (should
@@ -898,6 +1112,164 @@
    (org-test-with-temp-text "* COMMENT Headline\n** Level 2\nBody"
      (goto-char (point-max))
      (org-in-commented-heading-p t))))
+
+
+
+;;; Keywords
+
+(ert-deftest test-org/set-regexps-and-options ()
+  "Test `org-set-regexps-and-options' specifications."
+  ;; TAGS keyword.
+  (should
+   (equal '(("A" . ?a) ("B") ("C"))
+	  (org-test-with-temp-text "#+TAGS: A(a) B C"
+	    (org-mode-restart)
+	    org-tag-alist)))
+  (should
+   (equal '(("A") (:newline) ("B"))
+	  (org-test-with-temp-text "#+TAGS: A\n#+TAGS: B"
+	    (org-mode-restart)
+	    org-tag-alist)))
+  (should
+   (equal '((:startgroup) ("A") ("B") (:endgroup) ("C"))
+	  (org-test-with-temp-text "#+TAGS: { A B } C"
+	    (org-mode-restart)
+	    org-tag-alist)))
+  (should
+   (equal '((:startgroup) ("A") (:grouptags) ("B") ("C") (:endgroup))
+	  (org-test-with-temp-text "#+TAGS: { A : B C }"
+	    (org-mode-restart)
+	    org-tag-alist)))
+  (should
+   (equal '(("A" "B" "C"))
+	  (org-test-with-temp-text "#+TAGS: { A : B C }"
+	    (org-mode-restart)
+	    org-tag-groups-alist)))
+  ;; FILETAGS keyword.
+  (should
+   (equal '("A" "B" "C")
+	  (org-test-with-temp-text "#+FILETAGS: :A:B:C:"
+	    (org-mode-restart)
+	    org-file-tags)))
+  ;; PROPERTY keyword.  Property names are case-insensitive.
+  (should
+   (equal "foo=1"
+	  (org-test-with-temp-text "#+PROPERTY: var foo=1"
+	    (org-mode-restart)
+	    (cdr (assoc "var" org-file-properties)))))
+  (should
+   (equal
+    "foo=1 bar=2"
+    (org-test-with-temp-text "#+PROPERTY: var foo=1\n#+PROPERTY: var+ bar=2"
+      (org-mode-restart)
+      (cdr (assoc "var" org-file-properties)))))
+  (should
+   (equal
+    "foo=1 bar=2"
+    (org-test-with-temp-text "#+PROPERTY: var foo=1\n#+PROPERTY: VAR+ bar=2"
+      (org-mode-restart)
+      (cdr (assoc "var" org-file-properties)))))
+  ;; ARCHIVE keyword.
+  (should
+   (equal "%s_done::"
+	  (org-test-with-temp-text "#+ARCHIVE: %s_done::"
+	    (org-mode-restart)
+	    org-archive-location)))
+  ;; CATEGORY keyword.
+  (should
+   (eq 'test
+       (org-test-with-temp-text "#+CATEGORY: test"
+	 (org-mode-restart)
+	 org-category)))
+  (should
+   (equal "test"
+	  (org-test-with-temp-text "#+CATEGORY: test"
+	    (org-mode-restart)
+	    (cdr (assoc "CATEGORY" org-file-properties)))))
+  ;; COLUMNS keyword.
+  (should
+   (equal "%25ITEM %TAGS %PRIORITY %TODO"
+	  (org-test-with-temp-text "#+COLUMNS: %25ITEM %TAGS %PRIORITY %TODO"
+	    (org-mode-restart)
+	    org-columns-default-format)))
+  ;; CONSTANTS keyword.  Constants names are case sensitive.
+  (should
+   (equal '("299792458." "3.14")
+	  (org-test-with-temp-text "#+CONSTANTS: c=299792458. pi=3.14"
+	    (org-mode-restart)
+	    (mapcar
+	     (lambda (n) (cdr (assoc n org-table-formula-constants-local)))
+	     '("c" "pi")))))
+  (should
+   (equal "3.14"
+	  (org-test-with-temp-text "#+CONSTANTS: pi=22/7 pi=3.14"
+	    (org-mode-restart)
+	    (cdr (assoc "pi" org-table-formula-constants-local)))))
+  (should
+   (equal "22/7"
+	  (org-test-with-temp-text "#+CONSTANTS: PI=22/7 pi=3.14"
+	    (org-mode-restart)
+	    (cdr (assoc "PI" org-table-formula-constants-local)))))
+  ;; LINK keyword.
+  (should
+   (equal
+    '("url1" "url2")
+    (org-test-with-temp-text "#+LINK: a url1\n#+LINK: b url2"
+      (org-mode-restart)
+      (mapcar (lambda (abbrev) (cdr (assoc abbrev org-link-abbrev-alist-local)))
+	      '("a" "b")))))
+  ;; PRIORITIES keyword.  Incomplete priorities sets are ignored.
+  (should
+   (equal
+    '(?X ?Z ?Y)
+    (org-test-with-temp-text "#+PRIORITIES: X Z Y"
+      (org-mode-restart)
+      (list org-highest-priority org-lowest-priority org-default-priority))))
+  (should
+   (equal
+    '(?A ?C ?B)
+    (org-test-with-temp-text "#+PRIORITIES: X Z"
+      (org-mode-restart)
+      (list org-highest-priority org-lowest-priority org-default-priority))))
+  ;; STARTUP keyword.
+  (should
+   (equal '(t t)
+	  (org-test-with-temp-text "#+STARTUP: fold odd"
+	    (org-mode-restart)
+	    (list org-startup-folded org-odd-levels-only))))
+  ;; TODO keywords.
+  (should
+   (equal '(("A" "B") ("C"))
+	  (org-test-with-temp-text "#+TODO: A B | C"
+	    (org-mode-restart)
+	    (list org-not-done-keywords org-done-keywords))))
+  (should
+   (equal '(("A" "C") ("B" "D"))
+	  (org-test-with-temp-text "#+TODO: A | B\n#+TODO: C | D"
+	    (org-mode-restart)
+	    (list org-not-done-keywords org-done-keywords))))
+  (should
+   (equal '(("A" "B") ("C"))
+	  (org-test-with-temp-text "#+TYP_TODO: A B | C"
+	    (org-mode-restart)
+	    (list org-not-done-keywords org-done-keywords))))
+  (should
+   (equal '((:startgroup) ("A" . ?a) (:endgroup))
+	  (org-test-with-temp-text "#+TODO: A(a)"
+	    (org-mode-restart)
+	    org-todo-key-alist)))
+  (should
+   (equal '(("D" note nil) ("C" time nil) ("B" note time))
+	  (org-test-with-temp-text "#+TODO: A(a) B(b@/!) | C(c!) D(d@)"
+	    (org-mode-restart)
+	    org-todo-log-states)))
+  ;; Enter SETUPFILE keyword.
+  (should
+   (equal "1"
+	  (org-test-with-temp-text
+	      (format "#+SETUPFILE: \"%s/examples/setupfile.org\"" org-test-dir)
+	    (org-mode-restart)
+	    (cdr (assoc "a" org-file-properties))))))
 
 
 
@@ -1084,6 +1456,14 @@ drops support for Emacs 24.1 and 24.2."
 	     (looking-at "\nThe Emacs Editor")
 	   (kill-buffer))))))
 
+(ert-deftest test-org/open-at-point/inline-image ()
+  "Test `org-open-at-point' on nested links."
+  (should
+   (org-test-with-temp-text "[[info:org#Top][info:<point>emacs#Top]]"
+     (org-open-at-point)
+     (prog1 (with-current-buffer "*info*" (looking-at "\nOrg Mode Manual"))
+       (kill-buffer "*info*")))))
+
 
 ;;; Node Properties
 
@@ -1092,6 +1472,53 @@ drops support for Emacs 24.1 and 24.2."
   (org-test-at-id "75282ba2-f77a-4309-a970-e87c149fe125"
     (org-babel-next-src-block)
     (should (equal '(2 1) (org-babel-execute-src-block)))))
+
+(ert-deftest test-org/custom-properties ()
+  "Test custom properties specifications."
+  ;; Standard test.
+  (should
+   (let ((org-custom-properties '("FOO")))
+     (org-test-with-temp-text "* H\n:PROPERTIES:\n<point>:FOO: val\n:END:\n"
+       (org-toggle-custom-properties-visibility)
+       (org-invisible-p2))))
+  ;; Properties are case-insensitive.
+  (should
+   (let ((org-custom-properties '("FOO")))
+     (org-test-with-temp-text "* H\n:PROPERTIES:\n<point>:foo: val\n:END:\n"
+       (org-toggle-custom-properties-visibility)
+       (org-invisible-p2))))
+  (should
+   (let ((org-custom-properties '("foo")))
+     (org-test-with-temp-text "* H\n:PROPERTIES:\n<point>:FOO: val\n:END:\n"
+       (org-toggle-custom-properties-visibility)
+       (org-invisible-p2))))
+  ;; Multiple custom properties in the same drawer.
+  (should
+   (let ((org-custom-properties '("FOO" "BAR")))
+     (org-test-with-temp-text
+	 "* H\n:PROPERTIES:\n<point>:FOO: val\n:P: 1\n:BAR: baz\n:END:\n"
+       (org-toggle-custom-properties-visibility)
+       (and (org-invisible-p2)
+	    (not (progn (forward-line) (org-invisible-p2)))
+	    (progn (forward-line) (org-invisible-p2))))))
+  ;; Hide custom properties with an empty value.
+  (should
+   (let ((org-custom-properties '("FOO")))
+     (org-test-with-temp-text "* H\n:PROPERTIES:\n<point>:FOO:\n:END:\n"
+       (org-toggle-custom-properties-visibility)
+       (org-invisible-p2))))
+  ;; Do not hide fake properties.
+  (should-not
+   (let ((org-custom-properties '("FOO")))
+     (org-test-with-temp-text ":FOO: val\n"
+       (org-toggle-custom-properties-visibility)
+       (org-invisible-p2))))
+  (should-not
+   (let ((org-custom-properties '("A")))
+     (org-test-with-temp-text
+	 "* H\n:PROPERTIES:\n:A: 1\n:END:\n\n:PROPERTIES:\n<point>:A: 2\n:END:"
+       (org-toggle-custom-properties-visibility)
+       (org-invisible-p2)))))
 
 
 
@@ -1261,7 +1688,8 @@ drops support for Emacs 24.1 and 24.2."
      (org-forward-paragraph)
      (looking-at "Paragraph")))
   (should
-   (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:\nParagraph"
+   (org-test-with-temp-text
+       "* H\n<point>:PROPERTIES:\n:prop: value\n:END:\nParagraph"
      (org-forward-paragraph)
      (looking-at "Paragraph")))
   ;; On a verse or source block, stop after blank lines.
@@ -1336,11 +1764,9 @@ drops support for Emacs 24.1 and 24.2."
      (org-backward-paragraph)
      (bobp)))
   (should
-   (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:\nP1"
-     (goto-char (point-max))
-     (beginning-of-line)
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:prop: value\n:END:\n<point>P1"
      (org-backward-paragraph)
-     (bobp)))
+     (looking-at ":PROPERTIES:")))
   ;; On a source or verse block, stop before blank lines.
   (should
    (org-test-with-temp-text "#+BEGIN_VERSE\nL1\n\nL2\n\nL3\n#+END_VERSE"
@@ -1701,9 +2127,940 @@ Text.
       (mapcar (lambda (ov) (cons (overlay-start ov) (overlay-end ov)))
 	      (overlays-in (point-min) (point-max)))))))
 
+
+;;; Outline structure
+
+(ert-deftest test-org/demote ()
+  "Test `org-demote' specifications."
+  ;; Add correct number of stars according to `org-odd-levels-only'.
+  (should
+   (= 2
+      (org-test-with-temp-text "* H"
+	(let ((org-odd-levels-only nil)) (org-demote))
+	(org-current-level))))
+  (should
+   (= 3
+      (org-test-with-temp-text "* H"
+	(let ((org-odd-levels-only t)) (org-demote))
+	(org-current-level))))
+  ;; When `org-auto-align-tags' is non-nil, move tags accordingly.
+  (should
+   (org-test-with-temp-text "* H  :tag:"
+     (let ((org-tags-column 10)
+	   (org-auto-align-tags t)
+	   (org-odd-levels-only nil))
+       (org-demote))
+     (org-move-to-column 10)
+     (org-looking-at-p ":tag:$")))
+  (should-not
+   (org-test-with-temp-text "* H  :tag:"
+     (let ((org-tags-column 10)
+	   (org-auto-align-tags nil)
+	   (org-odd-levels-only nil))
+       (org-demote))
+     (org-move-to-column 10)
+     (org-looking-at-p ":tag:$")))
+  ;; When `org-adapt-indentation' is non-nil, always indent planning
+  ;; info and property drawers accordingly.
+  (should
+   (= 3
+      (org-test-with-temp-text "* H\n  SCHEDULED: <2014-03-04 tue.>"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-demote))
+	(forward-line)
+	(org-get-indentation))))
+  (should
+   (= 3
+      (org-test-with-temp-text "* H\n  :PROPERTIES:\n  :FOO: Bar\n  :END:"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-demote))
+	(forward-line)
+	(org-get-indentation))))
+  (should-not
+   (= 3
+      (org-test-with-temp-text "* H\n  SCHEDULED: <2014-03-04 tue.>"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation nil))
+	  (org-demote))
+	(forward-line)
+	(org-get-indentation))))
+  ;; When `org-adapt-indentation' is non-nil, shift all lines in
+  ;; section accordingly.  Ignore, however, footnote definitions and
+  ;; inlinetasks boundaries.
+  (should
+   (= 3
+      (org-test-with-temp-text "* H\n  Paragraph"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-demote))
+	(forward-line)
+	(org-get-indentation))))
+  (should
+   (= 2
+      (org-test-with-temp-text "* H\n  Paragraph"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation nil))
+	  (org-demote))
+	(forward-line)
+	(org-get-indentation))))
+  (should
+   (zerop
+    (org-test-with-temp-text "* H\n[fn:1] def line 1\ndef line 2"
+      (let ((org-odd-levels-only nil)
+	    (org-adapt-indentation t))
+	(org-demote))
+      (goto-char (point-max))
+      (org-get-indentation))))
+  (should
+   (= 3
+      (org-test-with-temp-text "* H\n[fn:1] Def.\n\n\n  After def."
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-demote))
+	(goto-char (point-max))
+	(org-get-indentation))))
+  (when (featurep 'org-inlinetask)
+    (should
+     (zerop
+      (let ((org-inlinetask-min-level 5)
+	    (org-adapt-indentation t))
+	(org-test-with-temp-text "* H\n***** I\n***** END"
+	  (org-demote)
+	  (forward-line)
+	  (org-get-indentation))))))
+  (when (featurep 'org-inlinetask)
+    (should
+     (= 3
+	(let ((org-inlinetask-min-level 5)
+	      (org-adapt-indentation t))
+	  (org-test-with-temp-text "* H\n***** I\n  Contents\n***** END"
+	    (org-demote)
+	    (forward-line 2)
+	    (org-get-indentation))))))
+  ;; Ignore contents of source blocks or example blocks when
+  ;; indentation should be preserved (through
+  ;; `org-src-preserve-indentation' or "-i" flag).
+  (should-not
+   (zerop
+    (org-test-with-temp-text "* H\n#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation nil))
+	(org-demote))
+      (forward-line 2)
+      (org-get-indentation))))
+  (should
+   (zerop
+    (org-test-with-temp-text "* H\n#+BEGIN_EXAMPLE\n(+ 1 1)\n#+END_EXAMPLE"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation t))
+	(org-demote))
+      (forward-line 2)
+      (org-get-indentation))))
+  (should
+   (zerop
+    (org-test-with-temp-text "* H\n#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation t))
+	(org-demote))
+      (forward-line 2)
+      (org-get-indentation))))
+  (should
+   (zerop
+    (org-test-with-temp-text
+	"* H\n#+BEGIN_SRC emacs-lisp -i\n(+ 1 1)\n#+END_SRC"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation nil))
+	(org-demote))
+      (forward-line 2)
+      (org-get-indentation)))))
+
+(ert-deftest test-org/promote ()
+  "Test `org-promote' specifications."
+  ;; Return an error if headline is to be promoted to level 0, unless
+  ;; `org-allow-promoting-top-level-subtree' is non-nil, in which case
+  ;; headline becomes a comment.
+  (should-error
+   (org-test-with-temp-text "* H"
+     (let ((org-allow-promoting-top-level-subtree nil)) (org-promote))))
+  (should
+   (equal "# H"
+	  (org-test-with-temp-text "* H"
+	    (let ((org-allow-promoting-top-level-subtree t)) (org-promote))
+	    (buffer-string))))
+  ;; Remove correct number of stars according to
+  ;; `org-odd-levels-only'.
+  (should
+   (= 2
+      (org-test-with-temp-text "*** H"
+	(let ((org-odd-levels-only nil)) (org-promote))
+	(org-current-level))))
+  (should
+   (= 1
+      (org-test-with-temp-text "*** H"
+	(let ((org-odd-levels-only t)) (org-promote))
+	(org-current-level))))
+  ;; When `org-auto-align-tags' is non-nil, move tags accordingly.
+  (should
+   (org-test-with-temp-text "** H :tag:"
+     (let ((org-tags-column 10)
+	   (org-auto-align-tags t)
+	   (org-odd-levels-only nil))
+       (org-promote))
+     (org-move-to-column 10)
+     (org-looking-at-p ":tag:$")))
+  (should-not
+   (org-test-with-temp-text "** H :tag:"
+     (let ((org-tags-column 10)
+	   (org-auto-align-tags nil)
+	   (org-odd-levels-only nil))
+       (org-promote))
+     (org-move-to-column 10)
+     (org-looking-at-p ":tag:$")))
+  ;; When `org-adapt-indentation' is non-nil, always indent planning
+  ;; info and property drawers.
+  (should
+   (= 2
+      (org-test-with-temp-text "** H\n   SCHEDULED: <2014-03-04 tue.>"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  (should
+   (= 2
+      (org-test-with-temp-text "** H\n   :PROPERTIES:\n   :FOO: Bar\n   :END:"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  (should-not
+   (= 2
+      (org-test-with-temp-text "** H\n   SCHEDULED: <2014-03-04 tue.>"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation nil))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  ;; When `org-adapt-indentation' is non-nil, shift all lines in
+  ;; section accordingly.  Ignore, however, footnote definitions and
+  ;; inlinetasks boundaries.
+  (should
+   (= 2
+      (org-test-with-temp-text "** H\n   Paragraph"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  (should-not
+   (= 2
+      (org-test-with-temp-text "** H\n   Paragraph"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation nil))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  (should
+   (= 2
+      (org-test-with-temp-text "** H\n   Paragraph\n[fn:1] line1\nline2"
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  (when (featurep 'org-inlinetask)
+    (should
+     (zerop
+      (let ((org-inlinetask-min-level 5)
+	    (org-adapt-indentation t))
+	(org-test-with-temp-text "** H\n***** I\n***** END"
+	  (org-promote)
+	  (forward-line)
+	  (org-get-indentation))))))
+  (when (featurep 'org-inlinetask)
+    (should
+     (= 2
+	(let ((org-inlinetask-min-level 5)
+	      (org-adapt-indentation t))
+	  (org-test-with-temp-text "** H\n***** I\n   Contents\n***** END"
+	    (org-promote)
+	    (forward-line 2)
+	    (org-get-indentation))))))
+  ;; Give up shifting if it would break document's structure
+  ;; otherwise.
+  (should
+   (= 3
+      (org-test-with-temp-text "** H\n   Paragraph\n [fn:1] Def."
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  (should
+   (= 3
+      (org-test-with-temp-text "** H\n   Paragraph\n * list."
+	(let ((org-odd-levels-only nil)
+	      (org-adapt-indentation t))
+	  (org-promote))
+	(forward-line)
+	(org-get-indentation))))
+  ;; Ignore contents of source blocks or example blocks when
+  ;; indentation should be preserved (through
+  ;; `org-src-preserve-indentation' or "-i" flag).
+  (should-not
+   (zerop
+    (org-test-with-temp-text
+	"** H\n #+BEGIN_SRC emacs-lisp\n(+ 1 1)\n #+END_SRC"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation nil)
+	    (org-odd-levels-only nil))
+	(org-promote))
+      (forward-line)
+      (org-get-indentation))))
+  (should
+   (zerop
+    (org-test-with-temp-text
+	"** H\n #+BEGIN_EXAMPLE\nContents\n #+END_EXAMPLE"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation t)
+	    (org-odd-levels-only nil))
+	(org-promote))
+      (forward-line)
+      (org-get-indentation))))
+  (should
+   (zerop
+    (org-test-with-temp-text
+	"** H\n #+BEGIN_SRC emacs-lisp\n(+ 1 1)\n #+END_SRC"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation t)
+	    (org-odd-levels-only nil))
+	(org-promote))
+      (forward-line)
+      (org-get-indentation))))
+  (should
+   (zerop
+    (org-test-with-temp-text
+	"** H\n #+BEGIN_SRC emacs-lisp -i\n(+ 1 1)\n #+END_SRC"
+      (let ((org-adapt-indentation t)
+	    (org-src-preserve-indentation nil)
+	    (org-odd-levels-only nil))
+	(org-promote))
+      (forward-line)
+      (org-get-indentation)))))
 
 
 ;;; Planning
+
+(ert-deftest test-org/at-planning-p ()
+  "Test `org-at-planning-p' specifications."
+  ;; Regular test.
+  (should
+   (org-test-with-temp-text "* Headline\n<point>DEADLINE: <2014-03-04 tue.>"
+     (org-at-planning-p)))
+  (should-not
+   (org-test-with-temp-text "DEADLINE: <2014-03-04 tue.>"
+     (org-at-planning-p)))
+  ;; Correctly find planning attached to inlinetasks.
+  (when (featurep 'org-inlinetask)
+    (should
+     (org-test-with-temp-text
+	 "*** Inlinetask\n<point>DEADLINE: <2014-03-04 tue.>\n*** END"
+       (let ((org-inlinetask-min-level 3)) (org-at-planning-p))))
+    (should-not
+     (org-test-with-temp-text
+	 "*** Inlinetask\n<point>DEADLINE: <2014-03-04 tue.>"
+       (let ((org-inlinetask-min-level 3)) (org-at-planning-p))))
+    (should-not
+     (org-test-with-temp-text
+	 "* Headline\n*** Inlinetask\n<point>DEADLINE: <2014-03-04 tue.>"
+       (let ((org-inlinetask-min-level 3)) (org-at-planning-p))))
+    (should-not
+     (org-test-with-temp-text
+	 "* Headline\n*** Inlinetask\n*** END\n<point>DEADLINE: <2014-03-04 tue.>"
+       (let ((org-inlinetask-min-level 3)) (org-at-planning-p))))))
+
+
+;;; Property API
+
+(ert-deftest test-org/buffer-property-keys ()
+  "Test `org-buffer-property-keys' specifications."
+  ;; Retrieve properties accross siblings.
+  (should
+   (equal '("A" "B")
+	  (org-test-with-temp-text "
+* H1
+:PROPERTIES:
+:A: 1
+:END:
+* H2
+:PROPERTIES:
+:B: 1
+:END:"
+	    (org-buffer-property-keys))))
+  ;; Retrieve properties accross children.
+  (should
+   (equal '("A" "B")
+	  (org-test-with-temp-text "
+* H1
+:PROPERTIES:
+:A: 1
+:END:
+** H2
+:PROPERTIES:
+:B: 1
+:END:"
+	    (org-buffer-property-keys))))
+  ;; Retrieve muliple properties in the same drawer.
+  (should
+   (equal '("A" "B")
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:B: 2\n:END:"
+	    (org-buffer-property-keys))))
+  ;; Ignore extension symbol in property name.
+  (should
+   (equal '("A")
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:A+: 2\n:END:"
+	    (org-buffer-property-keys))))
+  ;; With non-nil COLUMNS, extract property names from columns.
+  (should
+   (equal '("A" "B")
+	  (org-test-with-temp-text "#+COLUMNS: %25ITEM %A %20B"
+	    (org-buffer-property-keys nil nil t))))
+  (should
+   (equal '("A" "B" "COLUMNS")
+	  (org-test-with-temp-text
+	      "* H\n:PROPERTIES:\n:COLUMNS: %25ITEM %A %20B\n:END:"
+	    (org-buffer-property-keys nil nil t)))))
+
+(ert-deftest test-org/property-values ()
+  "Test `org-property-values' specifications."
+  ;; Regular test.
+  (should
+   (equal '("2" "1")
+	  (org-test-with-temp-text
+	      "* H\n:PROPERTIES:\n:A: 1\n:END:\n* H\n:PROPERTIES:\n:A: 2\n:END:"
+	    (org-property-values "A"))))
+  ;; Ignore empty values.
+  (should-not
+   (org-test-with-temp-text
+       "* H1\n:PROPERTIES:\n:A:\n:END:\n* H2\n:PROPERTIES:\n:A:  \n:END:"
+     (org-property-values "A")))
+  ;; Take into consideration extended values.
+  (should
+   (equal '("1 2")
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:A+: 2\n:END:"
+	    (org-property-values "A")))))
+
+(ert-deftest test-org/entry-delete ()
+  "Test `org-entry-delete' specifications."
+  ;; Regular test.
+  (should
+   (string-match
+    " *:PROPERTIES:\n *:B: +2\n *:END:"
+    (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:B: 2\n:END:"
+      (org-entry-delete (point) "A")
+      (buffer-string))))
+  ;; When last property is removed, remove the property drawer.
+  (should-not
+   (string-match
+    ":PROPERTIES:"
+    (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:\nParagraph"
+      (org-entry-delete (point) "A")
+      (buffer-string)))))
+
+(ert-deftest test-org/entry-get ()
+  "Test `org-entry-get' specifications."
+  ;; Regular test.
+  (should
+   (equal "1"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:"
+	    (org-entry-get (point) "A"))))
+  ;; Ignore case.
+  (should
+   (equal "1"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:"
+	    (org-entry-get (point) "a"))))
+  ;; Handle extended values, both before and after base value.
+  (should
+   (equal "1 2 3"
+	  (org-test-with-temp-text
+	      "* H\n:PROPERTIES:\n:A+: 2\n:A: 1\n:A+: 3\n:END:"
+	    (org-entry-get (point) "A"))))
+  ;; Empty values are returned as the empty string.
+  (should
+   (equal ""
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A:\n:END:"
+	    (org-entry-get (point) "A"))))
+  ;; Special nil value.  If LITERAL-NIL is non-nil, return "nil",
+  ;; otherwise, return nil.
+  (should-not
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: nil\n:END:"
+     (org-entry-get (point) "A")))
+  (should
+   (equal "nil"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: nil\n:END:"
+	    (org-entry-get (point) "A" nil t))))
+  ;; Return nil when no property is found, independently on the
+  ;; LITERAL-NIL argument.
+  (should-not
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:"
+     (org-entry-get (point) "B")))
+  (should-not
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:"
+     (org-entry-get (point) "B" nil t)))
+  ;; Handle inheritance, when allowed.
+  (should
+   (equal
+    "1"
+    (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:\n** <point>H2"
+      (org-entry-get (point) "A" t))))
+  (should
+   (equal
+    "1"
+    (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:\n** <point>H2"
+      (let ((org-use-property-inheritance t))
+	(org-entry-get (point) "A" 'selective)))))
+  (should-not
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:\n** <point>H2"
+     (let ((org-use-property-inheritance nil))
+       (org-entry-get (point) "A" 'selective)))))
+
+(ert-deftest test-org/entry-properties ()
+  "Test `org-entry-properties' specifications."
+  ;; Get "ITEM" property.
+  (should
+   (equal "* H"
+	  (org-test-with-temp-text "* TODO H"
+	    (cdr (assoc "ITEM" (org-entry-properties nil "ITEM"))))))
+  (should
+   (equal "* H"
+	  (org-test-with-temp-text "* TODO H"
+	    (cdr (assoc "ITEM" (org-entry-properties))))))
+  ;; Get "TODO" property.
+  (should
+   (equal "TODO"
+	  (org-test-with-temp-text "* TODO H"
+	    (cdr (assoc "TODO" (org-entry-properties nil "TODO"))))))
+  (should
+   (equal "TODO"
+	  (org-test-with-temp-text "* TODO H"
+	    (cdr (assoc "TODO" (org-entry-properties))))))
+  (should-not
+   (org-test-with-temp-text "* H"
+     (assoc "TODO" (org-entry-properties nil "TODO"))))
+  ;; Get "PRIORITY" property.
+  (should
+   (equal "A"
+	  (org-test-with-temp-text "* [#A] H"
+	    (cdr (assoc "PRIORITY" (org-entry-properties nil "PRIORITY"))))))
+  (should
+   (equal "A"
+	  (org-test-with-temp-text "* [#A] H"
+	    (cdr (assoc "PRIORITY" (org-entry-properties))))))
+  (should-not
+   (org-test-with-temp-text "* H"
+     (assoc "PRIORITY" (org-entry-properties nil "PRIORITY"))))
+  ;; Get "FILE" property.
+  (should
+   (org-test-with-temp-text-in-file "* H\nParagraph"
+     (org-file-equal-p (cdr (assoc "FILE" (org-entry-properties nil "FILE")))
+		       (buffer-file-name))))
+  (should
+   (org-test-with-temp-text-in-file "* H\nParagraph"
+     (org-file-equal-p (cdr (assoc "FILE" (org-entry-properties)))
+		       (buffer-file-name))))
+  (should-not
+   (org-test-with-temp-text "* H\nParagraph"
+     (cdr (assoc "FILE" (org-entry-properties nil "FILE")))))
+  ;; Get "TAGS" property.
+  (should
+   (equal ":tag1:tag2:"
+	  (org-test-with-temp-text "* H :tag1:tag2:"
+	    (cdr (assoc "TAGS" (org-entry-properties nil "TAGS"))))))
+  (should
+   (equal ":tag1:tag2:"
+	  (org-test-with-temp-text "* H :tag1:tag2:"
+	    (cdr (assoc "TAGS" (org-entry-properties))))))
+  (should-not
+   (org-test-with-temp-text "* H"
+     (cdr (assoc "TAGS" (org-entry-properties nil "TAGS")))))
+  ;; Get "ALLTAGS" property.
+  (should
+   (equal ":tag1:tag2:"
+	  (org-test-with-temp-text "* H :tag1:\n<point>** H2 :tag2:"
+	    (cdr (assoc "ALLTAGS" (org-entry-properties nil "ALLTAGS"))))))
+  (should
+   (equal ":tag1:tag2:"
+	  (org-test-with-temp-text "* H :tag1:\n<point>** H2 :tag2:"
+	    (cdr (assoc "ALLTAGS" (org-entry-properties))))))
+  (should-not
+   (org-test-with-temp-text "* H"
+     (cdr (assoc "ALLTAGS" (org-entry-properties nil "ALLTAGS")))))
+  ;; Get "BLOCKED" property.
+  (should
+   (equal "t"
+	  (org-test-with-temp-text "* Blocked\n** DONE one\n** TODO two"
+	    (let ((org-enforce-todo-dependencies t)
+		  (org-blocker-hook
+		   '(org-block-todo-from-children-or-siblings-or-parent)))
+	      (cdr (assoc "BLOCKED" (org-entry-properties nil "BLOCKED")))))))
+  (should
+   (equal "t"
+	  (org-test-with-temp-text "* Blocked\n** DONE one\n** TODO two"
+	    (let ((org-enforce-todo-dependencies t)
+		  (org-blocker-hook
+		   '(org-block-todo-from-children-or-siblings-or-parent)))
+	      (cdr (assoc "BLOCKED" (org-entry-properties)))))))
+  (should
+   (equal ""
+	  (org-test-with-temp-text "* Blocked\n** DONE one\n** DONE two"
+	    (let ((org-enforce-todo-dependencies t))
+	      (cdr (assoc "BLOCKED" (org-entry-properties nil "BLOCKED")))))))
+  ;; Get "CLOSED", "DEADLINE" and "SCHEDULED" properties.
+  (should
+   (equal
+    "[2012-03-29 thu.]"
+    (org-test-with-temp-text "* H\nCLOSED: [2012-03-29 thu.]"
+      (cdr (assoc "CLOSED" (org-entry-properties nil "CLOSED"))))))
+  (should
+   (equal
+    "[2012-03-29 thu.]"
+    (org-test-with-temp-text "* H\nCLOSED: [2012-03-29 thu.]"
+      (cdr (assoc "CLOSED" (org-entry-properties))))))
+  (should-not
+   (org-test-with-temp-text "* H"
+     (cdr (assoc "CLOSED" (org-entry-properties nil "CLOSED")))))
+  (should
+   (equal
+    "<2014-03-04 tue.>"
+    (org-test-with-temp-text "* H\nDEADLINE: <2014-03-04 tue.>"
+      (cdr (assoc "DEADLINE" (org-entry-properties nil "DEADLINE"))))))
+  (should
+   (equal
+    "<2014-03-04 tue.>"
+    (org-test-with-temp-text "* H\nDEADLINE: <2014-03-04 tue.>"
+      (cdr (assoc "DEADLINE" (org-entry-properties))))))
+  (should-not
+   (org-test-with-temp-text "* H"
+     (cdr (assoc "DEADLINE" (org-entry-properties nil "DEADLINE")))))
+  (should
+   (equal
+    "<2014-03-04 tue.>"
+    (org-test-with-temp-text "* H\nSCHEDULED: <2014-03-04 tue.>"
+      (cdr (assoc "SCHEDULED" (org-entry-properties nil "SCHEDULED"))))))
+  (should
+   (equal
+    "<2014-03-04 tue.>"
+    (org-test-with-temp-text "* H\nSCHEDULED: <2014-03-04 tue.>"
+      (cdr (assoc "SCHEDULED" (org-entry-properties))))))
+  (should-not
+   (org-test-with-temp-text "* H"
+     (cdr (assoc "SCHEDULED" (org-entry-properties nil "SCHEDULED")))))
+  ;; Get "CATEGORY"
+  (should
+   (equal "cat"
+	  (org-test-with-temp-text "#+CATEGORY: cat\n<point>* H"
+	    (cdr (assoc "CATEGORY" (org-entry-properties))))))
+  (should
+   (equal "cat"
+	  (org-test-with-temp-text "#+CATEGORY: cat\n<point>* H"
+	    (cdr (assoc "CATEGORY" (org-entry-properties nil "CATEGORY"))))))
+  (should
+   (equal "cat"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:CATEGORY: cat\n:END:"
+	    (cdr (assoc "CATEGORY" (org-entry-properties nil "CATEGORY"))))))
+  ;; Get standard properties.
+  (should
+   (equal "1"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:"
+	    (cdr (assoc "A" (org-entry-properties nil 'standard))))))
+  ;; Handle extended properties.
+  (should
+   (equal "1 2 3"
+	  (org-test-with-temp-text
+	      "* H\n:PROPERTIES:\n:A+: 2\n:A: 1\n:A+: 3\n:END:"
+	    (cdr (assoc "A" (org-entry-properties nil 'standard))))))
+  (should
+   (equal "1 2 3"
+	  (org-test-with-temp-text
+	      "* H\n:PROPERTIES:\n:A+: 2\n:A: 1\n:a+: 3\n:END:"
+	    (cdr (assoc "A" (org-entry-properties nil 'standard))))))
+  ;; Ignore forbidden (special) properties.
+  (should-not
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:TODO: foo\n:END:"
+     (cdr (assoc "TODO" (org-entry-properties nil 'standard))))))
+
+(ert-deftest test-org/entry-put ()
+  "Test `org-entry-put' specifications."
+  ;; Error when not a string or nil.
+  (should-error
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:test: 1\n:END:"
+     (org-entry-put 1 "test" 2)))
+  ;; Set "TODO" property.
+  (should
+   (string-match (regexp-quote " TODO H")
+		 (org-test-with-temp-text "#+TODO: TODO | DONE\n<point>* H"
+		   (org-entry-put (point) "TODO" "TODO")
+		   (buffer-string))))
+  (should
+   (string-match (regexp-quote "* H")
+		 (org-test-with-temp-text "#+TODO: TODO | DONE\n<point>* H"
+		   (org-entry-put (point) "TODO" nil)
+		   (buffer-string))))
+  ;; Set "PRIORITY" property.
+  (should
+   (equal "* [#A] H"
+	  (org-test-with-temp-text "* [#B] H"
+	    (org-entry-put (point) "PRIORITY" "A")
+	    (buffer-string))))
+  (should
+   (equal "* H"
+	  (org-test-with-temp-text "* [#B] H"
+	    (org-entry-put (point) "PRIORITY" nil)
+	    (buffer-string))))
+  ;; Set "SCHEDULED" property.
+  (should
+   (string-match "* H\n *SCHEDULED: <2014-03-04 .*?>"
+		 (org-test-with-temp-text "* H"
+		   (org-entry-put (point) "SCHEDULED" "2014-03-04")
+		   (buffer-string))))
+  (should
+   (string= "* H\n"
+	    (org-test-with-temp-text "* H\nSCHEDULED: <2014-03-04 tue.>"
+	      (org-entry-put (point) "SCHEDULED" nil)
+	      (buffer-string))))
+  (should
+   (string-match "* H\n *SCHEDULED: <2014-03-03 .*?>"
+		 (org-test-with-temp-text "* H\nSCHEDULED: <2014-03-04 tue.>"
+		   (org-entry-put (point) "SCHEDULED" "earlier")
+		   (buffer-string))))
+  (should
+   (string-match "^ *SCHEDULED: <2014-03-05 .*?>"
+		 (org-test-with-temp-text "* H\nSCHEDULED: <2014-03-04 tue.>"
+		   (org-entry-put (point) "SCHEDULED" "later")
+		   (buffer-string))))
+  ;; Set "DEADLINE" property.
+  (should
+   (string-match "^ *DEADLINE: <2014-03-04 .*?>"
+		 (org-test-with-temp-text "* H"
+		   (org-entry-put (point) "DEADLINE" "2014-03-04")
+		   (buffer-string))))
+  (should
+   (string= "* H\n"
+	    (org-test-with-temp-text "* H\nDEADLINE: <2014-03-04 tue.>"
+	      (org-entry-put (point) "DEADLINE" nil)
+	      (buffer-string))))
+  (should
+   (string-match "^ *DEADLINE: <2014-03-03 .*?>"
+		 (org-test-with-temp-text "* H\nDEADLINE: <2014-03-04 tue.>"
+		   (org-entry-put (point) "DEADLINE" "earlier")
+		   (buffer-string))))
+  (should
+   (string-match "^ *DEADLINE: <2014-03-05 .*?>"
+		 (org-test-with-temp-text "* H\nDEADLINE: <2014-03-04 tue.>"
+		   (org-entry-put (point) "DEADLINE" "later")
+		   (buffer-string))))
+  ;; Regular properties, with or without pre-existing drawer.
+  (should
+   (string-match "^ *:A: +2$"
+		 (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:"
+		   (org-entry-put (point) "A" "2")
+		   (buffer-string))))
+  (should
+   (string-match "^ *:A: +1$"
+		 (org-test-with-temp-text "* H"
+		   (org-entry-put (point) "A" "1")
+		   (buffer-string))))
+  ;; Special case: two consecutive headlines.
+  (should
+   (string-match "\\* A\n *:PROPERTIES:"
+    (org-test-with-temp-text "* A\n** B"
+      (org-entry-put (point) "A" "1")
+      (buffer-string)))))
+
+
+;;; Radio Targets
+
+(ert-deftest test-org/update-radio-target-regexp ()
+  "Test `org-update-radio-target-regexp' specifications."
+  ;; Properly update cache with no previous radio target regexp.
+  (should
+   (eq 'link
+       (org-test-with-temp-text "radio\n\nParagraph\n\nradio"
+	 (save-excursion (goto-char (point-max)) (org-element-context))
+	 (insert "<<<")
+	 (search-forward "o")
+	 (insert ">>>")
+	 (org-update-radio-target-regexp)
+	 (goto-char (point-max))
+	 (org-element-type (org-element-context)))))
+  ;; Properly update cache with previous radio target regexp.
+  (should
+   (eq 'link
+       (org-test-with-temp-text "radio\n\nParagraph\n\nradio"
+	 (save-excursion (goto-char (point-max)) (org-element-context))
+	 (insert "<<<")
+	 (search-forward "o")
+	 (insert ">>>")
+	 (org-update-radio-target-regexp)
+	 (search-backward "r")
+	 (delete-char 5)
+	 (insert "new")
+	 (org-update-radio-target-regexp)
+	 (goto-char (point-max))
+	 (delete-region (line-beginning-position) (point))
+	 (insert "new")
+	 (org-element-type (org-element-context))))))
+
+
+;;; Sparse trees
+
+(ert-deftest test-org/match-sparse-tree ()
+  "Test `org-match-sparse-tree' specifications."
+  ;; Match tags.
+  (should-not
+   (org-test-with-temp-text "* H\n** H1 :tag:"
+     (org-match-sparse-tree nil "tag")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should
+   (org-test-with-temp-text "* H\n** H1 :tag:\n** H2 :tag2:"
+     (org-match-sparse-tree nil "tag")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; "-" operator for tags.
+  (should-not
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :tag1:tag2:"
+     (org-match-sparse-tree nil "tag1-tag2")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :tag1:tag2:"
+     (org-match-sparse-tree nil "tag1-tag2")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; "&" operator for tags.
+  (should
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :tag1:tag2:"
+     (org-match-sparse-tree nil "tag1&tag2")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should-not
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :tag1:tag2:"
+     (org-match-sparse-tree nil "tag1&tag2")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; "|" operator for tags.
+  (should-not
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :tag1:tag2:"
+     (org-match-sparse-tree nil "tag1|tag2")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should-not
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :tag1:tag2:"
+     (org-match-sparse-tree nil "tag1|tag2")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; Regexp match on tags.
+  (should-not
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :foo:"
+     (org-match-sparse-tree nil "{^tag.*}")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should
+   (org-test-with-temp-text "* H\n** H1 :tag1:\n** H2 :foo:"
+     (org-match-sparse-tree nil "{^tag.*}")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; Match group tags.
+  (should-not
+   (org-test-with-temp-text
+       "#+TAGS: { work : lab }\n* H\n** H1 :work:\n** H2 :lab:"
+     (org-match-sparse-tree nil "work")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should-not
+   (org-test-with-temp-text
+       "#+TAGS: { work : lab }\n* H\n** H1 :work:\n** H2 :lab:"
+     (org-match-sparse-tree nil "work")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; Match properties.
+  (should
+   (org-test-with-temp-text
+       "* H\n** H1\n:PROPERTIES:\n:A: 1\n:END:\n** H2\n:PROPERTIES:\n:A: 2\n:END:"
+     (org-match-sparse-tree nil "A=\"1\"")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  (should-not
+   (org-test-with-temp-text "* H1\n** H2\n:PROPERTIES:\n:A: 1\n:END:"
+     (org-match-sparse-tree nil "A=\"1\"")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; Case is not significant when matching properties.
+  (should-not
+   (org-test-with-temp-text "* H1\n** H2\n:PROPERTIES:\n:A: 1\n:END:"
+     (org-match-sparse-tree nil "a=\"1\"")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  (should-not
+   (org-test-with-temp-text "* H1\n** H2\n:PROPERTIES:\n:a: 1\n:END:"
+     (org-match-sparse-tree nil "A=\"1\"")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; Match special LEVEL property.
+  (should-not
+   (org-test-with-temp-text "* H\n** H1\n*** H2"
+     (let ((org-odd-levels-only nil)) (org-match-sparse-tree nil "LEVEL=2"))
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should
+   (org-test-with-temp-text "* H\n** H1\n*** H2"
+     (let ((org-odd-levels-only nil)) (org-match-sparse-tree nil "LEVEL=2"))
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; Comparison operators when matching properties.
+  (should
+   (org-test-with-temp-text
+       "* H\n** H1\nSCHEDULED: <2014-03-04 tue.>\n** H2\nSCHEDULED: <2012-03-29 thu.>"
+     (org-match-sparse-tree nil "SCHEDULED<=\"<2013-01-01>\"")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should-not
+   (org-test-with-temp-text
+       "* H\n** H1\nSCHEDULED: <2014-03-04 tue.>\n** H2\nSCHEDULED: <2012-03-29 thu.>"
+     (org-match-sparse-tree nil "SCHEDULED<=\"<2013-01-01>\"")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; Regexp match on properties values.
+  (should-not
+   (org-test-with-temp-text
+       "* H\n** H1\n:PROPERTIES:\n:A: foo\n:END:\n** H2\n:PROPERTIES:\n:A: bar\n:END:"
+     (org-match-sparse-tree nil "A={f.*}")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should
+   (org-test-with-temp-text
+       "* H\n** H1\n:PROPERTIES:\n:A: foo\n:END:\n** H2\n:PROPERTIES:\n:A: bar\n:END:"
+     (org-match-sparse-tree nil "A={f.*}")
+     (search-forward "H2")
+     (org-invisible-p2)))
+  ;; With an optional argument, limit match to TODO entries.
+  (should-not
+   (org-test-with-temp-text "* H\n** TODO H1 :tag:\n** H2 :tag:"
+     (org-match-sparse-tree t "tag")
+     (search-forward "H1")
+     (org-invisible-p2)))
+  (should
+   (org-test-with-temp-text "* H\n** TODO H1 :tag:\n** H2 :tag:"
+     (org-match-sparse-tree t "tag")
+     (search-forward "H2")
+     (org-invisible-p2))))
+
+
+;;; Timestamps API
 
 (ert-deftest test-org/timestamp-has-time-p ()
   "Test `org-timestamp-has-time-p' specifications."
@@ -1826,41 +3183,6 @@ Text.
 	    (let ((org-display-custom-times t)
 		  (org-time-stamp-custom-formats '("<%d>" . "<%d>")))
 	      (org-timestamp-translate (org-element-context)))))))
-
-
-
-;;; Radio Targets
-
-(ert-deftest test-org/update-radio-target-regexp ()
-  "Test `org-update-radio-target-regexp' specifications."
-  ;; Properly update cache with no previous radio target regexp.
-  (should
-   (eq 'link
-       (org-test-with-temp-text "radio\n\nParagraph\n\nradio"
-	 (save-excursion (goto-char (point-max)) (org-element-context))
-	 (insert "<<<")
-	 (search-forward "o")
-	 (insert ">>>")
-	 (org-update-radio-target-regexp)
-	 (goto-char (point-max))
-	 (org-element-type (org-element-context)))))
-  ;; Properly update cache with previous radio target regexp.
-  (should
-   (eq 'link
-       (org-test-with-temp-text "radio\n\nParagraph\n\nradio"
-	 (save-excursion (goto-char (point-max)) (org-element-context))
-	 (insert "<<<")
-	 (search-forward "o")
-	 (insert ">>>")
-	 (org-update-radio-target-regexp)
-	 (search-backward "r")
-	 (delete-char 5)
-	 (insert "new")
-	 (org-update-radio-target-regexp)
-	 (goto-char (point-max))
-	 (delete-region (line-beginning-position) (point))
-	 (insert "new")
-	 (org-element-type (org-element-context))))))
 
 
 

@@ -689,7 +689,7 @@ TAGS      the tags string, separated with colons \(string or nil\).
 
 The function result will be used as headline text."
   :group 'org-export-odt
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3")
   :type 'function)
 
@@ -710,7 +710,7 @@ The function must accept six parameters:
 
 The function should return the string to be exported."
   :group 'org-export-odt
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3")
   :type 'function)
 
@@ -1080,13 +1080,20 @@ See `org-odt--build-date-styles' for implementation details."
 
 ;;;; Table of Contents
 
-(defun org-odt-begin-toc (index-title depth)
+(defun org-odt--format-toc (title entries depth)
+  "Return a table of contents.
+TITLE is the title of the table, as a string, or nil.  ENTRIES is
+the contents of the table, as a string.  DEPTH is an integer
+specifying the depth of the table."
   (concat
-   (format "
-    <text:table-of-content text:style-name=\"OrgIndexSection\" text:protected=\"true\" text:name=\"Table of Contents\">
-     <text:table-of-content-source text:outline-level=\"%d\">
-      <text:index-title-template text:style-name=\"Contents_20_Heading\">%s</text:index-title-template>
-" depth index-title)
+   "
+<text:table-of-content text:style-name=\"OrgIndexSection\" text:protected=\"true\" text:name=\"Table of Contents\">\n"
+   (format "  <text:table-of-content-source text:outline-level=\"%d\">" depth)
+   (and title
+	(format "
+    <text:index-title-template text:style-name=\"Contents_20_Heading\">%s</text:index-title-template>
+"
+		title))
 
    (let ((levels (number-sequence 1 10)))
      (mapconcat
@@ -1098,23 +1105,21 @@ See `org-odt--build-date-styles' for implementation details."
        <text:index-entry-chapter/>
        <text:index-entry-text/>
        <text:index-entry-link-end/>
-      </text:table-of-content-entry-template>
-" level level)) levels ""))
-
-   (format  "
-     </text:table-of-content-source>
-
-     <text:index-body>
-      <text:index-title text:style-name=\"Sect1\" text:name=\"Table of Contents1_Head\">
-       <text:p text:style-name=\"Contents_20_Heading\">%s</text:p>
-      </text:index-title>
- " index-title)))
-
-(defun org-odt-end-toc ()
-  (format "
-     </text:index-body>
-    </text:table-of-content>
-"))
+      </text:table-of-content-entry-template>\n"
+	 level level)) levels ""))
+   "
+  </text:table-of-content-source>
+  <text:index-body>"
+   (and title
+	(format "
+    <text:index-title text:style-name=\"Sect1\" text:name=\"Table of Contents1_Head\">
+      <text:p text:style-name=\"Contents_20_Heading\">%s</text:p>
+    </text:index-title>\n"
+		title))
+   entries
+   "
+  </text:index-body>
+</text:table-of-content>"))
 
 (defun* org-odt-format-toc-headline
     (todo todo-type priority text tags
@@ -1149,7 +1154,12 @@ See `org-odt--build-date-styles' for implementation details."
   (format "<text:a xlink:type=\"simple\" xlink:href=\"#%s\">%s</text:a>"
 	  headline-label text))
 
-(defun org-odt-toc (depth info)
+(defun org-odt-toc (depth info &optional scope)
+  "Build a table of contents.
+DEPTH is an integer specifying the depth of the table.  INFO is
+a plist containing current export properties.  Optional argument
+SCOPE, when non-nil, defines the scope of the table.  Return the
+table of contents as a string, or nil."
   (assert (wholenump depth))
   ;; When a headline is marked as a radio target, as in the example below:
   ;;
@@ -1161,24 +1171,17 @@ See `org-odt--build-date-styles' for implementation details."
   ;; /TOC/, as otherwise there will be duplicated anchors one in TOC
   ;; and one in the document body.
   ;;
-  ;; FIXME-1: Currently exported headings are memoized.  `org-export.el'
-  ;; doesn't provide a way to disable memoization.  So this doesn't
-  ;; work.
-  ;;
-  ;; FIXME-2: Are there any other objects that need to be suppressed
+  ;; FIXME: Are there any other objects that need to be suppressed
   ;; within TOC?
-  (let* ((title (org-export-translate "Table of Contents" :utf-8 info))
-	 (headlines (org-export-collect-headlines
-		     info (and (wholenump depth) depth)))
+  (let* ((headlines (org-export-collect-headlines info depth scope))
 	 (backend (org-export-create-backend
-		   :parent (org-export-backend-name
-			    (plist-get info :back-end))
+		   :parent (org-export-backend-name (plist-get info :back-end))
 		   :transcoders (mapcar
 				 (lambda (type) (cons type (lambda (d c i) c)))
 				 (list 'radio-target)))))
     (when headlines
-      (concat
-       (org-odt-begin-toc title depth)
+      (org-odt--format-toc
+       (and (not scope) (org-export-translate "Table of Contents" :utf-8 info))
        (mapconcat
 	(lambda (headline)
 	  (let* ((entry (org-odt-format-headline--wrap
@@ -1188,7 +1191,7 @@ See `org-odt--build-date-styles' for implementation details."
 	    (format "\n<text:p text:style-name=\"%s\">%s</text:p>"
 		    style entry)))
 	headlines "\n")
-       (org-odt-end-toc)))))
+       depth))))
 
 
 ;;;; Document styles
@@ -2013,7 +2016,8 @@ contextual information."
 
 (defun org-odt-keyword (keyword contents info)
   "Transcode a KEYWORD element from Org to ODT.
-CONTENTS is nil.  INFO is a plist holding contextual information."
+CONTENTS is nil.  INFO is a plist holding contextual
+information."
   (let ((key (org-element-property :key keyword))
 	(value (org-element-property :value keyword)))
     (cond
@@ -2022,14 +2026,15 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
       ;; FIXME
       (ignore))
      ((string= key "TOC")
-      (let ((value (downcase value)))
+      (let ((case-fold-search t))
 	(cond
-	 ((string-match "\\<headlines\\>" value)
-	  (let ((depth (or (and (string-match "[0-9]+" value)
+	 ((org-string-match-p "\\<headlines\\>" value)
+	  (let ((depth (or (and (string-match "\\<[0-9]+\\>" value)
 				(string-to-number (match-string 0 value)))
-			   (plist-get info :with-toc))))
-	    (when (wholenump depth) (org-odt-toc depth info))))
-	 ((member value '("tables" "figures" "listings"))
+			   (plist-get info :headline-levels)))
+		(localp (org-string-match-p "\\<local\\>" value)))
+	    (org-odt-toc depth info (and localp keyword))))
+	 ((org-string-match-p "tables\\|figures\\|listings" value)
 	  ;; FIXME
 	  (ignore))))))))
 
@@ -2087,7 +2092,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
   (let* ((--numbered-parent-headline-at-<=-n
 	  (function
 	   (lambda (element n info)
-	     (loop for x in (org-export-get-genealogy element)
+	     (loop for x in (org-element-lineage element)
 		   thereis (and (eq (org-element-type x) 'headline)
 				(<= (org-export-get-relative-level x info) n)
 				(org-export-numbered-headline-p x info)
@@ -2639,7 +2644,7 @@ Return nil, otherwise."
 
   ;; NOTE: Counterpart of `org-export-get-ordinal'.
   ;; FIXME: Handle footnote-definition footnote-reference?
-  (let* ((genealogy (org-export-get-genealogy destination))
+  (let* ((genealogy (org-element-lineage destination))
 	 (data (reverse genealogy))
 	 (label (case (org-element-type destination)
 		  (headline (org-export-get-headline-id destination info))
@@ -2684,7 +2689,7 @@ Return nil, otherwise."
 	   (format "<text:bookmark-ref text:reference-format=\"number-all-superior\" text:ref-name=\"%s\">%s</text:bookmark-ref>"
 		   (org-export-solidify-link-text label)
 		   (mapconcat (lambda (n) (if (not n) " "
-					    (concat (number-to-string n) ".")))
+				       (concat (number-to-string n) ".")))
 			      item-numbers "")))))
      ;; Case 2: Locate a regular and numbered headline in the
      ;; hierarchy.  Display its section number.
@@ -2736,9 +2741,10 @@ INFO is a plist holding contextual information.  See
 		 (concat "file:" raw-path))
 		(t raw-path)))
 	 ;; Convert & to &amp; for correct XML representation
-	 (path (replace-regexp-in-string "&" "&amp;" path))
-	 protocol)
+	 (path (replace-regexp-in-string "&" "&amp;" path)))
     (cond
+     ;; Link type is handled by a special function.
+     ((org-export-custom-protocol-maybe link desc info))
      ;; Image file.
      ((and (not desc) (org-export-inline-image-p
 		       link (plist-get info :odt-inline-image-rules)))
@@ -2820,9 +2826,6 @@ INFO is a plist holding contextual information.  See
 	 (format
 	  "<text:bookmark-ref text:reference-format=\"number\" text:ref-name=\"OrgXref.%s\">%s</text:bookmark-ref>"
 	  href line-no))))
-     ;; Link type is handled by a special function.
-     ((functionp (setq protocol (nth 2 (assoc type org-link-protocols))))
-      (funcall protocol (org-link-unescape path) desc 'odt))
      ;; External link with a description part.
      ((and path desc)
       (let ((link-contents (org-element-contents link)))
@@ -3515,7 +3518,7 @@ pertaining to indentation here."
 	 (--walk-list-genealogy-and-collect-tags
 	  (function
 	   (lambda (table info)
-	     (let* ((genealogy (org-export-get-genealogy table))
+	     (let* ((genealogy (org-element-lineage table))
 		    (list-genealogy
 		     (when (eq (org-element-type (car genealogy)) 'item)
 		       (loop for el in genealogy
@@ -3804,7 +3807,7 @@ contextual information."
 				(insert latex-frag)
 				(org-format-latex cache-subdir cache-dir
 						  nil display-msg
-						  nil nil processing-type)
+						  nil processing-type)
 				(buffer-substring-no-properties
 				 (point-min) (point-max)))))
 		    (if (not (string-match "file:\\([^]]*\\)" link))

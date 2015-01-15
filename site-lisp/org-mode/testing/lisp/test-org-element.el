@@ -555,10 +555,6 @@ Some other text
   (should
    (org-test-with-temp-text ":TEST:\nText\n:END:"
      (org-element-map (org-element-parse-buffer) 'drawer 'identity)))
-  ;; Do not mix regular drawers and property drawers.
-  (should-not
-   (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:"
-     (org-element-map (org-element-parse-buffer) 'drawer 'identity nil t)))
   ;; Ignore incomplete drawer.
   (should-not
    (org-test-with-temp-text ":TEST:"
@@ -1151,6 +1147,13 @@ Contents
       (should
        (org-test-with-temp-text "
 *************** Task
+DEADLINE: <2012-03-29 thu.>
+*************** END"
+	 (forward-line)
+	 (org-element-property :deadline (org-element-at-point))))
+      (should-not
+       (org-test-with-temp-text "
+*************** Task
 DEADLINE: <2012-03-29 thu.>"
 	 (forward-line)
 	 (org-element-property :deadline (org-element-at-point))))
@@ -1604,14 +1607,15 @@ e^{i\\pi}+1=0
   ;; Standard test.
   (should
    (equal '("abc" "value")
-	  (org-test-with-temp-text ":PROPERTIES:\n<point>:abc: value\n:END:"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n<point>:abc: value\n:END:"
 	    (let ((element (org-element-at-point)))
 	      (list (org-element-property :key element)
 		    (org-element-property :value element))))))
   ;; Value should be trimmed.
   (should
    (equal "value"
-	  (org-test-with-temp-text ":PROPERTIES:\n<point>:abc: value  \n:END:"
+	  (org-test-with-temp-text
+	      "* H\n:PROPERTIES:\n<point>:abc: value  \n:END:"
 	    (org-element-property :value (org-element-at-point)))))
   ;; A node property requires to be wrapped within a property drawer.
   (should-not
@@ -1621,20 +1625,11 @@ e^{i\\pi}+1=0
   ;; Accept empty properties.
   (should
    (equal '(("foo" "value") ("bar" ""))
-	  (org-test-with-temp-text ":PROPERTIES:\n:foo: value\n:bar:\n:END:"
+	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:foo: value\n:bar:\n:END:"
 	    (org-element-map (org-element-parse-buffer) 'node-property
 	      (lambda (p)
 		(list (org-element-property :key p)
-		      (org-element-property :value p)))))))
-  ;; Ignore all non-property lines in property drawers.
-  (should
-   (equal
-    '(("foo" "value"))
-    (org-test-with-temp-text ":PROPERTIES:\nWrong1\n:foo: value\nWrong2\n:END:"
-      (org-element-map (org-element-parse-buffer) 'node-property
-	(lambda (p)
-	  (list (org-element-property :key p)
-		(org-element-property :value p))))))))
+		      (org-element-property :value p))))))))
 
 
 ;;;; Paragraph
@@ -1760,22 +1755,42 @@ Outside list"
   "Test `property-drawer' parser."
   ;; Standard test.
   (should
-   (org-test-with-temp-text ":PROPERTIES:\n:prop: value\n:END:"
-     (org-element-map
-	 (org-element-parse-buffer) 'property-drawer 'identity nil t)))
-  ;; Do not mix property drawers and regular drawers.
-  (should-not
-   (org-test-with-temp-text ":TEST:\n:prop: value\n:END:"
-     (org-element-map
-	 (org-element-parse-buffer) 'property-drawer 'identity nil t)))
-  ;; Ignore incomplete drawer.
-  (should-not
-   (org-test-with-temp-text ":PROPERTIES:\n:prop: value"
-     (org-element-map
-	 (org-element-parse-buffer) 'property-drawer 'identity nil t)))
-    ;; Handle non-empty blank line at the end of buffer.
+   (eq 'property-drawer
+       (org-test-with-temp-text "* H\n<point>:PROPERTIES:\n:prop: value\n:END:"
+	 (org-element-type (org-element-at-point)))))
   (should
-   (org-test-with-temp-text ":PROPERTIES:\n:END:\n "
+   (eq 'property-drawer
+       (org-test-with-temp-text
+	   "* H\nDEADLINE: <2014-03-04 tue.>\n<point>:PROPERTIES:\n:prop: value\n:END:"
+	 (org-element-type (org-element-at-point)))))
+  ;; Allow properties without value and no property at all.
+  (should
+   (eq 'property-drawer
+       (org-test-with-temp-text "* H\n<point>:PROPERTIES:\n:prop:\n:END:"
+	 (org-element-type (org-element-at-point)))))
+  (should
+   (eq 'property-drawer
+       (org-test-with-temp-text "* H\n<point>:PROPERTIES:\n:END:"
+	 (org-element-type (org-element-at-point)))))
+  ;; Ignore incomplete drawer, drawer at a wrong location or with
+  ;; wrong contents.
+  (should-not
+   (eq 'property-drawer
+       (org-test-with-temp-text "* H\n<point>:PROPERTIES:\n:prop: value"
+	 (org-element-type (org-element-at-point)))))
+  (should-not
+   (eq 'property-drawer
+       (org-test-with-temp-text
+	   "* H\nParagraph\n<point>:PROPERTIES:\n:prop: value\n:END:"
+	 (org-element-type (org-element-at-point)))))
+  (should-not
+   (eq 'property-drawer
+       (org-test-with-temp-text
+	   "* H\nParagraph\n<point>:PROPERTIES:\nparagraph\n:END:"
+	 (org-element-type (org-element-at-point)))))
+  ;; Handle non-empty blank line at the end of buffer.
+  (should
+   (org-test-with-temp-text "* H\n<point>:PROPERTIES:\n:END:\n "
      (= (org-element-property :end (org-element-at-point)) (point-max)))))
 
 
@@ -2550,26 +2565,29 @@ DEADLINE: <2012-03-29 thu.> SCHEDULED: <2012-03-29 thu.> CLOSED: [2012-03-29 thu
   "Test property drawer interpreter."
   (should (equal (let ((org-property-format "%-10s %s"))
 		   (org-test-parse-and-interpret
-		    ":PROPERTIES:\n:prop: value\n:END:"))
-		 ":PROPERTIES:\n:prop:     value\n:END:\n")))
+		    "* H\n:PROPERTIES:\n:prop: value\n:END:"))
+		 "* H\n:PROPERTIES:\n:prop:     value\n:END:\n")))
 
 (ert-deftest test-org-element/src-block-interpreter ()
   "Test src block interpreter."
   ;; With arguments.
   (should
-   (equal (let ((org-edit-src-content-indentation 2))
+   (equal (let ((org-edit-src-content-indentation 2)
+		(org-src-preserve-indentation nil))
 	    (org-test-parse-and-interpret
 	     "#+BEGIN_SRC emacs-lisp :results silent\n(+ 1 1)\n#+END_SRC"))
 	  "#+BEGIN_SRC emacs-lisp :results silent\n  (+ 1 1)\n#+END_SRC\n"))
   ;; With switches.
   (should
-   (equal (let ((org-edit-src-content-indentation 2))
+   (equal (let ((org-edit-src-content-indentation 2)
+		(org-src-preserve-indentation nil))
 	    (org-test-parse-and-interpret
 	     "#+BEGIN_SRC emacs-lisp -n -k\n(+ 1 1)\n#+END_SRC"))
 	  "#+BEGIN_SRC emacs-lisp -n -k\n  (+ 1 1)\n#+END_SRC\n"))
   ;; Preserve code escaping.
   (should
-   (equal (let ((org-edit-src-content-indentation 2))
+   (equal (let ((org-edit-src-content-indentation 2)
+		(org-src-preserve-indentation nil))
 	    (org-test-parse-and-interpret
 	     "#+BEGIN_SRC org\n,* Headline\n ,#+keyword\nText #+END_SRC"))
 	  "#+BEGIN_SRC org\n,* Headline\n ,#+keyword\nText #+END_SRC\n"))
@@ -2591,7 +2609,8 @@ DEADLINE: <2012-03-29 thu.> SCHEDULED: <2012-03-29 thu.> CLOSED: [2012-03-29 thu
   (should
    (equal
     "#+BEGIN_SRC emacs-lisp\n  Test\n#+END_SRC\n"
-    (let ((org-edit-src-content-indentation 2))
+    (let ((org-edit-src-content-indentation 2)
+	  (org-src-preserve-indentation nil))
       (org-element-interpret-data
        '(src-block (:language "emacs-lisp" :value "Test")))))))
 
@@ -3179,9 +3198,16 @@ Text
   ;; Find objects in document keywords.
   (should
    (eq 'macro
-       (org-test-with-temp-text "#+DATE: {{{macro}}}"
-	 (progn (search-forward "{")
-		(org-element-type (org-element-context))))))
+       (org-test-with-temp-text "#+DATE: <point>{{{macro}}}"
+	 (org-element-type (org-element-context)))))
+  (should-not
+   (eq 'macro
+       (org-test-with-temp-text "#+DATE: {{{macro}}}\n<point>"
+	 (org-element-type (org-element-context)))))
+  (should-not
+   (eq 'macro
+       (org-test-with-temp-text "#+RANDOM_KEYWORD: <point>{{{macro}}}"
+	 (org-element-type (org-element-context)))))
   ;; Do not find objects in table rules.
   (should
    (eq 'table-row
@@ -3243,6 +3269,52 @@ Text
    (eq 'link
        (org-test-with-temp-text "[fn::[[<point>http://orgmode.org]]]"
 	 (org-element-type (org-element-context))))))
+
+
+
+;;; Test Tools
+
+(ert-deftest test-org-element/lineage ()
+  "Test `org-element-lineage' specifications."
+  ;; Regular tests.  When applied to an element or object returned by
+  ;; `org-element-at-point' or `org-element-context', the list is
+  ;; limited to the current section.
+  (should
+   (equal '(paragraph center-block)
+	  (org-test-with-temp-text
+	      "* H1\n** H2\n#+BEGIN_CENTER\n*bold<point>*\n#+END_CENTER"
+	    (mapcar #'car (org-element-lineage (org-element-context))))))
+  (should
+   (equal '(paragraph center-block section headline headline org-data)
+	  (org-test-with-temp-text
+	      "* H1\n** H2\n#+BEGIN_CENTER\n*bold<point>*\n#+END_CENTER"
+	    (mapcar #'car
+		    (org-element-lineage
+		     (org-element-map (org-element-parse-buffer) 'bold
+		       #'identity nil t))))))
+  ;; Test TYPES optional argument.
+  (should
+   (eq 'center-block
+       (org-test-with-temp-text
+	   "* H1\n** H2\n#+BEGIN_CENTER\n*bold<point>*\n#+END_CENTER"
+	 (org-element-type
+	  (org-element-lineage (org-element-context) '(center-block))))))
+  (should-not
+   (org-test-with-temp-text
+       "* H1\n** H2\n#+BEGIN_CENTER\n*bold<point>*\n#+END_CENTER"
+     (org-element-lineage (org-element-context) '(example-block))))
+  ;; Test WITH-SELF optional argument.
+  (should
+   (equal '(bold paragraph center-block)
+	  (org-test-with-temp-text
+	      "* H1\n** H2\n#+BEGIN_CENTER\n*bold<point>*\n#+END_CENTER"
+	    (mapcar #'car (org-element-lineage (org-element-context) nil t)))))
+  ;; When TYPES and WITH-SELF are provided, the latter is also checked
+  ;; against the former.
+  (should
+   (org-test-with-temp-text
+       "* H1\n** H2\n#+BEGIN_CENTER\n*bold<point>*\n#+END_CENTER"
+     (org-element-lineage (org-element-context) '(bold) t))))
 
 
 

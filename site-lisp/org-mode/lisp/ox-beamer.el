@@ -337,12 +337,10 @@ INFO is a plist used as a communication channel."
    ;; 1. Look for "frame" environment in parents, starting from the
    ;;    farthest.
    (catch 'exit
-     (mapc (lambda (parent)
-	     (let ((env (org-element-property :BEAMER_ENV parent)))
-	       (when (and env (member-ignore-case env '("frame" "fullframe")))
-		 (throw 'exit (org-export-get-relative-level parent info)))))
-	   (nreverse (org-export-get-genealogy headline)))
-     nil)
+     (dolist (parent (nreverse (org-element-lineage headline)))
+       (let ((env (org-element-property :BEAMER_ENV parent)))
+	 (when (and env (member-ignore-case env '("frame" "fullframe")))
+	   (throw 'exit (org-export-get-relative-level parent info))))))
    ;; 2. Look for "frame" environment in HEADLINE.
    (let ((env (org-element-property :BEAMER_ENV headline)))
      (and env (member-ignore-case env '("frame" "fullframe"))
@@ -427,9 +425,12 @@ used as a communication channel."
 				(match-string 1 beamer-opt))
 			   ","))
 		     ;; Provide an automatic label for the frame
-		     ;; unless the user specified one.
+		     ;; unless the user specified one.  Also refrain
+		     ;; from labeling `allowframebreaks' frames; this
+		     ;; is not allowed by beamer.
 		     (unless (and beamer-opt
-				  (string-match "\\(^\\|,\\)label=" beamer-opt))
+				  (or (string-match "\\(^\\|,\\)label=" beamer-opt)
+				      (string-match "allowframebreaks" beamer-opt)))
 		       (list
 			(format "label=%s"
 				(org-beamer--get-label headline info)))))))
@@ -688,8 +689,10 @@ CONTENTS is the description part of the link.  INFO is a plist
 used as a communication channel."
   (let ((type (org-element-property :type link))
 	(path (org-element-property :path link)))
-    ;; Use \hyperlink command for all internal links.
     (cond
+     ;; Link type is handled by a special function.
+     ((org-export-custom-protocol-maybe link contents info))
+     ;; Use \hyperlink command for all internal links.
      ((equal type "radio")
       (let ((destination (org-export-resolve-radio-link link info)))
 	(if (not destination) contents
@@ -782,7 +785,7 @@ contextual information."
   "Transcode a TARGET object into Beamer code.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
-  (format "\\hypertarget{%s}{}"
+  (format "\\label{%s}"
 	  (org-export-solidify-link-text (org-element-property :value target))))
 
 

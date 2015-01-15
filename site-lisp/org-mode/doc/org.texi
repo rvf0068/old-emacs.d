@@ -462,8 +462,7 @@ Dates and times
 * Deadlines and scheduling::    Planning your work
 * Clocking work time::          Tracking how long you spend on a task
 * Effort estimates::            Planning work effort in advance
-* Relative timer::              Notes with a running timer
-* Countdown timer::             Starting a countdown timer for a task
+* Timers::                      Notes with a running timer
 
 Creating timestamps
 
@@ -1196,7 +1195,7 @@ start with one or more stars, on the left margin@footnote{See the variables
 @code{org-special-ctrl-a/e}, @code{org-special-ctrl-k}, and
 @code{org-ctrl-k-protect-subtree} to configure special behavior of @kbd{C-a},
 @kbd{C-e}, and @kbd{C-k} in headlines.} @footnote{Clocking only works with
-headings indented less then 30 stars.}.  For example:
+headings indented less than 30 stars.}.  For example:
 
 @example
 * Top level headline
@@ -2150,6 +2149,9 @@ table.  But it is easier just to start typing, like
 @orgcmd{C-c C-c,org-table-align}
 Re-align the table and don't move to another field.
 @c
+@orgcmd{C-c SPC,org-table-blank-field}
+Blank the field at point.
+@c
 @orgcmd{<TAB>,org-table-next-field}
 Re-align the table, move to the next field.  Creates a new row if
 necessary.
@@ -2203,8 +2205,10 @@ point is before the first column, you will be prompted for the sorting
 column.  If there is an active region, the mark specifies the first line
 and the sorting column, while point should be in the last line to be
 included into the sorting.  The command prompts for the sorting type
-(alphabetically, numerically, or by time).  When called with a prefix
-argument, alphabetic sorting will be case-sensitive.
+(alphabetically, numerically, or by time).  You can sort in normal or
+reverse order.  You can also supply your own key extraction and comparison
+functions.  When called with a prefix argument, alphabetic sorting will be
+case-sensitive.
 
 @tsubheading{Regions}
 @orgcmd{C-c C-x M-w,org-table-copy-region}
@@ -3575,7 +3579,7 @@ gnus:group                                @r{Gnus group link}
 gnus:group#id                             @r{Gnus article link}
 bbdb:R.*Stallman                          @r{BBDB link (with regexp)}
 irc:/irc.com/#emacs/bob                   @r{IRC link}
-info:org#External links                   @r{Info node link}
+info:org#External links                   @r{Info node or index link}
 shell:ls *.org                            @r{A shell command}
 elisp:org-agenda                          @r{Interactive Elisp command}
 elisp:(find-file-other-frame "Elisp.org") @r{Elisp form to evaluate}
@@ -4244,11 +4248,10 @@ unique keys across both sets of keywords.}
 @cindex #+SEQ_TODO
 
 It can be very useful to use different aspects of the TODO mechanism in
-different files.  For file-local settings, you need to add special lines
-to the file which set the keywords and interpretation for that file
-only.  For example, to set one of the two examples discussed above, you
-need one of the following lines, starting in column zero anywhere in the
-file:
+different files.  For file-local settings, you need to add special lines to
+the file which set the keywords and interpretation for that file only.  For
+example, to set one of the two examples discussed above, you need one of the
+following lines anywhere in the file:
 
 @example
 #+TODO: TODO FEEDBACK VERIFY | DONE CANCELED
@@ -4314,6 +4317,7 @@ foreground or a background color.
 @subsection TODO dependencies
 @cindex TODO dependencies
 @cindex dependencies, of TODO states
+@cindex TODO dependencies, NOBLOCKING
 
 @vindex org-enforce-todo-dependencies
 @cindex property, ORDERED
@@ -4340,6 +4344,16 @@ example:
 ** TODO a
 ** TODO b, needs to wait for (a)
 ** TODO c, needs to wait for (a) and (b)
+@end example
+
+You can ensure an entry is never blocked by using the @code{NOBLOCKING}
+property:
+
+@example
+* This entry is never blocked
+  :PROPERTIES:
+  :NOBLOCKING: t
+  :END:
 @end example
 
 @table @kbd
@@ -4545,6 +4559,10 @@ actual habit with some history:
 @example
 ** TODO Shave
    SCHEDULED: <2009-10-17 Sat .+2d/4d>
+   :PROPERTIES:
+   :STYLE:    habit
+   :LAST_REPEAT: [2009-10-19 Mon 00:36]
+   :END:
    - State "DONE"       from "TODO"       [2009-10-15 Thu]
    - State "DONE"       from "TODO"       [2009-10-12 Mon]
    - State "DONE"       from "TODO"       [2009-10-10 Sat]
@@ -4555,10 +4573,6 @@ actual habit with some history:
    - State "DONE"       from "TODO"       [2009-09-19 Sat]
    - State "DONE"       from "TODO"       [2009-09-16 Wed]
    - State "DONE"       from "TODO"       [2009-09-12 Sat]
-   :PROPERTIES:
-   :STYLE:    habit
-   :LAST_REPEAT: [2009-10-19 Mon 00:36]
-   :END:
 @end example
 
 What this habit says is: I want to shave at most every 2 days (given by the
@@ -5207,10 +5221,12 @@ Properties can be conveniently edited and viewed in column view
 @cindex drawer, for properties
 
 Properties are key-value pairs.  When they are associated with a single entry
-or with a tree they need to be inserted into a special
-drawer (@pxref{Drawers}) with the name @code{PROPERTIES}.  Each property
-is specified on a single line, with the key (surrounded by colons)
-first, and the value after it.  Here is an example:
+or with a tree they need to be inserted into a special drawer
+(@pxref{Drawers}) with the name @code{PROPERTIES}, which has to be located
+right below a headline, and its planning line (@pxref{Deadlines and
+scheduling}) when applicable.  Each property is specified on a single line,
+with the key (surrounded by colons) first, and the value after it.  Keys are
+case-insensitives.  Here is an example:
 
 @example
 * CD collection
@@ -5329,49 +5345,46 @@ nearest column format definition.
 
 Special properties provide an alternative access method to Org mode features,
 like the TODO state or the priority of an entry, discussed in the previous
-chapters.  This interface exists so that you can include these states in a
-column view (@pxref{Column view}), or to use them in queries.  The following
-property names are special and (except for @code{:CATEGORY:}) should not be
-used as keys in the properties drawer:
+chapters.  This interface exists so that you can include these states in
+a column view (@pxref{Column view}), or to use them in queries.  The
+following property names are special and (except for @code{:CATEGORY:})
+should not be used as keys in the properties drawer:
 
-@cindex property, special, ID
-@cindex property, special, TODO
-@cindex property, special, TAGS
 @cindex property, special, ALLTAGS
+@cindex property, special, BLOCKED
 @cindex property, special, CATEGORY
-@cindex property, special, PRIORITY
-@cindex property, special, DEADLINE
-@cindex property, special, SCHEDULED
-@cindex property, special, CLOSED
-@cindex property, special, TIMESTAMP
-@cindex property, special, TIMESTAMP_IA
 @cindex property, special, CLOCKSUM
 @cindex property, special, CLOCKSUM_T
-@cindex property, special, BLOCKED
-@c guessing that ITEM is needed in this area; also, should this list be sorted?
-@cindex property, special, ITEM
+@cindex property, special, CLOSED
+@cindex property, special, DEADLINE
 @cindex property, special, FILE
+@cindex property, special, ITEM
+@cindex property, special, PRIORITY
+@cindex property, special, SCHEDULED
+@cindex property, special, TAGS
+@cindex property, special, TIMESTAMP
+@cindex property, special, TIMESTAMP_IA
+@cindex property, special, TODO
 @example
-ID           @r{A globally unique ID used for synchronization during}
-             @r{iCalendar or MobileOrg export.}
-TODO         @r{The TODO keyword of the entry.}
-TAGS         @r{The tags defined directly in the headline.}
 ALLTAGS      @r{All tags, including inherited ones.}
+BLOCKED      @r{"t" if task is currently blocked by children or siblings.}
+NOBLOCKING   @r{"t" if blocking is disabled for this task.}
 CATEGORY     @r{The category of an entry.}
-PRIORITY     @r{The priority of the entry, a string with a single letter.}
-DEADLINE     @r{The deadline time string, without the angular brackets.}
-SCHEDULED    @r{The scheduling timestamp, without the angular brackets.}
-CLOSED       @r{When was this entry closed?}
-TIMESTAMP    @r{The first keyword-less timestamp in the entry.}
-TIMESTAMP_IA @r{The first inactive timestamp in the entry.}
 CLOCKSUM     @r{The sum of CLOCK intervals in the subtree.  @code{org-clock-sum}}
              @r{must be run first to compute the values in the current buffer.}
 CLOCKSUM_T   @r{The sum of CLOCK intervals in the subtree for today.}
              @r{@code{org-clock-sum-today} must be run first to compute the}
              @r{values in the current buffer.}
-BLOCKED      @r{"t" if task is currently blocked by children or siblings}
-ITEM         @r{The headline of the entry.}
+CLOSED       @r{When was this entry closed?}
+DEADLINE     @r{The deadline time string, without the angular brackets.}
 FILE         @r{The filename the entry is located in.}
+ITEM         @r{The headline of the entry, with stars.}
+PRIORITY     @r{The priority of the entry, a string with a single letter.}
+SCHEDULED    @r{The scheduling timestamp, without the angular brackets.}
+TAGS         @r{The tags defined directly in the headline.}
+TIMESTAMP    @r{The first keyword-less timestamp in the entry.}
+TIMESTAMP_IA @r{The first inactive timestamp in the entry.}
+TODO         @r{The TODO keyword of the entry.}
 @end example
 
 @node Property searches
@@ -5558,7 +5571,7 @@ optional.  The individual parts have the following meaning:
                 @{@@min@}    @r{Minimum age (in days/hours/mins/seconds).}
                 @{@@max@}    @r{Maximum age (in days/hours/mins/seconds).}
                 @{@@mean@}   @r{Arithmetic mean of ages (in days/hours/mins/seconds).}
-                @{est+@}    @r{Add low-high estimates.}
+                @{est+@}    @r{Add @samp{low-high} estimates.}
 @end example
 
 @noindent
@@ -5567,11 +5580,12 @@ include.  Subsequent columns referencing the same property will all display the
 same summary information.
 
 The @code{est+} summary type requires further explanation.  It is used for
-combining estimates, expressed as low-high ranges.  For example, instead
-of estimating a particular task will take 5 days, you might estimate it as
-5--6 days if you're fairly confident you know how much work is required, or
-1--10 days if you don't really know what needs to be done.  Both ranges
-average at 5.5 days, but the first represents a more predictable delivery.
+combining estimates, expressed as @samp{low-high} ranges or plain numbers.
+For example, instead of estimating a particular task will take 5 days, you
+might estimate it as 5--6 days if you're fairly confident you know how much
+work is required, or 1--10 days if you don't really know what needs to be
+done.  Both ranges average at 5.5 days, but the first represents a more
+predictable delivery.
 
 When combining a set of such estimates, simply adding the lows and highs
 produces an unrealistically wide result.  Instead, @code{est+} adds the
@@ -5778,8 +5792,7 @@ is used in a much wider sense.
 * Deadlines and scheduling::    Planning your work
 * Clocking work time::          Tracking how long you spend on a task
 * Effort estimates::            Planning work effort in advance
-* Relative timer::              Notes with a running timer
-* Countdown timer::             Starting a countdown timer for a task
+* Timers::                      Notes with a running timer
 @end menu
 
 
@@ -6239,14 +6252,6 @@ date from the entry.  Depending on the variable
 keywords @code{logreschedule}, @code{lognotereschedule}, and
 @code{nologreschedule}}, a note will be taken when changing an existing
 scheduling time.
-@c
-@orgcmd{C-c C-x C-k,org-mark-entry-for-agenda-action}
-@kindex k a
-@kindex k s
-Mark the current entry for agenda action.  After you have marked the entry
-like this, you can open the agenda or the calendar to find an appropriate
-date.  With the cursor on the selected date, press @kbd{k s} or @kbd{k d} to
-schedule the marked item.
 @c
 @orgcmd{C-c / d,org-check-deadlines}
 @cindex sparse tree, for deadlines
@@ -6733,15 +6738,13 @@ with @code{org-clock-in} and two @kbd{C-u C-u} with @code{org-clock-in-last}.
 @cindex effort estimates
 
 @cindex property, Effort
-@vindex org-effort-property
 If you want to plan your work in a very detailed way, or if you need to
 produce offers with quotations of the estimated work effort, you may want to
 assign effort estimates to entries.  If you are also clocking your work, you
-may later want to compare the planned effort with the actual working time, a
-great way to improve planning estimates.  Effort estimates are stored in a
-special property @samp{Effort}@footnote{You may change the property being
-used with the variable @code{org-effort-property}.}.  You can set the effort
-for an entry with the following commands:
+may later want to compare the planned effort with the actual working time,
+a great way to improve planning estimates.  Effort estimates are stored in
+a special property @code{EFFORT}.  You can set the effort for an entry with
+the following commands:
 
 @table @kbd
 @orgcmd{C-c C-x e,org-set-effort}
@@ -6791,59 +6794,55 @@ with the @kbd{/} key in the agenda (@pxref{Agenda commands}).  If you have
 these estimates defined consistently, two or three key presses will narrow
 down the list to stuff that fits into an available time slot.
 
-@node Relative timer
-@section Taking notes with a relative timer
+@node Timers
+@section Taking notes with a timer
 @cindex relative timer
+@cindex countdown timer
+@kindex ;
 
-When taking notes during, for example, a meeting or a video viewing, it can
-be useful to have access to times relative to a starting time.  Org provides
-such a relative timer and make it easy to create timed notes.
+Org provides provides two types of timers.  There is a relative timer that
+counts up, which can be useful when taking notes during, for example, a
+meeting or a video viewing.  There is also a countdown timer.
+
+The relative and countdown are started with separate commands.
+
+@table @kbd
+@orgcmd{C-c C-x 0,org-timer-start}
+Start or reset the relative timer.  By default, the timer is set to 0.  When
+called with a @kbd{C-u} prefix, prompt the user for a starting offset.  If
+there is a timer string at point, this is taken as the default, providing a
+convenient way to restart taking notes after a break in the process.  When
+called with a double prefix argument @kbd{C-u C-u}, change all timer strings
+in the active region by a certain amount.  This can be used to fix timer
+strings if the timer was not started at exactly the right moment.
+@orgcmd{C-c C-x ;,org-timer-set-timer}
+Start a countdown timer.  The user is prompted for a duration.
+@code{org-timer-default-timer} sets the default countdown value.  Giving a
+prefix numeric argument overrides this default value.  This command is
+available as @kbd{;} in agenda buffers.
+@end table
+
+Once started, relative and countdown timers are controlled with the same
+commands.
 
 @table @kbd
 @orgcmd{C-c C-x .,org-timer}
-Insert a relative time into the buffer.  The first time you use this, the
-timer will be started.  When called with a prefix argument, the timer is
-restarted.
+Insert the value of the current relative or countdown timer into the buffer.
+If no timer is running, the relative timer will be started.  When called with
+a prefix argument, the relative timer is restarted.
 @orgcmd{C-c C-x -,org-timer-item}
-Insert a description list item with the current relative time.  With a prefix
-argument, first reset the timer to 0.
+Insert a description list item with the value of the current relative or
+countdown timer.  With a prefix argument, first reset the relative timer to
+0.
 @orgcmd{M-@key{RET},org-insert-heading}
 Once the timer list is started, you can also use @kbd{M-@key{RET}} to insert
 new timer items.
-@c for key sequences with a comma, command name macros fail :(
-@kindex C-c C-x ,
-@item C-c C-x ,
-Pause the timer, or continue it if it is already paused
-(@command{org-timer-pause-or-continue}).
-@c removed the sentence because it is redundant to the following item
-@kindex C-u C-c C-x ,
-@item C-u C-c C-x ,
+@orgcmd{C-c C-x \,,org-timer-pause-or-continue}
+Pause the timer, or continue it if it is already paused.
+@orgcmd{C-c C-x _,org-timer-stop}
 Stop the timer.  After this, you can only start a new timer, not continue the
 old one.  This command also removes the timer from the mode line.
-@orgcmd{C-c C-x 0,org-timer-start}
-Reset the timer without inserting anything into the buffer.  By default, the
-timer is reset to 0.  When called with a @kbd{C-u} prefix, reset the timer to
-specific starting offset.  The user is prompted for the offset, with a
-default taken from a timer string at point, if any, So this can be used to
-restart taking notes after a break in the process.  When called with a double
-prefix argument @kbd{C-u C-u}, change all timer strings in the active region
-by a certain amount.  This can be used to fix timer strings if the timer was
-not started at exactly the right moment.
 @end table
-
-@node Countdown timer
-@section Countdown timer
-@cindex Countdown timer
-@kindex C-c C-x ;
-@kindex ;
-
-Calling @code{org-timer-set-timer} from an Org mode buffer runs a countdown
-timer.  Use @kbd{;} from agenda buffers, @key{C-c C-x ;} everywhere else.
-
-@code{org-timer-set-timer} prompts the user for a duration and displays a
-countdown timer in the modeline.  @code{org-timer-default-timer} sets the
-default countdown value.  Giving a prefix numeric argument overrides this
-default value.
 
 @node Capture - Refile - Archive
 @chapter Capture - Refile - Archive
@@ -7516,6 +7515,10 @@ the archive.  To do this, each subtree is checked for open TODO entries.
 If none are found, the command offers to move it to the archive
 location.  If the cursor is @emph{not} on a headline when this command
 is invoked, the level 1 trees will be checked.
+@orgkey{C-u C-u C-c C-x C-s}
+As above, but check subtree for timestamps instead of TODO entries.  The
+command will offer to archive the subtree if it @emph{does} contain a
+timestamp, and that timestamp is in the past.
 @end table
 
 @cindex archive locations
@@ -8119,12 +8122,10 @@ time as matching tags.  The properties may be real properties, or special
 properties that represent other metadata (@pxref{Special properties}).  For
 example, the ``property'' @code{TODO} represents the TODO keyword of the
 entry and the ``property'' @code{PRIORITY} represents the PRIORITY keyword of
-the entry.  The ITEM special property cannot currently be used in tags/property
-searches@footnote{But @pxref{x-agenda-skip-entry-regexp,
-,skipping entries based on regexp}.}.
+the entry.
 
-In addition to the @pxref{Special properties}, one other ``property'' can
-also be used. @code{LEVEL} represents the level of an entry.  So a search
+In addition to the @ref{Special properties}, one other ``property'' can also
+be used. @code{LEVEL} represents the level of an entry.  So a search
 @samp{+LEVEL=3+boss-TODO="DONE"} lists all level three headlines that have
 the tag @samp{boss} and are @emph{not} marked with the TODO keyword DONE@.
 In buffers with @code{org-odd-levels-only} set, @samp{LEVEL} does not count
@@ -8181,11 +8182,6 @@ not @samp{:boss:}, which also have a priority value @samp{A}, a
 property that is numerically smaller than 2, a @samp{:With:} property that is
 matched by the regular expression @samp{Sarah\|Denny}, and that are scheduled
 on or after October 11, 2008.
-
-Accessing TODO, LEVEL, and CATEGORY during a search is fast.  Accessing any
-other properties will slow down the search.  However, once you have paid the
-price by accessing one property, testing additional properties is cheap
-again.
 
 You can configure Org mode to use property inheritance during a search, but
 beware that this can slow down searches considerably.  See @ref{Property
@@ -9689,8 +9685,8 @@ of contents entirely, by configuring the variable @code{org-export-with-toc},
 or on a per-file basis with a line like
 
 @example
-#+OPTIONS: toc:2          (only to two levels in TOC)
-#+OPTIONS: toc:nil        (no default TOC at all)
+#+OPTIONS: toc:2          @r{only inlcude two levels in TOC}
+#+OPTIONS: toc:nil        @r{no default TOC at all}
 @end example
 
 If you would like to move the table of contents to a different location, you
@@ -9699,18 +9695,29 @@ should turn off the default table using @code{org-export-with-toc} or
 location(s).
 
 @example
-#+OPTIONS: toc:nil        (no default TOC)
+#+OPTIONS: toc:nil        @r{no default TOC}
 ...
-#+TOC: headlines 2        (insert TOC here, with two headline levels)
+#+TOC: headlines 2        @r{insert TOC here, with two headline levels}
 @end example
 
-Multiple @code{#+TOC: headline} lines are allowed.  The same @code{TOC}
-keyword can also generate a list of all tables (resp.@: all listings) with a
-caption in the buffer.
+Moreover, if you append @samp{local} parameter, the table contains only
+entries for the children of the current section@footnote{For @LaTeX{} export,
+this feature requires the @code{titletoc} package.  Note that @code{titletoc}
+must be loaded @emph{before} @code{hyperref}.  Thus, you may have to
+customize @code{org-latex-default-packages-alist}.}.  In this case, any depth
+parameter becomes relative to the current level.
 
 @example
-#+TOC: listings           (build a list of listings)
-#+TOC: tables             (build a list of tables)
+* Section
+#+TOC: headlines 1 local  @r{insert local TOC, with direct children only}
+@end example
+
+The same @code{TOC} keyword can also generate a list of all tables (resp.@:
+all listings) with a caption in the document.
+
+@example
+#+TOC: listings           @r{build a list of listings}
+#+TOC: tables             @r{build a list of tables}
 @end example
 
 @cindex property, ALT_TITLE
@@ -10180,7 +10187,7 @@ Angles are written as Greek letters \alpha, \beta and \gamma.
 @vindex org-entities
 During export, these symbols will be transformed into the native format of
 the exporter back-end.  Strings like @code{\alpha} will be exported as
-@code{&alpha;} in the HTML output, and as @code{$\alpha$} in the @LaTeX{}
+@code{&alpha;} in the HTML output, and as @code{\(\alpha\)} in the @LaTeX{}
 output.  Similarly, @code{\nbsp} will become @code{&nbsp;} in HTML and
 @code{~} in @LaTeX{}.  If you need such a symbol inside a word, terminate it
 like this: @samp{\Aacute@{@}stor}.
@@ -10259,8 +10266,8 @@ Environments of any kind@footnote{When @file{MathJax} is used, only the
 environments recognized by @file{MathJax} will be processed.  When
 @file{dvipng} program or @file{imagemagick} suite is used to create images,
 any @LaTeX{} environment will be handled.}.  The only requirement is that the
-@code{\begin} and @code{\end} statements appear on a new line, at the
-beginning of the line or after whitespaces only.
+@code{\begin} statement appears on a new line, at the beginning of the line
+or after whitespaces only.
 @item
 Text within the usual @LaTeX{} math delimiters.  To avoid conflicts with
 currency specifications, single @samp{$} characters are only recognized as
@@ -10682,7 +10689,7 @@ Toggle fixed-width sections
 Toggle inclusion of any time/date active/inactive stamps
 (@code{org-export-with-timestamps}).
 
-@item :
+@item \n:
 @vindex org-export-preserve-breaks
 Toggle line-break-preservation (@code{org-export-preserve-breaks}).
 
@@ -11321,15 +11328,17 @@ All lines between these markers are exported literally
 @cindex links, in HTML export
 @cindex internal links, in HTML export
 @cindex external links, in HTML export
+@vindex org-html-link-org-files-as-html
 Internal links (@pxref{Internal links}) will continue to work in HTML@.  This
 includes automatic links created by radio targets (@pxref{Radio
 targets}).  Links to external files will still work if the target file is on
 the same @i{relative} path as the published Org file.  Links to other
 @file{.org} files will be translated into HTML links under the assumption
 that an HTML version also exists of the linked file, at the same relative
-path.  @samp{id:} links can then be used to jump to specific entries across
-files.  For information related to linking files while publishing them to a
-publishing directory see @ref{Publishing links}.
+path; setting @code{org-html-link-org-files-as-html} to @code{nil} disables
+this translation.  @samp{id:} links can then be used to jump to specific
+entries across files.  For information related to linking files while
+publishing them to a publishing directory see @ref{Publishing links}.
 
 If you want to specify attributes for links, you can do so using a special
 @code{#+ATTR_HTML} line to define attributes that will be added to the
@@ -12842,7 +12851,7 @@ export the table that follows:
 @end lisp
 
 @example
-#+ATTR_ODT: :style "TableWithHeaderRowAndColumn"
+#+ATTR_ODT: :style TableWithHeaderRowAndColumn
 | Name  | Phone | Age |
 | Peter |  1234 |  17 |
 | Anna  |  4321 |  25 |
@@ -13129,7 +13138,7 @@ Copyright information is printed on the back of the title page.
 @cindex #+TEXINFO_DIR_CATEGORY
 @cindex #+TEXINFO_DIR_TITLE
 @cindex #+TEXINFO_DIR_DESC
-You may ultimately want to install your new Info file to your system.  You
+You may ultimately want to install your new Info file in your system.  You
 can write an appropriate entry in the top level directory specifying its
 category and title with, respectively, @code{#+TEXINFO_DIR_CATEGORY} and
 @code{#+TEXINFO_DIR_TITLE}.  Optionally, you can add a short description
@@ -13158,8 +13167,8 @@ keyword.  Export process defaults to @code{org-texinfo-default-class} when
 there is no such keyword in the document.
 
 If a headline's level has no associated structuring command, or is below
-a certain threshold @pxref{Export settings}, that headline becomes a list in
-Texinfo output.
+a certain threshold (@pxref{Export settings}), that headline becomes a list
+in Texinfo output.
 
 @cindex property, APPENDIX
 As an exception, a headline with a non-nil @code{:APPENDIX:} property becomes
@@ -17446,8 +17455,8 @@ back-end from scratch) and @file{ox-beamer.el} (for how to derive a new
 back-end from an existing one.
 
 When creating a new back-end from scratch, the basic idea is to set the name
-of the back-end (as a symbol) and an an alist of elements and export
-functions.  On top of this, you will need to set additional keywords like
+of the back-end (as a symbol) and an alist of elements and export functions.
+On top of this, you will need to set additional keywords like
 @code{:menu-entry} (to display the back-end in the export dispatcher),
 @code{:export-block} (to specify what blocks should not be exported by this
 back-end), and @code{:options-alist} (to let the user set export options that
@@ -18169,7 +18178,7 @@ Get all property keys in the current buffer.
 @end defun
 
 @defun org-insert-property-drawer
-Insert a property drawer for the current entry.  Also
+Insert a property drawer for the current entry.
 @end defun
 
 @defun org-entry-put-multivalued-property pom property &rest values

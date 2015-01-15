@@ -32,10 +32,11 @@
   (require 'cl))
 (require 'org)
 
-(declare-function calendar-absolute-from-iso "cal-iso" (&optional date))
+(declare-function calendar-iso-to-absolute "cal-iso" (&optional date))
 (declare-function notifications-notify "notifications" (&rest params))
 (declare-function org-pop-to-buffer-same-window "org-compat" (&optional buffer-or-name norecord label))
-(declare-function org-refresh-properties "org" (dprop tprop))
+(declare-function org-element-property "org-element" (property element))
+(declare-function org-element-type "org-element" (element))
 (declare-function org-table-goto-line "org-table" (n))
 (defvar org-time-stamp-formats)
 (defvar org-ts-what)
@@ -46,19 +47,26 @@
   :tag "Org Clock"
   :group 'org-progress)
 
-(defcustom org-clock-into-drawer org-log-into-drawer
-  "Should clocking info be wrapped into a drawer?
-When t, clocking info will always be inserted into a :LOGBOOK: drawer.
-If necessary, the drawer will be created.
-When nil, the drawer will not be created, but used when present.
-When an integer and the number of clocking entries in an item
-reaches or exceeds this number, a drawer will be created.
-When a string, it names the drawer to be used.
+(defcustom org-clock-into-drawer t
+  "Non-nil when clocking info should be wrapped into a drawer.
 
-The default for this variable is the value of `org-log-into-drawer',
-which see."
+When non-nil, clocking info will be inserted into the same drawer
+as log notes (see variable `org-log-into-drawer'), if it exists,
+or \"LOGBOOK\" otherwise.  If necessary, the drawer will be
+created.
+
+When an integer, the drawer is created only when the number of
+clocking entries in an item reaches or exceeds this value.
+
+When a string, it becomes the name of the drawer, ignoring the
+log notes drawer altogether.
+
+Do not check directly this variable in a Lisp program.  Call
+function `org-clock-into-drawer' instead."
   :group 'org-todo
   :group 'org-clock
+  :version "25.1"
+  :package-version '(Org . "8.3")
   :type '(choice
 	  (const :tag "Always" t)
 	  (const :tag "Only when drawer exists" nil)
@@ -67,22 +75,21 @@ which see."
 	  (string :tag "Into Drawer named...")))
 
 (defun org-clock-into-drawer ()
-  "Return the value of `org-clock-into-drawer', but let properties overrule.
+  "Value of `org-clock-into-drawer'. but let properties overrule.
+
 If the current entry has or inherits a CLOCK_INTO_DRAWER
-property, it will be used instead of the default value; otherwise
-if the current entry has or inherits a LOG_INTO_DRAWER property,
-it will be used instead of the default value.
-The default is the value of the customizable variable `org-clock-into-drawer',
-which see."
-  (let ((p (org-entry-get nil "CLOCK_INTO_DRAWER" 'inherit t))
-        (q (org-entry-get nil "LOG_INTO_DRAWER" 'inherit t)))
+property, it will be used instead of the default value.
+
+Return value is either a string, an integer, or nil."
+  (let ((p (org-entry-get nil "CLOCK_INTO_DRAWER" 'inherit t)))
     (cond ((equal p "nil") nil)
-          ((equal p "t") t)
-          (p)
-          ((equal q "nil") nil)
-          ((equal q "t") t)
-          (q)
-          (t org-clock-into-drawer))))
+	  ((equal p "t") (or (org-log-into-drawer) "LOGBOOK"))
+          ((org-string-nw-p p)
+	   (if (org-string-match-p "\\`[0-9]+\\'" p) (string-to-number p) p))
+	  ((org-string-nw-p org-clock-into-drawer))
+	  ((not org-clock-into-drawer) nil)
+	  ((org-log-into-drawer))
+	  (t "LOGBOOK"))))
 
 (defcustom org-clock-out-when-done t
   "When non-nil, clock will be stopped when the clocked entry is marked DONE.
@@ -908,7 +915,7 @@ If necessary, clock-out of the currently active clock."
 
 (defun org-clock-jump-to-current-clock (&optional effective-clock)
   (interactive)
-  (let ((org-clock-into-drawer (org-clock-into-drawer))
+  (let ((drawer (org-clock-into-drawer))
 	(clock (or effective-clock (cons org-clock-marker
 					 org-clock-start-time))))
     (unless (marker-buffer (car clock))
@@ -916,23 +923,18 @@ If necessary, clock-out of the currently active clock."
     (org-with-clock clock (org-clock-goto))
     (with-current-buffer (marker-buffer (car clock))
       (goto-char (car clock))
-      (if org-clock-into-drawer
-	  (let ((logbook
-		 (if (stringp org-clock-into-drawer)
-		     (concat ":" org-clock-into-drawer ":")
-		   ":LOGBOOK:")))
-	    (ignore-errors
-	      (outline-flag-region
-	       (save-excursion
-		 (outline-back-to-heading t)
-		 (search-forward logbook)
-		 (goto-char (match-beginning 0)))
-	       (save-excursion
-		 (outline-back-to-heading t)
-		 (search-forward logbook)
-		 (search-forward ":END:")
-		 (goto-char (match-end 0)))
-	       nil)))))))
+      (when drawer
+	(org-with-wide-buffer
+	 (let ((drawer-re (format "^[ \t]*:%s:[ \t]*$"
+				  (regexp-quote (or drawer "LOGBOOK"))))
+	       (beg (save-excursion (outline-back-to-heading t) (point))))
+	   (catch 'exit
+	     (while (re-search-backward drawer-re beg t)
+	       (let ((element (org-element-at-point)))
+		 (when (eq (org-element-type element) 'drawer)
+		   (when (> (org-element-property :end element) (car clock))
+		     (org-flag-drawer nil element))
+		   (throw 'exit nil)))))))))))
 
 (defun org-clock-resolve (clock &optional prompt-fn last-valid fail-quietly)
   "Resolve an open org-mode clock.
@@ -1421,87 +1423,100 @@ When FIND-UNCLOSED is non-nil, first check if there is an unclosed clock
 line and position cursor in that line."
   (org-back-to-heading t)
   (catch 'exit
-    (let* ((org-clock-into-drawer (org-clock-into-drawer))
-	   (beg (save-excursion
-		  (beginning-of-line 2)
-		  (or (bolp) (newline))
-		  (point)))
-	   (end (progn (outline-next-heading) (point)))
-	   (re (concat "^[ \t]*" org-clock-string))
-	   (cnt 0)
-	   (drawer (if (stringp org-clock-into-drawer)
-		       org-clock-into-drawer "LOGBOOK"))
-	   first last ind-last)
+    (let* ((beg (line-beginning-position 2))
+	   (end (save-excursion (outline-next-heading) (point)))
+	   (org-clock-into-drawer (org-clock-into-drawer))
+	   (drawer (cond
+		    ((not org-clock-into-drawer) nil)
+		    ((stringp org-clock-into-drawer) org-clock-into-drawer)
+		    (t "LOGBOOK"))))
+      ;; Look for a running clock if FIND-UNCLOSED in non-nil.
+      (when find-unclosed
+	(let ((open-clock-re
+	       (concat "^[ \t]*"
+		       org-clock-string
+		       " \\[\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}"
+		       " *\\sw+ +[012][0-9]:[0-5][0-9]\\)\\][ \t]*$")))
+	  (while (re-search-forward open-clock-re end t)
+	    (let ((element (org-element-at-point)))
+	      (when (and (eq (org-element-type element) 'clock)
+			 (eq (org-element-property :status element) 'running))
+		(beginning-of-line)
+		(throw 'exit t))))))
+      ;; Look for an existing clock drawer.
+      (when drawer
+	(goto-char beg)
+	(let ((drawer-re (concat "^[ \t]*:" (regexp-quote drawer) ":[ \t]*$")))
+	  (while (re-search-forward drawer-re end t)
+	    (let ((element (org-element-at-point)))
+	      (when (eq (org-element-type element) 'drawer)
+		(let ((cend (org-element-property :contents-end element)))
+		  (if (and (not org-log-states-order-reversed) cend)
+		      (goto-char cend)
+		    (forward-line))
+		  (throw 'exit t)))))))
       (goto-char beg)
-      (when (and find-unclosed
-		 (re-search-forward
-		  (concat "^[ \t]*" org-clock-string
-			  " \\[\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}"
-			  " *\\sw+ +[012][0-9]:[0-5][0-9]\\)\\][ \t]*$")
-		  end t))
-	(beginning-of-line 1)
-	(throw 'exit t))
-      (when (eobp) (newline) (setq end (max (point) end)))
-      (when (re-search-forward (concat "^[ \t]*:" drawer ":") end t)
-	;; we seem to have a CLOCK drawer, so go there.
-	(beginning-of-line 2)
-	(or org-log-states-order-reversed
-	    (and (re-search-forward org-property-end-re nil t)
-		 (goto-char (match-beginning 0))))
-	(throw 'exit t))
-      ;; Lets count the CLOCK lines
-      (goto-char beg)
-      (while (re-search-forward re end t)
-	(setq first (or first (match-beginning 0))
-	      last (match-beginning 0)
-	      cnt (1+ cnt)))
-      (when (and (integerp org-clock-into-drawer)
-		 last
-		 (>= (1+ cnt) org-clock-into-drawer))
-	;; Wrap current entries into a new drawer
-	(goto-char last)
-	(setq ind-last (org-get-indentation))
-	(beginning-of-line 2)
-	(if (and (>= (org-get-indentation) ind-last)
-		 (org-at-item-p))
-	    (when (and (>= (org-get-indentation) ind-last)
-		       (org-at-item-p))
-	      (let ((struct (org-list-struct)))
-		(goto-char (org-list-get-bottom-point struct)))))
-	(insert ":END:\n")
-	(beginning-of-line 0)
-	(org-indent-line-to ind-last)
-	(goto-char first)
-	(insert ":" drawer ":\n")
-	(beginning-of-line 0)
-	(org-indent-line)
-	(org-flag-drawer t)
-	(beginning-of-line 2)
-	(or org-log-states-order-reversed
-	    (and (re-search-forward org-property-end-re nil t)
-		 (goto-char (match-beginning 0))))
-	(throw 'exit nil))
-
-      (goto-char beg)
-      (while (and (looking-at (concat "[ \t]*" org-keyword-time-regexp))
-		  (not (equal (match-string 1) org-clock-string)))
-	;; Planning info, skip to after it
-	(beginning-of-line 2)
-	(or (bolp) (newline)))
-      (when (or (eq org-clock-into-drawer t)
-		(stringp org-clock-into-drawer)
-		(and (integerp org-clock-into-drawer)
-		     (< org-clock-into-drawer 2)))
-	(insert ":" drawer ":\n:END:\n")
-	(beginning-of-line -1)
-	(org-indent-line)
-	(org-flag-drawer t)
-	(beginning-of-line 2)
-	(org-indent-line)
-	(beginning-of-line)
-	(or org-log-states-order-reversed
-	    (and (re-search-forward org-property-end-re nil t)
-		 (goto-char (match-beginning 0))))))))
+      (let ((clock-re (concat "^[ \t]*" org-clock-string))
+	    (count 0) positions first)
+	;; Count the CLOCK lines and store their positions.
+	(save-excursion
+	  (while (re-search-forward clock-re end t)
+	    (let ((element (org-element-at-point)))
+	      (when (eq (org-element-type element) 'clock)
+		(setq positions (cons (line-beginning-position) positions)
+		      count (1+ count))))))
+	(cond
+	 ((null positions)
+	  ;; Skip planning line and property drawer, if any.
+	  (when (org-looking-at-p org-planning-line-re) (forward-line))
+	  (when (looking-at org-property-drawer-re)
+	    (goto-char (match-end 0))
+	    (forward-line))
+	  (unless (bolp) (insert "\n"))
+	  ;; Create a new drawer if necessary.
+	  (when (and org-clock-into-drawer
+		     (or (not (wholenump org-clock-into-drawer))
+			 (< org-clock-into-drawer 2)))
+	    (let ((beg (point)))
+	      (insert ":" drawer ":\n:END:\n")
+	      (org-indent-region beg (point))
+	      (goto-char beg)
+	      (org-flag-drawer t)
+	      (forward-line))))
+	 ;; When a clock drawer needs to be created because of the
+	 ;; number of clock items, collect all clocks in the section
+	 ;; and wrap them within the drawer.
+	 ((and (wholenump org-clock-into-drawer)
+	       (>= (1+ count) org-clock-into-drawer))
+	  ;; Skip planning line and property drawer, if any.
+	  (when (org-looking-at-p org-planning-line-re) (forward-line))
+	  (when (looking-at org-property-drawer-re)
+	    (goto-char (match-end 0))
+	    (forward-line))
+	  (let ((beg (point)))
+	    (insert
+	     (mapconcat
+	      (lambda (p)
+		(save-excursion
+		  (goto-char p)
+		  (org-trim (delete-and-extract-region
+			     (save-excursion (skip-chars-backward " \r\t\n")
+					     (line-beginning-position 2))
+			     (line-beginning-position 2)))))
+	      positions "\n")
+	     "\n:END:\n")
+	    (let ((end (point-marker)))
+	      (goto-char beg)
+	      (save-excursion (insert ":" drawer ":\n"))
+	      (org-flag-drawer t)
+	      (org-indent-region (point) end)
+	      (forward-line)
+	      (unless org-log-states-order-reversed
+		(goto-char end)
+		(beginning-of-line -1))
+	      (set-marker end nil))))
+	 (org-log-states-order-reversed (goto-char (car (last positions))))
+	 (t (goto-char (car positions))))))))
 
 ;;;###autoload
 (defun org-clock-out (&optional switch-to-state fail-quietly at-time)
@@ -1589,11 +1604,14 @@ to, overriding the existing value of `org-clock-out-switch-to-state'."
 	  (message (concat "Clock stopped at %s after "
 			   (org-minutes-to-clocksum-string (+ (* 60 h) m)) "%s")
 		   te (if remove " => LINE REMOVED" ""))
-	  (let ((h org-clock-out-hook))
+	  (let ((h org-clock-out-hook)
+		(clock-drawer (org-clock-into-drawer)))
 	    ;; If a closing note needs to be stored in the drawer
 	    ;; where clocks are stored, let's temporarily disable
-	    ;; `org-clock-remove-empty-clock-drawer'
-	    (if (and (equal org-clock-into-drawer org-log-into-drawer)
+	    ;; `org-clock-remove-empty-clock-drawer'.
+	    (if (and clock-drawer
+		     (not (stringp clock-drawer))
+		     (org-log-into-drawer)
 		     (eq org-log-done 'note)
 		     org-clock-out-when-done)
 		(setq h (delq 'org-clock-remove-empty-clock-drawer h)))
@@ -1605,10 +1623,8 @@ to, overriding the existing value of `org-clock-out-switch-to-state'."
 
 (defun org-clock-remove-empty-clock-drawer nil
   "Remove empty clock drawer in the current subtree."
-  (let* ((olid (or (org-entry-get (point) "LOG_INTO_DRAWER")
-		   org-log-into-drawer))
-	 (clock-drawer (if (eq t olid) "LOGBOOK" olid))
-	 (end (save-excursion (org-end-of-subtree t t))))
+  (let ((clock-drawer (org-log-into-drawer))
+	(end (save-excursion (org-end-of-subtree t t))))
     (when clock-drawer
       (save-excursion
 	(org-back-to-heading t)
@@ -2111,7 +2127,7 @@ If you can combine both, the month starting day will have priority."
       (setq y (string-to-number (match-string 1 skey))
 	    w (string-to-number (match-string 2 skey)))
       (setq date (calendar-gregorian-from-absolute
-		  (calendar-absolute-from-iso (list w 1 y))))
+		  (calendar-iso-to-absolute (list w 1 y))))
       (setq d (nth 1 date) month (car date) y (nth 2 date)
 	    dow 1
 	    key 'week))
@@ -2120,7 +2136,7 @@ If you can combine both, the month starting day will have priority."
       (setq y (string-to-number (match-string 1 skey)))
       (setq q (string-to-number (match-string 2 skey)))
       (setq date (calendar-gregorian-from-absolute
-		  (calendar-absolute-from-iso (org-quarter-to-date q y))))
+		  (calendar-iso-to-absolute (org-quarter-to-date q y))))
       (setq d (nth 1 date) month (car date) y (nth 2 date)
             dow 1
             key 'quarter))
@@ -2255,7 +2271,7 @@ the currently selected interval size."
 	   ((and wp (string-match "w\\|W" wp) mw (> (length wp) 0))
 	    (require 'cal-iso)
 	    (setq date (calendar-gregorian-from-absolute
-			(calendar-absolute-from-iso (list (+ mw n) 1 y))))
+			(calendar-iso-to-absolute (list (+ mw n) 1 y))))
 	    (setq ins (format-time-string
 		       "%G-W%V"
 		       (encode-time 0 0 0 (nth 1 date) (car date) (nth 2 date)))))
@@ -2272,7 +2288,7 @@ the currently selected interval size."
 		      y (- y 1))
 	      ())
 	    (setq date (calendar-gregorian-from-absolute
-			(calendar-absolute-from-iso (org-quarter-to-date (+ mw n) y))))
+			(calendar-iso-to-absolute (org-quarter-to-date (+ mw n) y))))
 	    (setq ins (format-time-string
 		       (concat (number-to-string y) "-Q" (number-to-string (+ mw n)))
 		       (encode-time 0 0 0 (nth 1 date) (car date) (nth 2 date)))))

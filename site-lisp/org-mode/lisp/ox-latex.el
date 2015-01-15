@@ -220,12 +220,14 @@
 
 ;;;; Generic
 
-(defcustom org-latex-caption-above t
+(defcustom org-latex-caption-above '(table)
   "When non-nil, place caption string at the beginning of elements.
 Otherwise, place it near the end.  When value is a list of
 symbols, put caption above selected elements only.  Allowed
 symbols are: `image', `table', `src-block' and `special-block'."
   :group 'org-export-latex
+  :version "25.1"
+  :package-version '(Org . "8.3")
   :type '(choice
 	  (const :tag "For all elements" t)
 	  (const :tag "For no element" nil)
@@ -234,8 +236,6 @@ symbols are: `image', `table', `src-block' and `special-block'."
 	       (const :tag "Tables" table)
 	       (const :tag "Source code" src-block)
 	       (const :tag "Special blocks" special-block))))
-(define-obsolete-variable-alias
-  'org-latex-table-caption-above 'org-latex-caption-above "25.1") ; Since 8.3.
 
 ;;;; Preamble
 
@@ -411,7 +411,7 @@ Value is a format string, which can contain the following placeholders:
 
 Set it to the empty string to ignore the command completely."
   :group 'org-export-latex
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3")
   :type 'string)
 
@@ -486,7 +486,7 @@ continue to use its default labeling scheme to generate labels
 and resolve links into section references."
   :group 'org-export-latex
   :type 'boolean
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3"))
 
 ;;;; Footnotes
@@ -707,7 +707,7 @@ The function must accept seven parameters:
 The function should return the string to be exported."
   :group 'org-export-latex
   :type 'function
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3"))
 
 
@@ -953,11 +953,13 @@ file name as its single argument."
 
 (defcustom org-latex-logfiles-extensions
   '("aux" "bcf" "blg" "fdb_latexmk" "fls" "figlist" "idx" "log" "nav" "out"
-    "run.xml" "snm" "toc" "vrb" "xdv")
+    "ptc" "run.xml" "snm" "toc" "vrb" "xdv")
   "The list of file extensions to consider as LaTeX logfiles.
-The logfiles will be remove if `org-latex-remove-logfiles' is
+The logfiles will be removed if `org-latex-remove-logfiles' is
 non-nil."
   :group 'org-export-latex
+  :version "25.1"
+  :package-version '(Org . "8.3")
   :type '(repeat (string :tag "Extension")))
 
 (defcustom org-latex-remove-logfiles t
@@ -980,7 +982,7 @@ The regular expressions are used to find possible warnings in the
 log of a latex-run.  These warnings will be reported after
 calling `org-latex-compile'."
   :group 'org-export-latex
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3")
   :type '(repeat
 	  (cons
@@ -1318,9 +1320,7 @@ information."
    "\\noindent"
    (format "\\textbf{%s} " org-clock-string)
    (format (plist-get info :latex-inactive-timestamp-format)
-	   (concat (org-translate-time
-		    (org-element-property :raw-value
-					  (org-element-property :value clock)))
+	   (concat (org-timestamp-translate (org-element-property :value clock))
 		   (let ((time (org-element-property :duration clock)))
 		     (and time (format " (%s)" time)))))
    "\\\\"))
@@ -1425,9 +1425,8 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 	     (org-export-get-footnote-number footnote-reference info)))
     ;; Use \footnotemark if reference is within another footnote
     ;; reference, footnote definition or table cell.
-    ((loop for parent in (org-export-get-genealogy footnote-reference)
-	   thereis (memq (org-element-type parent)
-			 '(footnote-reference footnote-definition table-cell)))
+    ((org-element-lineage footnote-reference
+			  '(footnote-reference footnote-definition table-cell))
      "\\footnotemark")
     ;; Otherwise, define it with \footnote command.
     (t
@@ -1539,7 +1538,23 @@ holding contextual information."
 			 (org-export-get-alt-title headline info)
 			 section-back-end info)
 			(and (eq (plist-get info :with-tags) t) tags)
-			info)))
+			info))
+	      ;; Maybe end local TOC (see `org-latex-keyword').
+	      (contents
+	       (concat
+		contents
+		(let ((case-fold-search t)
+		      (section
+		       (let ((first (car (org-element-contents headline))))
+			 (and (eq (org-element-type first) 'section) first))))
+		  (org-element-map section 'keyword
+		    (lambda (k)
+		      (and (equal (org-element-property :key k) "TOC")
+			   (let ((v (org-element-property :value k)))
+			     (and (org-string-match-p "\\<headlines\\>" v)
+				  (org-string-match-p "\\<local\\>" v)
+				  (format "\\stopcontents[level-%d]" level)))))
+		    info t)))))
 	  (if (and numberedp opt-title
 		   (not (equal opt-title full-text))
 		   (string-match "\\`\\\\\\(.*?[^*]\\){" section-fmt))
@@ -1757,18 +1772,27 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
      ((string= key "LATEX") value)
      ((string= key "INDEX") (format "\\index{%s}" value))
      ((string= key "TOC")
-      (let ((value (downcase value)))
+      (let ((case-fold-search t))
 	(cond
-	 ((string-match "\\<headlines\\>" value)
-	  (let ((depth (or (and (string-match "[0-9]+" value)
-				(string-to-number (match-string 0 value)))
-			   (plist-get info :with-toc))))
-	    (concat
-	     (when (wholenump depth)
-	       (format "\\setcounter{tocdepth}{%s}\n" depth))
-	     "\\tableofcontents")))
-	 ((string= "tables" value) "\\listoftables")
-	 ((string= "listings" value)
+	 ((org-string-match-p "\\<headlines\\>" value)
+	  (let* ((localp (org-string-match-p "\\<local\\>" value))
+		 (parent (org-element-lineage keyword '(headline)))
+		 (level (if (not (and localp parent)) 0
+			  (org-export-get-relative-level parent info)))
+		 (depth
+		  (and (string-match "\\<[0-9]+\\>" value)
+		       (format
+			"\\setcounter{tocdepth}{%d}"
+			(+ (string-to-number (match-string 0 value)) level)))))
+	    (if (and localp parent)
+		;; Start local TOC, assuming package "titletoc" is
+		;; required.
+		(format "\\startcontents[level-%d]
+\\printcontents[level-%d]{}{0}{%s}"
+			level level (or depth ""))
+	      (concat depth (and depth "\n") "\\tableofcontents"))))
+	 ((org-string-match-p "\\<tables\\>" value) "\\listoftables")
+	 ((org-string-match-p "\\<listings\\>" value)
 	  (case (plist-get info :latex-listings)
 	    ((nil) "\\listoffigures")
 	    (minted "\\listoflistings")
@@ -1968,9 +1992,10 @@ INFO is a plist holding contextual information.  See
 		 (concat type ":" raw-path))
 		((and (string= type "file") (file-name-absolute-p raw-path))
 		 (concat "file:" raw-path))
-		(t raw-path)))
-	 protocol)
+		(t raw-path))))
     (cond
+     ;; Link type is handled by a special function.
+     ((org-export-custom-protocol-maybe link desc info))
      ;; Image file.
      (imagep (org-latex--inline-image link info))
      ;; Radio link: Transcode target's contents and use them as link's
@@ -2026,9 +2051,6 @@ INFO is a plist holding contextual information.  See
      ((string= type "coderef")
       (format (org-export-get-coderef-format path desc)
 	      (org-export-resolve-coderef path info)))
-     ;; Link type is handled by a special function.
-     ((functionp (setq protocol (nth 2 (assoc type org-link-protocols))))
-      (funcall protocol (org-link-unescape path) desc 'latex))
      ;; External link with a description part.
      ((and path desc) (format "\\href{%s}{%s}" path desc))
      ;; External link without a description part.
@@ -2136,22 +2158,19 @@ information."
 	       (concat
 		(format "\\textbf{%s} " org-closed-string)
 		(format (plist-get info :latex-inactive-timestamp-format)
-			(org-translate-time
-			 (org-element-property :raw-value closed))))))
+			(org-timestamp-translate closed)))))
 	   (let ((deadline (org-element-property :deadline planning)))
 	     (when deadline
 	       (concat
 		(format "\\textbf{%s} " org-deadline-string)
 		(format (plist-get info :latex-active-timestamp-format)
-			(org-translate-time
-			 (org-element-property :raw-value deadline))))))
+			(org-timestamp-translate deadline)))))
 	   (let ((scheduled (org-element-property :scheduled planning)))
 	     (when scheduled
 	       (concat
 		(format "\\textbf{%s} " org-scheduled-string)
 		(format (plist-get info :latex-active-timestamp-format)
-			(org-translate-time
-			 (org-element-property :raw-value scheduled))))))))
+			(org-timestamp-translate scheduled)))))))
     " ")
    "\\\\"))
 
@@ -2695,7 +2714,8 @@ This function assumes TABLE has `org' as its `:type' property and
 	 ;; Extract others display options.
 	 (fontsize (let ((font (plist-get attr :font)))
 		     (and font (concat font "\n"))))
-	 (width (plist-get attr :width))
+	 ;; "tabular" environment doesn't allow to define a width.
+	 (width (and (not (equal table-env "tabular")) (plist-get attr :width)))
 	 (spreadp (plist-get attr :spread))
 	 (placement
 	  (or (plist-get attr :placement)
@@ -3164,19 +3184,20 @@ Return PDF file name or an error if it couldn't be produced."
 	    (error (format "PDF file %s wasn't produced" pdffile))
 	  ;; Else remove log files, when specified, and signal end of
 	  ;; process to user, along with any error encountered.
-	  (when (and (not snippet) org-latex-remove-logfiles)
-	    (dolist (file (directory-files
-			   out-dir t
-			   (concat (regexp-quote base-name)
-				   "\\(?:\\.[0-9]+\\)?"
-				   "\\."
-				   (regexp-opt org-latex-logfiles-extensions))))
-	      (delete-file file)))
-	  (message (concat "PDF file produced"
-			   (cond
-			    ((eq warnings 'error) " with errors.")
-			    (warnings (concat " with warnings: " warnings))
-			    (t ".")))))
+	  (unless snippet
+	    (when org-latex-remove-logfiles
+	      (dolist (file (directory-files
+			     out-dir t
+			     (concat (regexp-quote base-name)
+				     "\\(?:\\.[0-9]+\\)?"
+				     "\\."
+				     (regexp-opt org-latex-logfiles-extensions))))
+		(delete-file file)))
+	    (message (concat "PDF file produced"
+			     (cond
+			      ((eq warnings 'error) " with errors.")
+			      (warnings (concat " with warnings: " warnings))
+			      (t "."))))))
 	;; Return output file name.
 	pdffile))))
 

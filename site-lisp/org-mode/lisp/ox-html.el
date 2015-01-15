@@ -275,7 +275,8 @@ for the JavaScript code in this tag.
  <!--/*--><![CDATA[/*><!--*/
   .title  { text-align: center; }
   .todo   { font-family: monospace; color: red; }
-  .done   { color: green; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
   .tag    { background-color: #eee; font-family: monospace;
             padding: 2px; font-size: 80%; font-weight: normal; }
   .timestamp { color: #bebebe; }
@@ -683,7 +684,7 @@ INFO      the export options (plist).
 
 The function result will be used in the section format string."
   :group 'org-export-html
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3")
   :type 'function)
 
@@ -715,7 +716,7 @@ The function must accept seven parameters:
 
 The function should return the string to be exported."
   :group 'org-export-html
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3")
   :type 'function)
 
@@ -794,7 +795,7 @@ link's path."
   '(("&" . "&amp;")
     ("<" . "&lt;")
     (">" . "&gt;"))
-  "Alist of characters to be converted by `org-html-protect'.")
+  "Alist of characters to be converted by `org-html-encode-plain-text'.")
 
 ;;;; Src Block
 
@@ -1885,6 +1886,14 @@ INFO is a plist used as a communication channel."
 	    (org-html-fix-class-name todo)
 	    todo)))
 
+;;;; Priority
+
+(defun org-html--priority (priority info)
+  "Format a priority into HTML.
+PRIORITY is the character code of the priority or nil.  INFO is
+a plist containing export options."
+  (and priority (format "<span class=\"priority\">[%c]</span>" priority)))
+
 ;;;; Tags
 
 (defun org-html--tags (tags info)
@@ -2017,31 +2026,34 @@ a plist used as a communication channel."
 
 ;;; Tables of Contents
 
-(defun org-html-toc (depth info)
+(defun org-html-toc (depth info &optional scope)
   "Build a table of contents.
-DEPTH is an integer specifying the depth of the table.  INFO is a
-plist used as a communication channel.  Return the table of
-contents as a string, or nil if it is empty."
+DEPTH is an integer specifying the depth of the table.  INFO is
+a plist used as a communication channel.  Optional argument SCOPE
+is an element defining the scope of the table.  Return the table
+of contents as a string, or nil if it is empty."
   (let ((toc-entries
 	 (mapcar (lambda (headline)
 		   (cons (org-html--format-toc-headline headline info)
 			 (org-export-get-relative-level headline info)))
-		 (org-export-collect-headlines info depth)))
-	(outer-tag (if (and (org-html-html5-p info)
-			    (plist-get info :html-html5-fancy))
-		       "nav"
-		     "div")))
+		 (org-export-collect-headlines info depth scope))))
     (when toc-entries
-      (concat (format "<%s id=\"table-of-contents\">\n" outer-tag)
-	      (let ((top-level (plist-get info :html-toplevel-hlevel)))
-		(format "<h%d>%s</h%d>\n"
-			top-level
-			(org-html--translate "Table of Contents" info)
-			top-level))
-	      "<div id=\"text-table-of-contents\">"
-	      (org-html--toc-text toc-entries)
-	      "</div>\n"
-	      (format "</%s>\n" outer-tag)))))
+      (let ((toc (concat "<div id=\"text-table-of-contents\">"
+			 (org-html--toc-text toc-entries)
+			 "</div>\n")))
+	(if scope toc
+	  (let ((outer-tag (if (and (org-html-html5-p info)
+				    (plist-get info :html-html5-fancy))
+			       "nav"
+			     "div")))
+	    (concat (format "<%s id=\"table-of-contents\">\n" outer-tag)
+		    (let ((top-level (plist-get info :html-toplevel-hlevel)))
+		      (format "<h%d>%s</h%d>\n"
+			      top-level
+			      (org-html--translate "Table of Contents" info)
+			      top-level))
+		    toc
+		    (format "</%s>\n" outer-tag))))))))
 
 (defun org-html--toc-text (toc-entries)
   "Return innards of a table of contents, as a string.
@@ -2210,9 +2222,7 @@ channel."
 </span>
 </p>"
 	  org-clock-string
-	  (org-translate-time
-	   (org-element-property :raw-value
-				 (org-element-property :value clock)))
+	  (org-timestamp-translate (org-element-property :value clock))
 	  (let ((time (org-element-property :duration clock)))
 	    (and time (format " <span class=\"timestamp\">(%s)</span>" time)))))
 
@@ -2398,8 +2408,12 @@ holding contextual information."
   "Default format function for a headline.
 See `org-html-format-headline-function' for details."
   (let ((todo (org-html--todo todo info))
+	(priority (org-html--priority priority info))
 	(tags (org-html--tags tags info)))
-    (concat todo (and todo " ") text (and tags "&#xa0;&#xa0;&#xa0;") tags)))
+    (concat todo (and todo " ")
+	    priority (and priority " ")
+	    text
+	    (and tags "&#xa0;&#xa0;&#xa0;") tags)))
 
 (defun org-html--container (headline info)
   (or (org-element-property :HTML_CONTAINER headline)
@@ -2446,7 +2460,7 @@ holding contextual information."
 	 (tags (and (plist-get info :with-tags)
 		    (org-export-get-tags inlinetask info))))
     (funcall (plist-get info :html-format-inlinetask-function)
-	     todo todo-type priority text tags contents)))
+	     todo todo-type priority text tags contents info)))
 
 (defun org-html-format-inlinetask-default-function
   (todo todo-type priority text tags contents info)
@@ -2510,7 +2524,7 @@ INFO is a plist holding contextual information.  See
 			  class (concat checkbox term))
 		  "<dd>"))))
      (unless (eq type 'descriptive) checkbox)
-     contents
+     (and contents (org-trim contents))
      (case type
        (ordered "</li>")
        (unordered "</li>")
@@ -2539,13 +2553,13 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
     (cond
      ((string= key "HTML") value)
      ((string= key "TOC")
-      (let ((value (downcase value)))
+      (let ((case-fold-search t))
 	(cond
 	 ((string-match "\\<headlines\\>" value)
-	  (let ((depth (or (and (string-match "[0-9]+" value)
-				(string-to-number (match-string 0 value)))
-			   (plist-get info :with-toc))))
-	    (org-html-toc depth info)))
+	  (let ((depth (and (string-match "\\<[0-9]+\\>" value)
+			    (string-to-number (match-string 0 value))))
+		(localp (org-string-match-p "\\<local\\>" value)))
+	    (org-html-toc depth info (and localp keyword))))
 	 ((string= "listings" value) (org-html-list-of-listings info))
 	 ((string= "tables" value) (org-html-list-of-tables info))))))))
 
@@ -2582,7 +2596,7 @@ a plist containing export properties."
     (with-temp-buffer
       (insert latex-frag)
       (org-format-latex cache-relpath cache-dir nil "Creating LaTeX Image..."
-			nil nil processing-type)
+			nil processing-type)
       (buffer-string))))
 
 (defun org-html-latex-environment (latex-environment contents info)
@@ -2767,9 +2781,10 @@ INFO is a plist holding contextual information.  See
 		 (org-export-read-attribute :attr_html parent))))
 	 (attributes
 	  (let ((attr (org-html--make-attribute-string attributes-plist)))
-	    (if (org-string-nw-p attr) (concat " " attr) "")))
-	 protocol)
+	    (if (org-string-nw-p attr) (concat " " attr) ""))))
     (cond
+     ;; Link type is handled by a special function.
+     ((org-export-custom-protocol-maybe link desc info))
      ;; Image file.
      ((and (plist-get info :html-inline-images)
 	   (org-export-inline-image-p
@@ -2858,9 +2873,6 @@ INFO is a plist holding contextual information.  See
 		attributes
 		(format (org-export-get-coderef-format path desc)
 			(org-export-resolve-coderef path info)))))
-     ;; Link type is handled by a special function.
-     ((functionp (setq protocol (nth 2 (assoc type org-link-protocols))))
-      (funcall protocol (org-link-unescape path) desc 'html))
      ;; External link with a description part.
      ((and path desc) (format "<a href=\"%s\"%s>%s</a>" path attributes desc))
      ;; External link without a description part.
@@ -3017,18 +3029,15 @@ channel."
 	     (let ((closed (org-element-property :closed planning)))
 	       (when closed
 		 (format span-fmt org-closed-string
-			 (org-translate-time
-			  (org-element-property :raw-value closed)))))
+			 (org-timestamp-translate closed))))
 	     (let ((deadline (org-element-property :deadline planning)))
 	       (when deadline
 		 (format span-fmt org-deadline-string
-			 (org-translate-time
-			  (org-element-property :raw-value deadline)))))
+			 (org-timestamp-translate deadline))))
 	     (let ((scheduled (org-element-property :scheduled planning)))
 	       (when scheduled
 		 (format span-fmt org-scheduled-string
-			 (org-translate-time
-			  (org-element-property :raw-value scheduled)))))))
+			 (org-timestamp-translate scheduled))))))
       " "))))
 
 ;;;; Property Drawer
@@ -3349,8 +3358,7 @@ information."
   "Transcode a TIMESTAMP object from Org to HTML.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
-  (let ((value (org-html-plain-text
-		(org-timestamp-translate timestamp) info)))
+  (let ((value (org-html-plain-text (org-timestamp-translate timestamp) info)))
     (format "<span class=\"timestamp-wrapper\"><span class=\"timestamp\">%s</span></span>"
 	    (replace-regexp-in-string "--" "&#x2013;" value))))
 

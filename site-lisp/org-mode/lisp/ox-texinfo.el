@@ -221,7 +221,7 @@ TAGS      the tags as a list of strings (list of strings or nil).
 The function result will be used in the section format string."
   :group 'org-export-texinfo
   :type 'function
-  :version "24.5"
+  :version "25.1"
   :package-version '(Org . "8.3"))
 
 ;;;; Node listing (menu)
@@ -643,9 +643,7 @@ information."
    "@noindent"
    (format "@strong{%s} " org-clock-string)
    (format (plist-get info :texinfo-inactive-timestamp-format)
-	   (concat (org-translate-time
-		    (org-element-property :raw-value
-					  (org-element-property :value clock)))
+	   (concat (org-timestamp-translate (org-element-property :value clock))
 		   (let ((time (org-element-property :duration clock)))
 		     (and time (format " (%s)" time)))))
    "@*"))
@@ -917,9 +915,9 @@ INFO is a plist holding contextual information.  See
 		 (concat type ":" raw-path))
 		((and (string= type "file") (file-name-absolute-p raw-path))
 		 (concat "file:" raw-path))
-		(t raw-path)))
-	 protocol)
+		(t raw-path))))
     (cond
+     ((org-export-custom-protocol-maybe link desc info))
      ((equal type "radio")
       (let ((destination (org-export-resolve-radio-link link info)))
 	(if (not destination) desc
@@ -978,9 +976,6 @@ INFO is a plist holding contextual information.  See
       (format "@email{%s}"
 	      (concat (org-texinfo--sanitize-content path)
 		      (and desc (concat "," desc)))))
-     ((let ((protocol (nth 2 (assoc type org-link-protocols))))
-	(and (functionp protocol)
-	     (funcall protocol (org-link-unescape path) desc 'texinfo))))
      ;; External link with a description part.
      ((and path desc) (format "@uref{%s,%s}" path desc))
      ;; External link without a description part.
@@ -1168,22 +1163,19 @@ information."
 	       (concat
 		(format "@strong{%s} " org-closed-string)
 		(format (plist-get info :texinfo-inactive-timestamp-format)
-			(org-translate-time
-			 (org-element-property :raw-value closed))))))
+			(org-timestamp-translate closed)))))
 	   (let ((deadline (org-element-property :deadline planning)))
 	     (when deadline
 	       (concat
 		(format "@strong{%s} " org-deadline-string)
 		(format (plist-get info :texinfo-active-timestamp-format)
-			(org-translate-time
-			 (org-element-property :raw-value deadline))))))
+			(org-timestamp-translate deadline)))))
 	   (let ((scheduled (org-element-property :scheduled planning)))
 	     (when scheduled
 	       (concat
 		(format "@strong{%s} " org-scheduled-string)
 		(format (plist-get info :texinfo-active-timestamp-format)
-			(org-translate-time
-			 (org-element-property :raw-value scheduled))))))))
+			(org-timestamp-translate scheduled)))))))
     " ")
    "@*"))
 
