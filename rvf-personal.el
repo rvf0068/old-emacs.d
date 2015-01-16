@@ -122,6 +122,7 @@
 			    ("top" "grad-topology")
 			    ("rvf" "rvf0068")
 			    ("sage" "ejemplos-sage")
+			    ("variable" "variable-compleja")
 			    ))
 
 (defun form-octopress-project (pair)
