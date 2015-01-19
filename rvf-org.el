@@ -67,6 +67,13 @@
 (defun yas/org-very-safe-expand ()
   (let ((yas/fallback-behavior 'return-nil)) (yas/expand)))
 
+(defun org-cdlatex-complex-numbers ()
+  (interactive)
+  (if (org-inside-LaTeX-fragment-p)
+      (insert "\\mathbb{C}")
+      (insert "C")
+     ))
+
 (defun org-cdlatex-real-numbers ()
   (interactive)
   (if (org-inside-LaTeX-fragment-p)
@@ -98,6 +105,7 @@
 			   (lambda () (interactive)
 			     (insert "\\(\\)")
 			     (forward-char -2)))
+	    (local-set-key (kbd "C") 'org-cdlatex-complex-numbers)
 	    (local-set-key (kbd "R") 'org-cdlatex-real-numbers)
 	    (local-set-key (kbd "Q") 'org-cdlatex-rational-numbers)
 	    ))
