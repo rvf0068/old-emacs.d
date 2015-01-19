@@ -143,4 +143,7 @@
 
 (diary)
 
-(display-battery-mode)
+(if (equal system-name "lahp")
+    (display-battery-mode)
+  )
+
