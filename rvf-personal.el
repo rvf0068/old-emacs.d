@@ -122,7 +122,7 @@
 			    ("top" "grad-topology")
 			    ("rvf" "rvf0068")
 			    ("sage" "ejemplos-sage")
-			    ("variable" "variable-compleja")
+			    ("variable" "variable")
 			    ))
 
 (defun form-octopress-project (pair)
@@ -207,6 +207,13 @@
  (lambda nil (interactive)
    (dired "~/Dropbox/paginas/grad-topology/source/org/")
    ))
+
+(global-set-key
+ (kbd "<f12> v")
+ (lambda nil (interactive)
+   (dired "~/Dropbox/paginas/variable/source/org/")
+   ))
+
 ;; (global-set-key
 ;;  (kbd "<f12> t")
 ;;  (lambda nil (interactive)
