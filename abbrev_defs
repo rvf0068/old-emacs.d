@@ -3,6 +3,10 @@
 
 (define-abbrev-table 'Custom-mode-abbrev-table '())
 
+(define-abbrev-table 'TeX-error-overview-mode-abbrev-table '())
+
+(define-abbrev-table 'TeX-output-mode-abbrev-table '())
+
 (define-abbrev-table 'awk-mode-abbrev-table '())
 
 (define-abbrev-table 'bibtex-mode-abbrev-table '())
@@ -149,8 +153,10 @@
     ("ev" "espacio vectorial" nil 0)
     ("iff" "if and only if" nil 0)
     ("mcd" "máximo común divisor" nil 3)
+    ("nc" "número complejo" nil 0)
+    ("ncs" "números complejos" nil 1)
     ("pm" "polinomio mínimo" nil 5)
-    ("ssi" "si y solo si" nil 0)
+    ("ssi" "si y solo si" nil 1)
     ("ts" "topological space" nil 1)
    ))
 
