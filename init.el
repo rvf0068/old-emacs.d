@@ -130,6 +130,8 @@
 
 (load "~/.emacs.d/rvf-refs.el")
 
+(load "~/.emacs.d/rvf-c++.el")
+
 (if (or (equal system-name "lahp") (equal system-name "dell"))
     (load "~/.emacs.d/rvf-personal.el")
   )
