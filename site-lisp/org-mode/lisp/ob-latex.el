@@ -99,6 +99,51 @@ This function is called by `org-babel-execute-src-block'."
 	  (when (file-exists-p out-file) (delete-file out-file))
 	  (with-temp-file out-file
 	    (insert body)))
+	 ((and (or (string-match "\\.svg$" out-file)
+		   (string-match "\\.html$" out-file))
+	       (executable-find org-babel-latex-htlatex))
+	  ;; TODO: this is a very different way of generating the
+	  ;; frame latex document than in the pdf case.  Ideally, both
+	  ;; would be unified.  This would prevent bugs creeping in
+	  ;; such as the one fixed on Aug 16 2014 whereby :headers was
+	  ;; not included in the SVG/HTML case.
+	  (with-temp-file tex-file
+	    (insert (concat
+		     "\\documentclass[preview]{standalone}
+\\def\\pgfsysdriver{pgfsys-tex4ht.def}
+"
+		     (mapconcat (lambda (pkg)
+				  (concat "\\usepackage" pkg))
+				org-babel-latex-htlatex-packages
+				"\n")
+		     (if headers
+			 (concat "\n"
+				 (if (listp headers)
+				     (mapconcat #'identity headers "\n")
+				   headers) "\n")
+		       "")
+		     "\\begin{document}"
+		     body
+		     "\\end{document}")))
+	  (when (file-exists-p out-file) (delete-file out-file))
+	  (let ((default-directory (file-name-directory tex-file)))
+	    (shell-command (format "%s %s" org-babel-latex-htlatex tex-file)))
+	  (cond
+	   ((file-exists-p (concat (file-name-sans-extension tex-file) "-1.svg"))
+	    (if (string-match "\\.svg$" out-file)
+		(progn
+		  (shell-command "pwd")
+		  (shell-command (format "mv %s %s"
+					 (concat (file-name-sans-extension tex-file) "-1.svg")
+					 out-file)))
+	      (error "SVG file produced but HTML file requested")))
+	   ((file-exists-p (concat (file-name-sans-extension tex-file) ".html"))
+	    (if (string-match "\\.html$" out-file)
+		(shell-command "mv %s %s"
+			       (concat (file-name-sans-extension tex-file)
+				       ".html")
+			       out-file)
+	      (error "HTML file produced but SVG file requested")))))
 	 ((or (string-match "\\.pdf$" out-file) imagemagick)
 	  (with-temp-file tex-file
 	    (require 'ox-latex)
@@ -139,51 +184,6 @@ This function is called by `org-babel-execute-src-block'."
 	       transient-pdf-file out-file im-in-options im-out-options)
 	      (when (file-exists-p transient-pdf-file)
 		(delete-file transient-pdf-file))))))
-	 ((and (or (string-match "\\.svg$" out-file)
-		   (string-match "\\.html$" out-file))
-	       (executable-find org-babel-latex-htlatex))
-	  ;; TODO: this is a very different way of generating the
-	  ;; frame latex document than in the pdf case.  Ideally, both
-	  ;; would be unified.  This would prevent bugs creeping in
-	  ;; such as the one fixed on Aug 16 2014 whereby :headers was
-	  ;; not included in the SVG/HTML case.
-	  (with-temp-file tex-file
-	    (insert (concat
-		     "\\documentclass[preview]{standalone}
-\\def\\pgfsysdriver{pgfsys-tex4ht.def}
-"
-		     (mapconcat (lambda (pkg)
-				  (concat "\\usepackage" pkg))
-				org-babel-latex-htlatex-packages
-				"\n")
-		     (if headers
-			 (concat "\n"
-				 (if (listp headers)
-				     (mapconcat #'identity headers "\n")
-				   headers) "\n")
-		       "")
-		     "\\begin{document}"
-		     body
-		     "\\end{document}")))
-	  (when (file-exists-p out-file) (delete-file out-file))
-	  (let ((default-directory (file-name-directory tex-file)))
-	    (shell-command (format "%s %s" org-babel-latex-htlatex tex-file)))
-	  (cond
-	   ((file-exists-p (concat (file-name-sans-extension tex-file) "-1.svg"))
-	    (if (string-match "\\.svg$" out-file)
-		(progn
-		  (shell-command "pwd")
-		  (shell-command (format "mv %s %s"
-					 (concat (file-name-sans-extension tex-file) "-1.svg")
-					 out-file)))
-	      (error "SVG file produced but HTML file requested.")))
-	   ((file-exists-p (concat (file-name-sans-extension tex-file) ".html"))
-	    (if (string-match "\\.html$" out-file)
-		(shell-command "mv %s %s"
-			       (concat (file-name-sans-extension tex-file)
-				       ".html")
-			       out-file)
-	      (error "HTML file produced but SVG file requested.")))))
          ((string-match "\\.\\([^\\.]+\\)$" out-file)
           (error "Can not create %s files, please specify a .png or .pdf file or try the :imagemagick header argument"
 		 (match-string 1 out-file))))

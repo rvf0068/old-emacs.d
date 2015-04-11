@@ -1,6 +1,6 @@
 ;;; ox-rss.el --- RSS 2.0 Back-End for Org Export Engine
 
-;; Copyright (C) 2013, 2014  Bastien Guerry
+;; Copyright (C) 2013-2015  Bastien Guerry
 
 ;; Author: Bastien Guerry <bzg@gnu.org>
 ;; Keywords: org, wp, blog, feed, rss
@@ -41,6 +41,9 @@
 ;; Exporting an Org file to RSS modifies each top-level entry by adding a
 ;; PUBDATE property.  If `org-rss-use-entry-url-as-guid', it will also add
 ;; an ID property, later used as the guid for the feed's item.
+;;
+;; The top-level headline is used as the title of each RSS item unless
+;; an RSS_TITLE property is set on the headline.
 ;;
 ;; You typically want to use it within a publishing project like this:
 ;;
@@ -119,7 +122,9 @@ When nil, Org will create ids using `org-icalendar-create-uid'."
 	      (if a (org-rss-export-to-rss t s v)
 		(org-open-file (org-rss-export-to-rss nil s v)))))))
   :options-alist
-  '((:with-toc nil nil nil) ;; Never include HTML's toc
+  '((:description "DESCRIPTION" nil nil newline)
+    (:keywords "KEYWORDS" nil nil space)
+    (:with-toc nil nil nil) ;; Never include HTML's toc
     (:rss-extension "RSS_EXTENSION" nil org-rss-extension)
     (:rss-image-url "RSS_IMAGE_URL" nil org-rss-image-url)
     (:rss-categories nil nil org-rss-categories))
@@ -244,11 +249,12 @@ communication channel."
 			  (format-time-string
 			   "%a, %d %b %Y %H:%M:%S %z"
 			   (org-time-string-to-time pubdate0)))))
-	   (title (replace-regexp-in-string
-		   org-bracket-link-regexp
-		   (lambda (m) (or (match-string 3 m)
-				   (match-string 1 m)))
-		   (org-element-property :raw-value headline)))
+	   (title (or (org-element-property :RSS_TITLE headline)
+		      (replace-regexp-in-string
+		       org-bracket-link-regexp
+		       (lambda (m) (or (match-string 3 m)
+				  (match-string 1 m)))
+		       (org-element-property :raw-value headline))))
 	   (publink
 	    (or (and hl-perm (concat (or hl-home hl-pdir) hl-perm))
 		(concat

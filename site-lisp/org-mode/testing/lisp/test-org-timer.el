@@ -1,6 +1,6 @@
 ;;; test-org-timer.el --- Tests for org-timer.el
 
-;; Copyright (C) 2014  Kyle Meyer
+;; Copyright (C) 2014-2015  Kyle Meyer
 
 ;; Author: Kyle Meyer <kyle@kyleam.com>
 
@@ -262,12 +262,14 @@ Also, mute output from `message'."
   (should-error
    (test-org-timer/with-temp-text ""
      (org-timer-start)
-     (org-timer-set-timer 10)))
+     (org-timer-set-timer 10))
+   :type (list 'error 'user-error))
   ;; Countdown timer is running.
   (should-error
    (test-org-timer/with-temp-text ""
      (org-timer-set-timer 10)
-     (org-timer-start))))
+     (org-timer-start))
+   :type (list 'error 'user-error)))
 
 (provide 'test-org-timer)
 ;;; test-org-timer.el end here

@@ -1,6 +1,6 @@
 ;;; test-org-element.el --- Tests for org-element.el
 
-;; Copyright (C) 2012, 2013, 2014  Nicolas Goaziou
+;; Copyright (C) 2012-2015  Nicolas Goaziou
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 
@@ -284,6 +284,38 @@ Some other text
 		   (text (org-element-map tree 'plain-text 'identity nil t)))
 	      (org-element-set-element text "b")
 	      (org-element-map tree 'plain-text 'identity nil t))))))
+
+(ert-deftest test-org-element/copy ()
+  "Test `org-element-copy' specifications."
+  ;; Preserve type.
+  (should (eq 'bold
+	      (org-test-with-temp-text "*bold*"
+		(org-element-type (org-element-copy (org-element-context))))))
+  (should (eq 'plain-text
+	      (org-test-with-temp-text "*bold*"
+		(org-element-type
+		 (org-element-map (org-element-parse-buffer) 'plain-text
+		   #'org-element-copy nil t)))))
+  ;; Preserve properties except `:parent'.
+  (should (= 7
+	     (org-test-with-temp-text "*bold*"
+	       (org-element-property
+		:end (org-element-copy (org-element-context))))))
+  (should-not
+   (org-test-with-temp-text "*bold*"
+     (org-element-property
+      :parent (org-element-copy (org-element-context)))))
+  (should-not
+   (org-test-with-temp-text "*bold*"
+     (org-element-property
+      :parent
+      (org-element-map (org-element-parse-buffer) 'plain-text
+	#'org-element-copy nil t))))
+  ;; Copying nil returns nil.
+  (should-not (org-element-copy nil))
+  ;; Return a copy secondary strings.
+  (should (equal '("text") (org-element-copy '("text"))))
+  (should-not (eq '("text") (org-element-copy '("text")))))
 
 
 
@@ -677,33 +709,29 @@ Some other text
        (org-element-property :preserve-indent (org-element-at-point))))
     ;; 2. "-n -r -k" combination should number lines, retain labels but
     ;;    not use them in coderefs.
-    (should
-     (org-test-with-temp-text "#+BEGIN_EXAMPLE -n -r -k\nText.\n#+END_EXAMPLE"
-       (let ((element (org-element-at-point)))
-	 (and (org-element-property :number-lines element)
-	      (org-element-property :retain-labels element)
-	      (not (org-element-property :use-labels element))))))
-    (should
-     (org-test-with-temp-text
-	 "#+BEGIN_SRC emacs-lisp -n -r -k\n(+ 1 1)\n#+END_SRC"
-       (let ((element (org-element-at-point)))
-	 (and (org-element-property :number-lines element)
-	      (org-element-property :retain-labels element)
-	      (not (org-element-property :use-labels element))))))
+    (org-test-with-temp-text "#+BEGIN_EXAMPLE -n -r -k\nText.\n#+END_EXAMPLE"
+      (let ((element (org-element-at-point)))
+	(should (org-element-property :number-lines element))
+	(should (org-element-property :retain-labels element))
+	(should-not (org-element-property :use-labels element))))
+    (org-test-with-temp-text
+	"#+BEGIN_SRC emacs-lisp -n -r -k\n(+ 1 1)\n#+END_SRC"
+      (let ((element (org-element-at-point)))
+	(should (org-element-property :number-lines element))
+	(should (org-element-property :retain-labels element))
+	(should-not (org-element-property :use-labels element))))
     ;; 3. "-n -r" combination should number-lines remove labels and not
     ;;    use them in coderefs.
-    (should
-     (org-test-with-temp-text "#+BEGIN_EXAMPLE -n -r\nText.\n#+END_EXAMPLE"
-       (let ((element (org-element-at-point)))
-	 (and (org-element-property :number-lines element)
-	      (not (org-element-property :retain-labels element))
-	      (not (org-element-property :use-labels element))))))
-    (should
-     (org-test-with-temp-text "#+BEGIN_SRC emacs-lisp -n -r\n(+ 1 1)\n#+END_SRC"
-       (let ((element (org-element-at-point)))
-	 (and (org-element-property :number-lines element)
-	      (not (org-element-property :retain-labels element))
-	      (not (org-element-property :use-labels element))))))
+    (org-test-with-temp-text "#+BEGIN_EXAMPLE -n -r\nText.\n#+END_EXAMPLE"
+      (let ((element (org-element-at-point)))
+	(should (org-element-property :number-lines element))
+	(should-not (org-element-property :retain-labels element))
+	(should-not (org-element-property :use-labels element))))
+    (org-test-with-temp-text "#+BEGIN_SRC emacs-lisp -n -r\n(+ 1 1)\n#+END_SRC"
+      (let ((element (org-element-at-point)))
+	(should (org-element-property :number-lines element))
+	(should-not (org-element-property :retain-labels element))
+	(should-not (org-element-property :use-labels element))))
     ;; 4. "-n" or "+n" should number lines, retain labels and use them
     ;;    in coderefs.
     (should
@@ -732,32 +760,28 @@ Some other text
 	      (org-element-property :use-labels element)))))
     ;; 5. No switch should not number lines, but retain labels and use
     ;;    them in coderefs.
-    (should
-     (org-test-with-temp-text "#+BEGIN_EXAMPLE\nText.\n#+END_EXAMPLE"
-       (let ((element (org-element-at-point)))
-	 (and (not (org-element-property :number-lines element))
-	      (org-element-property :retain-labels element)
-	      (org-element-property :use-labels element)))))
-    (should
-     (org-test-with-temp-text "#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC"
-       (let ((element (org-element-at-point)))
-	 (and (not (org-element-property :number-lines element))
-	      (org-element-property :retain-labels element)
-	      (org-element-property :use-labels element)))))
+    (org-test-with-temp-text "#+BEGIN_EXAMPLE\nText.\n#+END_EXAMPLE"
+      (let ((element (org-element-at-point)))
+	(should (not (org-element-property :number-lines element)))
+	(should (org-element-property :retain-labels element))
+	(should (org-element-property :use-labels element))))
+    (org-test-with-temp-text "#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC"
+      (let ((element (org-element-at-point)))
+	(should (not (org-element-property :number-lines element)))
+	(should (org-element-property :retain-labels element))
+	(should (org-element-property :use-labels element))))
     ;; 6. "-r" switch only: do not number lines, remove labels, and
     ;;    don't use labels in coderefs.
-    (should
-     (org-test-with-temp-text "#+BEGIN_EXAMPLE -r\nText.\n#+END_EXAMPLE"
-       (let ((element (org-element-at-point)))
-	 (and (not (org-element-property :number-lines element))
-	      (not (org-element-property :retain-labels element))
-	      (not (org-element-property :use-labels element))))))
-    (should
-     (org-test-with-temp-text "#+BEGIN_SRC emacs-lisp -r\n(+ 1 1)\n#+END_SRC"
-       (let ((element (org-element-at-point)))
-	 (and (not (org-element-property :number-lines element))
-	      (not (org-element-property :retain-labels element))
-	      (not (org-element-property :use-labels element))))))
+    (org-test-with-temp-text "#+BEGIN_EXAMPLE -r\nText.\n#+END_EXAMPLE"
+      (let ((element (org-element-at-point)))
+	(should (not (org-element-property :number-lines element)))
+	(should (not (org-element-property :retain-labels element)))
+	(should (not (org-element-property :use-labels element)))))
+    (org-test-with-temp-text "#+BEGIN_SRC emacs-lisp -r\n(+ 1 1)\n#+END_SRC"
+      (let ((element (org-element-at-point)))
+	(should (not (org-element-property :number-lines element)))
+	(should (not (org-element-property :retain-labels element)))
+	(should (not (org-element-property :use-labels element)))))
     ;; 7. Recognize coderefs with user-defined syntax.
     (should
      (equal
@@ -1500,10 +1524,11 @@ e^{i\\pi}+1=0
 			  (org-element-property :path l)
 			  (org-element-property :search-option l)))))))
   ;; ... file-type link with application...
+  (require 'org-docview)
   (should
    (equal
-    '("file" "projects.org" "docview")
-    (org-test-with-temp-text "[[docview:projects.org]]"
+    '("file" "projects.org" "emacs")
+    (org-test-with-temp-text "[[file+emacs:projects.org]]"
       (let ((l (org-element-context)))
 	(list (org-element-property :type l)
 	      (org-element-property :path l)
@@ -2252,10 +2277,10 @@ Outside list"
     "#+CAPTION[s1]: l1\n#+CAPTION[s2]: l2\nParagraph\n"))
   ;; Pseudo objects and elements are transparent.
   (should
-   (equal "A B\n"
-	  (org-element-interpret-data
-	   '(paragraph nil (pseudo-object (:post-blank 1) "A") "B")
-	   '(pseudo-object))))
+   (equal "A B"
+	  (org-trim
+	   (org-element-interpret-data
+	    '(paragraph nil (pseudo-object (:post-blank 1) "A") "B")))))
   (should
    (equal "A\n\nB\n"
 	  (org-element-interpret-data
@@ -3042,12 +3067,18 @@ Text
      '(paragraph nil "  Two spaces\n   Three spaces"))
     '(paragraph nil "Two spaces\n Three spaces")))
   ;; Ignore objects within contents when computing maximum common
-  ;; indentation.
+  ;; indentation.  However, if contents start with an object, common
+  ;; indentation is 0.
   (should
    (equal
     (org-element-normalize-contents
      '(paragraph nil " One " (emphasis nil "space") "\n  Two spaces"))
     '(paragraph nil "One " (emphasis nil "space") "\n Two spaces")))
+  (should
+   (equal
+    (org-element-normalize-contents
+     '(paragraph nil (verbatim nil "V") "No space\n  Two\n   Three"))
+    '(paragraph nil (verbatim nil "V") "No space\n  Two\n   Three")))
   ;; Ignore blank lines.
   (should
    (equal
@@ -3076,7 +3107,19 @@ Text
    (equal
     (org-element-normalize-contents
      '(paragraph nil "No space\n  Two spaces\n   Three spaces") t)
-    '(paragraph nil "No space\nTwo spaces\n Three spaces"))))
+    '(paragraph nil "No space\nTwo spaces\n Three spaces")))
+  (should
+   (equal
+    (org-element-normalize-contents
+     '(paragraph nil (verbatim nil "V") "No space\n  Two\n   Three") t)
+    '(paragraph nil (verbatim nil "V") "No space\nTwo\n Three")))
+  ;; Corner case: do not ignore indentation of string right after
+  ;; a line break.
+  (should
+   (equal
+    (org-element-normalize-contents
+     '(paragraph nil " 1 space" (line-break) "  2 spaces"))
+    '(paragraph nil "1 space" (line-break) " 2 spaces"))))
 
 
 
@@ -3194,19 +3237,6 @@ Text
    (eq 'timestamp
        (org-test-with-temp-text "* H\n  SCHEDULED: <2012-03-29 thu.>"
 	 (search-forward "SCHEDULED")
-	 (org-element-type (org-element-context)))))
-  ;; Find objects in document keywords.
-  (should
-   (eq 'macro
-       (org-test-with-temp-text "#+DATE: <point>{{{macro}}}"
-	 (org-element-type (org-element-context)))))
-  (should-not
-   (eq 'macro
-       (org-test-with-temp-text "#+DATE: {{{macro}}}\n<point>"
-	 (org-element-type (org-element-context)))))
-  (should-not
-   (eq 'macro
-       (org-test-with-temp-text "#+RANDOM_KEYWORD: <point>{{{macro}}}"
 	 (org-element-type (org-element-context)))))
   ;; Do not find objects in table rules.
   (should
@@ -3458,6 +3488,15 @@ Text
 	   (search-forward "# ")
 	   (delete-char -1)
 	   (search-backward "Para1")
+	   (org-element-type (org-element-at-point))))))
+  ;; Corner case: watch out drawers named "PROPERTIES" as they are
+  ;; fragile, unlike to other drawers.
+  (should
+   (eq 'node-property
+       (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:A<point>\n:END:"
+	 (let ((org-element-use-cache t))
+	   (org-element-at-point)
+	   (insert "+:")
 	   (org-element-type (org-element-at-point)))))))
 
 

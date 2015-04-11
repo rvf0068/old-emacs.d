@@ -1,6 +1,6 @@
 ;;; org-element.el --- Parser And Applications for Org syntax
 
-;; Copyright (C) 2012-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -207,7 +207,7 @@ specially in `org-element--object-lex'.")
 		      "\\$"
 		      ;; Objects starting with "\": line break,
 		      ;; entity, latex fragment.
-		      "\\\\\\(?:[a-zA-Z[(]\\|\\\\[ \t]*$\\)"
+		      "\\\\\\(?:[a-zA-Z[(]\\|\\\\[ \t]*$\\|_ +\\)"
 		      ;; Objects starting with raw text: inline Babel
 		      ;; source block, inline Babel call.
 		      "\\(?:call\\|src\\)_"))
@@ -249,6 +249,10 @@ specially in `org-element--object-lex'.")
 	 superscript table-cell underline)
   "List of recursive object types.")
 
+(defconst org-element-object-containers
+  (append org-element-recursive-objects '(paragraph table-row verse-block))
+  "List of object or element types that can directly contain objects.")
+
 (defvar org-element-block-name-alist
   '(("CENTER" . org-element-center-block-parser)
     ("COMMENT" . org-element-comment-block-parser)
@@ -259,12 +263,6 @@ specially in `org-element--object-lex'.")
   "Alist between block names and the associated parsing function.
 Names must be uppercase.  Any block whose name has no association
 is parsed with `org-element-special-block-parser'.")
-
-(defconst org-element-link-type-is-file
-  '("file" "file+emacs" "file+sys" "docview")
-  "List of link types equivalent to \"file\".
-Only these types can accept search options and an explicit
-application to open them.")
 
 (defconst org-element-affiliated-keywords
   '("CAPTION" "DATA" "HEADER" "HEADERS" "LABEL" "NAME" "PLOT" "RESNAME" "RESULT"
@@ -302,6 +300,13 @@ strings and objects.
 This list is checked after translations have been applied.  See
 `org-element-keyword-translation-alist'.")
 
+(defconst org-element--parsed-properties-alist
+  (mapcar (lambda (k) (cons k (intern (concat ":" (downcase k)))))
+	  org-element-parsed-keywords)
+  "Alist of parsed keywords and associated properties.
+This is generated from `org-element-parsed-keywords', which
+see.")
+
 (defconst org-element-dual-keywords '("CAPTION" "RESULTS")
   "List of affiliated keywords which can have a secondary value.
 
@@ -313,11 +318,6 @@ associated to a hash value with the following:
 
 This list is checked after translations have been applied.  See
 `org-element-keyword-translation-alist'.")
-
-(defconst org-element-document-properties '("AUTHOR" "DATE" "TITLE")
-  "List of properties associated to the whole document.
-Any keyword in this list will have its value parsed and stored as
-a secondary string.")
 
 (defconst org-element--affiliated-re
   (format "[ \t]*#\\+\\(?:%s\\):\\(?: \\|$\\)"
@@ -353,7 +353,7 @@ Don't modify it, set `org-element-affiliated-keywords' instead.")
       (inlinetask ,@standard-set-no-line-break)
       (italic ,@standard-set)
       (item ,@standard-set-no-line-break)
-      (keyword ,@standard-set)
+      (keyword ,@(remq 'footnote-reference standard-set))
       ;; Ignore all links excepted plain links in a link description.
       ;; Also ignore radio-targets and line breaks.
       (link bold code entity export-snippet inline-babel-call inline-src-block
@@ -390,10 +390,19 @@ This alist also applies to secondary string.  For example, an
 still has an entry since one of its properties (`:title') does.")
 
 (defconst org-element-secondary-value-alist
-  '((headline . :title)
-    (inlinetask . :title)
-    (item . :tag))
-  "Alist between element types and location of secondary value.")
+  '((headline :title)
+    (inlinetask :title)
+    (item :tag))
+  "Alist between element types and locations of secondary values.")
+
+(defconst org-element--pair-square-table
+  (let ((table (make-syntax-table)))
+    (modify-syntax-entry ?\[ "(]" table)
+    (modify-syntax-entry ?\] ")[" table)
+    (dolist (char '(?\{ ?\} ?\( ?\) ?\< ?\>) table)
+      (modify-syntax-entry char " " table)))
+  "Table used internally to pair only square brackets.
+Other brackets are treated as spaces.")
 
 
 
@@ -411,7 +420,8 @@ still has an entry since one of its properties (`:title') does.")
 ;; high-level functions useful to modify a parse tree.
 ;;
 ;; `org-element-secondary-p' is a predicate used to know if a given
-;; object belongs to a secondary string.
+;; object belongs to a secondary string.  `org-element-copy' returns
+;; an element or object, stripping its parent property in the process.
 
 (defsubst org-element-type (element)
   "Return type of ELEMENT.
@@ -451,22 +461,22 @@ Return modified element."
     element))
 
 (defsubst org-element-set-contents (element &rest contents)
-  "Set ELEMENT contents to CONTENTS.
-Return modified element."
+  "Set ELEMENT contents to CONTENTS."
   (cond ((not element) (list contents))
 	((not (symbolp (car element))) contents)
 	((cdr element) (setcdr (cdr element) contents))
 	(t (nconc element contents))))
 
 (defun org-element-secondary-p (object)
-  "Non-nil when OBJECT belongs to a secondary string.
+  "Non-nil when OBJECT directly belongs to a secondary string.
 Return value is the property name, as a keyword, or nil."
   (let* ((parent (org-element-property :parent object))
-	 (property (cdr (assq (org-element-type parent)
-			      org-element-secondary-value-alist))))
-    (and property
-	 (memq object (org-element-property property parent))
-	 property)))
+	 (properties (cdr (assq (org-element-type parent)
+				org-element-secondary-value-alist))))
+    (catch 'exit
+      (dolist (p properties)
+	(and (memq object (org-element-property p parent))
+	     (throw 'exit p))))))
 
 (defsubst org-element-adopt-elements (parent &rest children)
   "Append elements to the contents of another element.
@@ -560,6 +570,19 @@ The function takes care of setting `:parent' property for NEW."
     ;; Transfer type.
     (setcar old (car new))))
 
+(defun org-element-copy (datum)
+  "Return a copy of DATUM.
+DATUM is an element, object, string or nil.  `:parent' property
+is cleared and contents are removed in the process."
+  (when datum
+    (let ((type (org-element-type datum)))
+      (case type
+	(org-data (list 'org-data nil))
+	(plain-text (substring-no-properties datum))
+	((nil) (copy-sequence datum))
+	(otherwise
+	 (list type (plist-put (copy-sequence (nth 1 datum)) :parent nil)))))))
+
 
 
 ;;; Greater elements
@@ -571,7 +594,7 @@ The function takes care of setting `:parent' property for NEW."
 ;; Most of them accepts no argument.  Though, exceptions exist.  Hence
 ;; every element containing a secondary string (see
 ;; `org-element-secondary-value-alist') will accept an optional
-;; argument to toggle parsing of that secondary string.  Moreover,
+;; argument to toggle parsing of these secondary strings.  Moreover,
 ;; `item' parser requires current list's structure as its first
 ;; element.
 ;;
@@ -860,10 +883,10 @@ Return value is a plist."
   "Parse a headline.
 
 Return a list whose CAR is `headline' and CDR is a plist
-containing `:raw-value', `:title', `:alt-title', `:begin',
-`:end', `:pre-blank', `:contents-begin' and `:contents-end',
-`:level', `:priority', `:tags', `:todo-keyword',`:todo-type',
-`:scheduled', `:deadline', `:closed', `:archivedp', `:commentedp'
+containing `:raw-value', `:title', `:begin', `:end',
+`:pre-blank', `:contents-begin' and `:contents-end', `:level',
+`:priority', `:tags', `:todo-keyword',`:todo-type', `:scheduled',
+`:deadline', `:closed', `:archivedp', `:commentedp'
 `:footnote-section-p', `:post-blank' and `:post-affiliated'
 keywords.
 
@@ -878,24 +901,37 @@ parsed as a secondary string, but as a plain string instead.
 
 Assume point is at beginning of the headline."
   (save-excursion
-    (let* ((components (org-heading-components))
-	   (level (nth 1 components))
-	   (todo (nth 2 components))
+    (let* ((begin (point))
+	   (level (prog1 (org-reduced-level (skip-chars-forward "*"))
+		    (skip-chars-forward " \t")))
+	   (todo (and org-todo-regexp
+		      (let (case-fold-search) (looking-at org-todo-regexp))
+		      (progn (goto-char (match-end 0))
+			     (skip-chars-forward " \t")
+			     (match-string 0))))
 	   (todo-type
 	    (and todo (if (member todo org-done-keywords) 'done 'todo)))
-	   (tags (let ((raw-tags (nth 5 components)))
-		   (and raw-tags (org-split-string raw-tags ":"))))
-	   (raw-value (or (nth 4 components) ""))
+	   (priority (and (looking-at "\\[#.\\][ \t]*")
+			  (progn (goto-char (match-end 0))
+				 (aref (match-string 0) 2))))
 	   (commentedp
-	    (let ((case-fold-search nil))
-	      (string-match (format "^%s\\( \\|$\\)" org-comment-string)
-			    raw-value)))
+	    (and (let (case-fold-search) (looking-at org-comment-string))
+		 (goto-char (match-end 0))))
+	   (title-start (point))
+	   (tags (when (re-search-forward
+			(org-re "[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")
+			(line-end-position)
+			'move)
+		   (goto-char (match-beginning 0))
+		   (org-split-string (match-string 1) ":")))
+	   (title-end (point))
+	   (raw-value (org-trim
+		       (buffer-substring-no-properties title-start title-end)))
 	   (archivedp (member org-archive-tag tags))
 	   (footnote-section-p (and org-footnote-section
 				    (string= org-footnote-section raw-value)))
 	   (standard-props (org-element--get-node-properties))
 	   (time-props (org-element--get-time-properties))
-	   (begin (point))
 	   (end (min (save-excursion (org-end-of-subtree t t)) limit))
 	   (pos-after-head (progn (forward-line) (point)))
 	   (contents-begin (save-excursion
@@ -906,14 +942,6 @@ Assume point is at beginning of the headline."
 				     (skip-chars-backward " \r\t\n")
 				     (forward-line)
 				     (point)))))
-      ;; Clean RAW-VALUE from any comment string.
-      (when commentedp
-	(let ((case-fold-search nil))
-	  (setq raw-value
-		(replace-regexp-in-string
-		 (concat (regexp-quote org-comment-string) "\\(?: \\|$\\)")
-		 ""
-		 raw-value))))
       ;; Clean TAGS from archive tag, if any.
       (when archivedp (setq tags (delete org-archive-tag tags)))
       (let ((headline
@@ -928,7 +956,7 @@ Assume point is at beginning of the headline."
 			  :contents-begin contents-begin
 			  :contents-end contents-end
 			  :level level
-			  :priority (nth 3 components)
+			  :priority priority
 			  :tags tags
 			  :todo-keyword todo
 			  :todo-type todo-type
@@ -941,18 +969,20 @@ Assume point is at beginning of the headline."
 			  :post-affiliated begin)
 		    time-props
 		    standard-props))))
-	(let ((alt-title (org-element-property :ALT_TITLE headline)))
-	  (when alt-title
-	    (org-element-put-property
-	     headline :alt-title
-	     (if raw-secondary-p alt-title
-	       (org-element-parse-secondary-string
-		alt-title (org-element-restriction 'headline) headline)))))
 	(org-element-put-property
 	 headline :title
 	 (if raw-secondary-p raw-value
-	   (org-element-parse-secondary-string
-	    raw-value (org-element-restriction 'headline) headline)))))))
+	   (let ((title (org-element--parse-objects
+			 (progn (goto-char title-start)
+				(skip-chars-forward " \t")
+				(point))
+			 (progn (goto-char title-end)
+				(skip-chars-backward " \t")
+				(point))
+			 nil
+			 (org-element-restriction 'headline))))
+	     (dolist (datum title title)
+	       (org-element-put-property datum :parent headline)))))))))
 
 (defun org-element-headline-interpreter (headline contents)
   "Interpret HEADLINE element as Org syntax.
@@ -975,7 +1005,7 @@ CONTENTS is the contents of the element."
 			       ?*)
 		  (and todo (concat " " todo))
 		  (and commentedp (concat " " org-comment-string))
-		  (and priority (format " [#%s]" (char-to-string priority)))
+		  (and priority (format " [#%c]" priority))
 		  " "
 		  (if (and org-footnote-section
 			   (org-element-property :footnote-section-p headline))
@@ -1023,13 +1053,28 @@ string instead.
 Assume point is at beginning of the inline task."
   (save-excursion
     (let* ((begin (point))
-	   (components (org-heading-components))
-	   (todo (nth 2 components))
+	   (level (prog1 (org-reduced-level (skip-chars-forward "*"))
+		    (skip-chars-forward " \t")))
+	   (todo (and org-todo-regexp
+		      (let (case-fold-search) (looking-at org-todo-regexp))
+		      (progn (goto-char (match-end 0))
+			     (skip-chars-forward " \t")
+			     (match-string 0))))
 	   (todo-type (and todo
 			   (if (member todo org-done-keywords) 'done 'todo)))
-	   (tags (let ((raw-tags (nth 5 components)))
-		   (and raw-tags (org-split-string raw-tags ":"))))
-	   (raw-value (or (nth 4 components) ""))
+	   (priority (and (looking-at "\\[#.\\][ \t]*")
+			  (progn (goto-char (match-end 0))
+				 (aref (match-string 0) 2))))
+	   (title-start (point))
+	   (tags (when (re-search-forward
+			(org-re "[ \t]+\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")
+			(line-end-position)
+			'move)
+		   (goto-char (match-beginning 0))
+		   (org-split-string (match-string 1) ":")))
+	   (title-end (point))
+	   (raw-value (org-trim
+		       (buffer-substring-no-properties title-start title-end)))
 	   (task-end (save-excursion
 		       (end-of-line)
 		       (and (re-search-forward org-outline-regexp-bol limit t)
@@ -1054,8 +1099,8 @@ Assume point is at beginning of the inline task."
 			 :end end
 			 :contents-begin contents-begin
 			 :contents-end contents-end
-			 :level (nth 1 components)
-			 :priority (nth 3 components)
+			 :level level
+			 :priority priority
 			 :tags tags
 			 :todo-keyword todo
 			 :todo-type todo-type
@@ -1066,10 +1111,17 @@ Assume point is at beginning of the inline task."
       (org-element-put-property
        inlinetask :title
        (if raw-secondary-p raw-value
-	 (org-element-parse-secondary-string
-	  raw-value
-	  (org-element-restriction 'inlinetask)
-	  inlinetask))))))
+	 (let ((title (org-element--parse-objects
+		       (progn (goto-char title-start)
+			      (skip-chars-forward " \t")
+			      (point))
+		       (progn (goto-char title-end)
+			      (skip-chars-backward " \t")
+			      (point))
+		       nil
+		       (org-element-restriction 'inlinetask))))
+	   (dolist (datum title title)
+	     (org-element-put-property datum :parent inlinetask))))))))
 
 (defun org-element-inlinetask-interpreter (inlinetask contents)
   "Interpret INLINETASK element as Org syntax.
@@ -1084,8 +1136,7 @@ CONTENTS is the contents of inlinetask."
 		      (format ":%s:" (mapconcat 'identity tag-list ":")))))
 	 (task (concat (make-string level ?*)
 		       (and todo (concat " " todo))
-		       (and priority
-			    (format " [#%s]" (char-to-string priority)))
+		       (and priority (format " [#%c]" priority))
 		       (and title (concat " " title)))))
     (concat task
 	    ;; Align tags.
@@ -1183,11 +1234,14 @@ Assume point is at the beginning of the item."
 			:post-affiliated begin))))
       (org-element-put-property
        item :tag
-       (let ((raw-tag (org-list-get-tag begin struct)))
-	 (and raw-tag
-	      (if raw-secondary-p raw-tag
-		(org-element-parse-secondary-string
-		 raw-tag (org-element-restriction 'item) item))))))))
+       (let ((raw (org-list-get-tag begin struct)))
+	 (when raw
+	   (if raw-secondary-p raw
+	     (let ((tag (org-element--parse-objects
+			 (match-beginning 4) (match-end 4) nil
+			 (org-element-restriction 'item))))
+	       (dolist (datum tag tag)
+		 (org-element-put-property datum :parent item))))))))))
 
 (defun org-element-item-interpreter (item contents)
   "Interpret ITEM element as Org syntax.
@@ -2663,7 +2717,7 @@ a plist with `:begin', `:end', `:latex', `:latex-math-p',
 
 Assume point is at the beginning of the entity."
   (catch 'no-object
-    (when (looking-at "\\\\\\(there4\\|sup[123]\\|frac[13][24]\\|[a-zA-Z]+\\)\\($\\|{}\\|[^[:alpha:]]\\)")
+    (when (looking-at "\\\\\\(?:\\(?1:_ +\\)\\|\\(?1:there4\\|sup[123]\\|frac[13][24]\\|[a-zA-Z]+\\)\\(?2:$\\|{}\\|[^[:alpha:]]\\)\\)")
       (save-excursion
 	(let* ((value (or (org-entity-get (match-string 1))
 			  (throw 'no-object nil)))
@@ -2742,35 +2796,31 @@ When at a footnote reference, return a list whose car is
 `footnote-reference' and cdr a plist with `:label', `:type',
 `:begin', `:end', `:content-begin', `:contents-end' and
 `:post-blank' as keywords.  Otherwise, return nil."
-  (catch 'no-object
-    (when (looking-at org-footnote-re)
-      (save-excursion
-	(let* ((begin (point))
-	       (label
-		(or (org-match-string-no-properties 2)
-		    (org-match-string-no-properties 3)
-		    (and (match-string 1)
-			 (concat "fn:" (org-match-string-no-properties 1)))))
-	       (type (if (or (not label) (match-string 1)) 'inline 'standard))
-	       (inner-begin (match-end 0))
-	       (inner-end
-		(let ((count 1))
-		  (forward-char)
-		  (while (and (> count 0) (re-search-forward "[][]" nil t))
-		    (if (equal (match-string 0) "[") (incf count) (decf count)))
-		  (unless (zerop count) (throw 'no-object nil))
-		  (1- (point))))
-	       (post-blank (progn (goto-char (1+ inner-end))
-				  (skip-chars-forward " \t")))
-	       (end (point)))
-	  (list 'footnote-reference
-		(list :label label
-		      :type type
-		      :begin begin
-		      :end end
-		      :contents-begin (and (eq type 'inline) inner-begin)
-		      :contents-end (and (eq type 'inline) inner-end)
-		      :post-blank post-blank)))))))
+  (when (looking-at org-footnote-re)
+    (let ((closing (with-syntax-table org-element--pair-square-table
+		     (ignore-errors (scan-lists (point) 1 0)))))
+      (when closing
+	(save-excursion
+	  (let* ((begin (point))
+		 (label
+		  (or (org-match-string-no-properties 2)
+		      (org-match-string-no-properties 3)
+		      (and (match-string 1)
+			   (concat "fn:" (org-match-string-no-properties 1)))))
+		 (type (if (or (not label) (match-string 1)) 'inline 'standard))
+		 (inner-begin (match-end 0))
+		 (inner-end (1- closing))
+		 (post-blank (progn (goto-char closing)
+				    (skip-chars-forward " \t")))
+		 (end (point)))
+	    (list 'footnote-reference
+		  (list :label label
+			:type type
+			:begin begin
+			:end end
+			:contents-begin (and (eq type 'inline) inner-begin)
+			:contents-end (and (eq type 'inline) inner-end)
+			:post-blank post-blank))))))))
 
 (defun org-element-footnote-reference-interpreter (footnote-reference contents)
   "Interpret FOOTNOTE-REFERENCE object as Org syntax.
@@ -2943,7 +2993,7 @@ Assume point is at the beginning of the line break."
 	     (not (eq (char-before) ?\\)))
     (list 'line-break
 	  (list :begin (point)
-		:end (progn (forward-line) (point))
+		:end (line-beginning-position 2)
 		:post-blank 0))))
 
 (defun org-element-line-break-interpreter (line-break contents)
@@ -3033,22 +3083,16 @@ Assume point is at the beginning of the link."
       (save-excursion
 	(setq post-blank (progn (goto-char link-end) (skip-chars-forward " \t"))
 	      end (point))
-	;; Special "file" type link processing.
-	(when (member type org-element-link-type-is-file)
-	  ;; Extract opening application and search option.
-	  (cond ((string-match "^file\\+\\(.*\\)$" type)
-		 (setq application (match-string 1 type)))
-		((not (string-match "^file" type))
-		 (setq application type)))
+	;; Special "file" type link processing.  Extract opening
+	;; application and search option, if any.  Also normalize URI.
+	(when (string-match "\\`file\\(?:\\+\\(.+\\)\\)?\\'" type)
+	  (setq application (match-string 1 type) type "file")
 	  (when (string-match "::\\(.*\\)\\'" path)
 	    (setq search-option (match-string 1 path)
 		  path (replace-match "" nil nil path)))
-	  ;; Normalize URI.
 	  (when (and (file-name-absolute-p path)
 		     (not (org-string-match-p "\\`[/~]/" path)))
-	    (setq path (concat "//" path)))
-	  ;; Make sure TYPE always reports "file".
-	  (setq type "file"))
+	    (setq path (concat "//" path))))
 	(list 'link
 	      (list :type type
 		    :path path
@@ -3091,18 +3135,7 @@ Assume point is at the macro."
 			       (skip-chars-forward " \t")))
 	    (end (point))
 	    (args (let ((args (org-match-string-no-properties 3)))
-		    (when args
-		      ;; Do not use `org-split-string' since empty
-		      ;; strings are meaningful here.
-		      (split-string
-		       (replace-regexp-in-string
-			"\\(\\\\*\\)\\(,\\)"
-			(lambda (str)
-			  (let ((len (length (match-string 1 str))))
-			    (concat (make-string (/ len 2) ?\\)
-				    (if (zerop (mod len 2)) "\000" ","))))
-			args nil t)
-		       "\000")))))
+		    (and args (org-macro-extract-arguments args)))))
 	(list 'macro
 	      (list :key key
 		    :value value
@@ -3788,7 +3821,7 @@ position of point and CDR is nil."
 		(save-match-data
 		  (org-trim
 		   (buffer-substring-no-properties
-		    (match-end 0) (point-at-eol)))))
+		    (match-end 0) (line-end-position)))))
 	       ;; PARSEDP is non-nil when keyword should have its
 	       ;; value parsed.
 	       (parsedp (member kwd org-element-parsed-keywords))
@@ -3799,12 +3832,17 @@ position of point and CDR is nil."
 		(and dualp
 		     (let ((sec (org-match-string-no-properties 2)))
 		       (if (or (not sec) (not parsedp)) sec
-			 (org-element-parse-secondary-string sec restrict)))))
+			 (org-element--parse-objects
+			  (match-beginning 2) (match-end 2) nil restrict)))))
 	       ;; Attribute a property name to KWD.
 	       (kwd-sym (and kwd (intern (concat ":" (downcase kwd))))))
 	  ;; Now set final shape for VALUE.
 	  (when parsedp
-	    (setq value (org-element-parse-secondary-string value restrict)))
+	    (setq value
+		  (org-element--parse-objects
+		   (match-end 0)
+		   (progn (end-of-line) (skip-chars-backward " \t") (point))
+		   nil restrict)))
 	  (when dualp
 	    (setq value (and (or value dual-value) (cons value dual-value))))
 	  (when (or (member kwd org-element-multiple-keywords)
@@ -3897,23 +3935,28 @@ looked after.
 
 Optional argument PARENT, when non-nil, is the element or object
 containing the secondary string.  It is used to set correctly
-`:parent' property within the string."
-  (let ((local-variables (buffer-local-variables)))
-    (with-temp-buffer
-      (dolist (v local-variables)
-	(ignore-errors
-	  (if (symbolp v) (makunbound v)
-	    (org-set-local (car v) (cdr v)))))
-      (insert string)
-      (restore-buffer-modified-p nil)
-      (let ((secondary (org-element--parse-objects
-			(point-min) (point-max) nil restriction)))
-	(when parent
-	  (dolist (o secondary) (org-element-put-property o :parent parent)))
-	secondary))))
+`:parent' property within the string.
+
+If STRING is the empty string or nil, return nil."
+  (cond
+   ((not string) nil)
+   ((equal string "") nil)
+   (t (let ((local-variables (buffer-local-variables)))
+	(with-temp-buffer
+	  (dolist (v local-variables)
+	    (ignore-errors
+	      (if (symbolp v) (makunbound v)
+		(org-set-local (car v) (cdr v)))))
+	  (insert string)
+	  (restore-buffer-modified-p nil)
+	  (let ((data (org-element--parse-objects
+		       (point-min) (point-max) nil restriction)))
+	    (when parent
+	      (dolist (o data) (org-element-put-property o :parent parent)))
+	    data))))))
 
 (defun org-element-map
-  (data types fun &optional info first-match no-recursion with-affiliated)
+    (data types fun &optional info first-match no-recursion with-affiliated)
   "Map a function on selected elements or objects.
 
 DATA is a parse tree, an element, an object, a string, or a list
@@ -3949,7 +3992,7 @@ Assuming TREE is a variable containing an Org buffer parse tree,
 the following example will return a flat list of all `src-block'
 and `example-block' elements in it:
 
-  \(org-element-map tree '(example-block src-block) 'identity)
+  \(org-element-map tree '(example-block src-block) #'identity)
 
 The following snippet will find the first headline with a level
 of 1 and a \"phone\" tag, and will return its beginning position:
@@ -3964,7 +4007,7 @@ of 1 and a \"phone\" tag, and will return its beginning position:
 The next example will return a flat list of all `plain-list' type
 elements in TREE that are not a sub-list themselves:
 
-  \(org-element-map tree 'plain-list 'identity nil nil 'plain-list)
+  \(org-element-map tree 'plain-list #'identity nil nil 'plain-list)
 
 Eventually, this example will return a flat list of all `bold'
 type objects containing a `latex-snippet' type object, even
@@ -3972,112 +4015,98 @@ looking into captions:
 
   \(org-element-map tree 'bold
    \(lambda (b)
-     \(and (org-element-map b 'latex-snippet 'identity nil t) b))
+     \(and (org-element-map b 'latex-snippet #'identity nil t) b))
    nil nil nil t)"
   ;; Ensure TYPES and NO-RECURSION are a list, even of one element.
-  (unless (listp types) (setq types (list types)))
-  (unless (listp no-recursion) (setq no-recursion (list no-recursion)))
-  ;; Recursion depth is determined by --CATEGORY.
-  (let* ((--category
+  (let* ((types (if (listp types) types (list types)))
+	 (no-recursion (if (listp no-recursion) no-recursion
+			 (list no-recursion)))
+	 ;; Recursion depth is determined by --CATEGORY.
+	 (--category
 	  (catch 'found
-	    (let ((category 'greater-elements))
-	      (mapc (lambda (type)
-		      (cond ((or (memq type org-element-all-objects)
-				 (eq type 'plain-text))
-			     ;; If one object is found, the function
-			     ;; has to recurse into every object.
-			     (throw 'found 'objects))
-			    ((not (memq type org-element-greater-elements))
-			     ;; If one regular element is found, the
-			     ;; function has to recurse, at least,
-			     ;; into every element it encounters.
-			     (and (not (eq category 'elements))
-				  (setq category 'elements)))))
-		    types)
-	      category)))
-	 ;; Compute properties for affiliated keywords if necessary.
-	 (--affiliated-alist
-	  (and with-affiliated
-	       (mapcar (lambda (kwd)
-			 (cons kwd (intern (concat ":" (downcase kwd)))))
-		       org-element-affiliated-keywords)))
+	    (let ((category 'greater-elements)
+		  (all-objects (cons 'plain-text org-element-all-objects)))
+	      (dolist (type types category)
+		(cond ((memq type all-objects)
+		       ;; If one object is found, the function has to
+		       ;; recurse into every object.
+		       (throw 'found 'objects))
+		      ((not (memq type org-element-greater-elements))
+		       ;; If one regular element is found, the
+		       ;; function has to recurse, at least, into
+		       ;; every element it encounters.
+		       (and (not (eq category 'elements))
+			    (setq category 'elements))))))))
 	 --acc
 	 --walk-tree
 	 (--walk-tree
-	  (function
-	   (lambda (--data)
-	     ;; Recursively walk DATA.  INFO, if non-nil, is a plist
-	     ;; holding contextual information.
-	     (let ((--type (org-element-type --data)))
-	       (cond
-		((not --data))
-		;; Ignored element in an export context.
-		((and info (memq --data (plist-get info :ignore-list))))
-		;; List of elements or objects.
-		((not --type) (mapc --walk-tree --data))
-		;; Unconditionally enter parse trees.
-		((eq --type 'org-data)
-		 (mapc --walk-tree (org-element-contents --data)))
-		(t
-		 ;; Check if TYPE is matching among TYPES.  If so,
-		 ;; apply FUN to --DATA and accumulate return value
-		 ;; into --ACC (or exit if FIRST-MATCH is non-nil).
-		 (when (memq --type types)
-		   (let ((result (funcall fun --data)))
-		     (cond ((not result))
-			   (first-match (throw '--map-first-match result))
-			   (t (push result --acc)))))
-		 ;; If --DATA has a secondary string that can contain
-		 ;; objects with their type among TYPES, look into it.
-		 (when (and (eq --category 'objects) (not (stringp --data)))
-		   (let ((sec-prop
-			  (assq --type org-element-secondary-value-alist)))
-		     (when sec-prop
-		       (funcall --walk-tree
-				(org-element-property (cdr sec-prop) --data)))))
-		 ;; If --DATA has any affiliated keywords and
-		 ;; WITH-AFFILIATED is non-nil, look for objects in
-		 ;; them.
-		 (when (and with-affiliated
-			    (eq --category 'objects)
-			    (memq --type org-element-all-elements))
-		   (mapc (lambda (kwd-pair)
-			   (let ((kwd (car kwd-pair))
-				 (value (org-element-property
-					 (cdr kwd-pair) --data)))
-			     ;; Pay attention to the type of value.
-			     ;; Preserve order for multiple keywords.
-			     (cond
-			      ((not value))
-			      ((and (member kwd org-element-multiple-keywords)
-				    (member kwd org-element-dual-keywords))
-			       (mapc (lambda (line)
-				       (funcall --walk-tree (cdr line))
-				       (funcall --walk-tree (car line)))
-				     (reverse value)))
-			      ((member kwd org-element-multiple-keywords)
-			       (mapc (lambda (line) (funcall --walk-tree line))
-				     (reverse value)))
-			      ((member kwd org-element-dual-keywords)
-			       (funcall --walk-tree (cdr value))
-			       (funcall --walk-tree (car value)))
-			      (t (funcall --walk-tree value)))))
-			 --affiliated-alist))
-		 ;; Determine if a recursion into --DATA is possible.
-		 (cond
-		  ;; --TYPE is explicitly removed from recursion.
-		  ((memq --type no-recursion))
-		  ;; --DATA has no contents.
-		  ((not (org-element-contents --data)))
-		  ;; Looking for greater elements but --DATA is simply
-		  ;; an element or an object.
-		  ((and (eq --category 'greater-elements)
-			(not (memq --type org-element-greater-elements))))
-		  ;; Looking for elements but --DATA is an object.
-		  ((and (eq --category 'elements)
-			(memq --type org-element-all-objects)))
-		  ;; In any other case, map contents.
-		  (t (mapc --walk-tree (org-element-contents --data)))))))))))
+	  (lambda (--data)
+	    ;; Recursively walk DATA.  INFO, if non-nil, is a plist
+	    ;; holding contextual information.
+	    (let ((--type (org-element-type --data)))
+	      (cond
+	       ((not --data))
+	       ;; Ignored element in an export context.
+	       ((and info (memq --data (plist-get info :ignore-list))))
+	       ;; List of elements or objects.
+	       ((not --type) (mapc --walk-tree --data))
+	       ;; Unconditionally enter parse trees.
+	       ((eq --type 'org-data)
+		(mapc --walk-tree (org-element-contents --data)))
+	       (t
+		;; Check if TYPE is matching among TYPES.  If so,
+		;; apply FUN to --DATA and accumulate return value
+		;; into --ACC (or exit if FIRST-MATCH is non-nil).
+		(when (memq --type types)
+		  (let ((result (funcall fun --data)))
+		    (cond ((not result))
+			  (first-match (throw '--map-first-match result))
+			  (t (push result --acc)))))
+		;; If --DATA has a secondary string that can contain
+		;; objects with their type among TYPES, look into it.
+		(when (and (eq --category 'objects) (not (stringp --data)))
+		  (dolist (p (cdr (assq --type
+					org-element-secondary-value-alist)))
+		    (funcall --walk-tree (org-element-property p --data))))
+		;; If --DATA has any parsed affiliated keywords and
+		;; WITH-AFFILIATED is non-nil, look for objects in
+		;; them.
+		(when (and with-affiliated
+			   (eq --category 'objects)
+			   (memq --type org-element-all-elements))
+		  (dolist (kwd-pair org-element--parsed-properties-alist)
+		    (let ((kwd (car kwd-pair))
+			  (value (org-element-property (cdr kwd-pair) --data)))
+		      ;; Pay attention to the type of parsed keyword.
+		      ;; In particular, preserve order for multiple
+		      ;; keywords.
+		      (cond
+		       ((not value))
+		       ((member kwd org-element-dual-keywords)
+			(if (member kwd org-element-multiple-keywords)
+			    (dolist (line (reverse value))
+			      (funcall --walk-tree (cdr line))
+			      (funcall --walk-tree (car line)))
+			  (funcall --walk-tree (cdr value))
+			  (funcall --walk-tree (car value))))
+		       ((member kwd org-element-multiple-keywords)
+			(mapc --walk-tree (reverse value)))
+		       (t (funcall --walk-tree value))))))
+		;; Determine if a recursion into --DATA is possible.
+		(cond
+		 ;; --TYPE is explicitly removed from recursion.
+		 ((memq --type no-recursion))
+		 ;; --DATA has no contents.
+		 ((not (org-element-contents --data)))
+		 ;; Looking for greater elements but --DATA is simply
+		 ;; an element or an object.
+		 ((and (eq --category 'greater-elements)
+		       (not (memq --type org-element-greater-elements))))
+		 ;; Looking for elements but --DATA is an object.
+		 ((and (eq --category 'elements)
+		       (memq --type org-element-all-objects)))
+		 ;; In any other case, map contents.
+		 (t (mapc --walk-tree (org-element-contents --data))))))))))
     (catch '--map-first-match
       (funcall --walk-tree data)
       ;; Return value in a proper order.
@@ -4331,30 +4360,18 @@ the current object."
 ;; `org-element--interpret-affiliated-keywords'.
 
 ;;;###autoload
-(defun org-element-interpret-data (data &optional pseudo-objects)
+(defun org-element-interpret-data (data)
   "Interpret DATA as Org syntax.
-
 DATA is a parse tree, an element, an object or a secondary string
-to interpret.
+to interpret.  Return Org syntax as a string."
+  (org-element--interpret-data-1 data nil))
 
-Optional argument PSEUDO-OBJECTS is a list of symbols defining
-new types that should be treated as objects.  An unknown type not
-belonging to this list is seen as a pseudo-element instead.  Both
-pseudo-objects and pseudo-elements are transparent entities, i.e.
-only their contents are interpreted.
-
-Return Org syntax as a string."
-  (org-element--interpret-data-1 data nil pseudo-objects))
-
-(defun org-element--interpret-data-1 (data parent pseudo-objects)
+(defun org-element--interpret-data-1 (data parent)
   "Interpret DATA as Org syntax.
 
 DATA is a parse tree, an element, an object or a secondary string
 to interpret.  PARENT is used for recursive calls.  It contains
-the element or object containing data, or nil.  PSEUDO-OBJECTS
-are list of symbols defining new element or object types.
-Unknown types that don't belong to this list are treated as
-pseudo-elements instead.
+the element or object containing data, or nil.
 
 Return Org syntax as a string."
   (let* ((type (org-element-type data))
@@ -4369,15 +4386,11 @@ Return Org syntax as a string."
 	   ;; Secondary string.
 	   ((not type)
 	    (mapconcat
-	     (lambda (obj)
-	       (org-element--interpret-data-1 obj parent pseudo-objects))
-	     data ""))
+	     (lambda (obj) (org-element--interpret-data-1 obj parent)) data ""))
 	   ;; Full Org document.
 	   ((eq type 'org-data)
-	    (mapconcat
-	     (lambda (obj)
-	       (org-element--interpret-data-1 obj parent pseudo-objects))
-	     (org-element-contents data) ""))
+	    (mapconcat (lambda (obj) (org-element--interpret-data-1 obj parent))
+		       (org-element-contents data) ""))
 	   ;; Plain text: return it.
 	   ((stringp data) data)
 	   ;; Element or object without contents.
@@ -4387,8 +4400,7 @@ Return Org syntax as a string."
 	    (funcall interpret data
 		     ;; Recursively interpret contents.
 		     (mapconcat
-		      (lambda (obj)
-			(org-element--interpret-data-1 obj data pseudo-objects))
+		      (lambda (obj) (org-element--interpret-data-1 obj data))
 		      (org-element-contents
 		       (if (not (memq type '(paragraph verse-block)))
 			   data
@@ -4410,7 +4422,10 @@ Return Org syntax as a string."
       ;; specified, assume its value is 0.
       (let ((post-blank (or (org-element-property :post-blank data) 0)))
 	(if (or (memq type org-element-all-objects)
-		(memq type pseudo-objects))
+		(and parent
+		     (let ((type (org-element-type parent)))
+		       (or (not type)
+			   (memq type org-element-object-containers)))))
 	    (concat results (make-string post-blank ?\s))
 	  (concat
 	   (org-element--interpret-affiliated-keywords data)
@@ -4499,25 +4514,29 @@ indentation is not done with TAB characters."
 	 (find-min-ind
 	  ;; Return minimal common indentation within BLOB.  This is
 	  ;; done by walking recursively BLOB and updating MIN-IND
-	  ;; along the way.  FIRST-FLAG is non-nil when the first
-	  ;; string hasn't been seen yet.  It is required as this
-	  ;; string is the only one whose indentation doesn't happen
-	  ;; after a newline character.
+	  ;; along the way.  FIRST-FLAG is non-nil when the next
+	  ;; object is expected to be a string that doesn't start with
+	  ;; a newline character.  It happens for strings at the
+	  ;; beginnings of the contents or right after a line break.
 	  (lambda (blob first-flag)
 	    (dolist (object (org-element-contents blob))
-	      (when (and first-flag (stringp object))
+	      (when first-flag
 		(setq first-flag nil)
-		(string-match "\\` *" object)
-		(let ((len (match-end 0)))
-		  ;; An indentation of zero means no string will be
-		  ;; modified.  Quit the process.
-		  (if (zerop len) (throw 'zero (setq min-ind 0))
-		    (setq min-ind (min len min-ind)))))
+		;; Objects cannot start with spaces: in this case,
+		;; indentation is 0.
+		(if (not (stringp object)) (throw 'zero (setq min-ind 0))
+		  (string-match "\\` *" object)
+		  (let ((len (match-end 0)))
+		    ;; An indentation of zero means no string will be
+		    ;; modified.  Quit the process.
+		    (if (zerop len) (throw 'zero (setq min-ind 0))
+		      (setq min-ind (min len min-ind))))))
 	      (cond
 	       ((stringp object)
 		(dolist (line (cdr (org-split-string object " *\n")))
 		  (unless (string= line "")
 		    (setq min-ind (min (org-get-indentation line) min-ind)))))
+	       ((eq (org-element-type object) 'line-break) (setq first-flag t))
 	       ((memq (org-element-type object) org-element-recursive-objects)
 		(funcall find-min-ind object first-flag)))))))
     ;; Find minimal indentation in ELEMENT.
@@ -4527,31 +4546,35 @@ indentation is not done with TAB characters."
       ;; string minus common indentation.
       (let* (build			; For byte compiler.
 	     (build
-	      (function
-	       (lambda (blob first-flag)
-		 ;; Return BLOB with all its strings indentation
-		 ;; shortened from MIN-IND white spaces.  FIRST-FLAG
-		 ;; is non-nil when the first string hasn't been seen
-		 ;; yet.
-		 (setcdr (cdr blob)
-			 (mapcar
-			  #'(lambda (object)
-			      (when (and first-flag (stringp object))
-				(setq first-flag nil)
-				(setq object
-				      (replace-regexp-in-string
-				       (format "\\` \\{%d\\}" min-ind)
-				       "" object)))
-			      (cond
-			       ((stringp object)
-				(replace-regexp-in-string
-				 (format "\n \\{%d\\}" min-ind) "\n" object))
-			       ((memq (org-element-type object)
-				      org-element-recursive-objects)
-				(funcall build object first-flag))
-			       (t object)))
-			  (org-element-contents blob)))
-		 blob))))
+	      (lambda (blob first-flag)
+		;; Return BLOB with all its strings indentation
+		;; shortened from MIN-IND white spaces.  FIRST-FLAG is
+		;; non-nil when the next object is expected to be
+		;; a string that doesn't start with a newline
+		;; character.
+		(setcdr (cdr blob)
+			(mapcar
+			 (lambda (object)
+			   (when first-flag
+			     (setq first-flag nil)
+			     (when (stringp object)
+			       (setq object
+				     (replace-regexp-in-string
+				      (format "\\` \\{%d\\}" min-ind)
+				      "" object))))
+			   (cond
+			    ((stringp object)
+			     (replace-regexp-in-string
+			      (format "\n \\{%d\\}" min-ind) "\n" object))
+			    ((memq (org-element-type object)
+				   org-element-recursive-objects)
+			     (funcall build object first-flag))
+			    ((eq (org-element-type object) 'line-break)
+			     (setq first-flag t)
+			     object)
+			    (t object)))
+			 (org-element-contents blob)))
+		blob)))
 	(funcall build element (not ignore-first))))))
 
 
@@ -5337,12 +5360,10 @@ the process stopped before finding the expected result."
 (defconst org-element--cache-sensitive-re
   (concat
    org-outline-regexp-bol "\\|"
+   "\\\\end{[A-Za-z0-9*]+}[ \t]*$" "\\|"
    "^[ \t]*\\(?:"
-   ;; Blocks
    "#\\+\\(?:BEGIN[:_]\\|END\\(?:_\\|:?[ \t]*$\\)\\)" "\\|"
-   ;; LaTeX environments.
-   "\\\\\\(?:begin{[A-Za-z0-9*]+}\\|end{[A-Za-z0-9*]+}[ \t]*$\\)" "\\|"
-   ;; Drawers.
+   "\\\\begin{[A-Za-z0-9*]+}" "\\|"
    ":\\(?:\\w\\|[-_]\\)+:[ \t]*$"
    "\\)")
   "Regexp matching a sensitive line, structure wise.
@@ -5430,13 +5451,20 @@ changes."
       (let ((up before)
 	    (robust-flag t))
 	(while up
-	  (if (and (memq (org-element-type up)
-			 '(center-block drawer dynamic-block
-					quote-block special-block))
-		   (let ((cbeg (org-element-property :contents-begin up)))
-		     (and cbeg
-			  (<= cbeg beg)
-			  (> (org-element-property :contents-end up) end))))
+	  (if (let ((type (org-element-type up)))
+		(and (or (memq type '(center-block dynamic-block quote-block
+						   special-block))
+			 ;; Drawers named "PROPERTIES" are probably
+			 ;; a properties drawer being edited.  Force
+			 ;; parsing to check if editing is over.
+			 (and (eq type 'drawer)
+			      (not (string=
+				    (org-element-property :drawer-name up)
+				    "PROPERTIES"))))
+		     (let ((cbeg (org-element-property :contents-begin up)))
+		       (and cbeg
+			    (<= cbeg beg)
+			    (> (org-element-property :contents-end up) end)))))
 	      ;; UP is a robust greater element containing changes.
 	      ;; We only need to extend its ending boundaries.
 	      (org-element--cache-shift-positions
@@ -5694,16 +5722,6 @@ Providing it allows for quicker computation."
 		    (or (< pos cend) (and (= pos cend) (eobp))))
 	       (narrow-to-region cbeg cend)
 	     (throw 'objects-forbidden element))))
-	;; At a parsed keyword, objects are located within value.
-	((eq type 'keyword)
-	 (if (not (member (org-element-property :key element)
-			  org-element-document-properties))
-	     (throw 'objects-forbidden element)
-	   (goto-char (org-element-property :begin element))
-	   (search-forward ":")
-	   (if (and (>= pos (point)) (< pos (line-end-position)))
-	       (narrow-to-region (point) (line-end-position))
-	     (throw 'objects-forbidden element))))
 	;; At a planning line, if point is at a timestamp, return it,
 	;; otherwise, return element.
 	((eq type 'planning)
@@ -5878,15 +5896,23 @@ end of ELEM-A."
 		    (goto-char (org-element-property :end elem-B))
 		    (skip-chars-backward " \r\t\n")
 		    (point-at-eol)))
-	   ;; Store overlays responsible for visibility status.  We
-	   ;; also need to store their boundaries as they will be
+	   ;; Store inner overlays responsible for visibility status.
+	   ;; We also need to store their boundaries as they will be
 	   ;; removed from buffer.
 	   (overlays
 	    (cons
-	     (mapcar (lambda (ov) (list ov (overlay-start ov) (overlay-end ov)))
-		     (overlays-in beg-A end-A))
-	     (mapcar (lambda (ov) (list ov (overlay-start ov) (overlay-end ov)))
-		     (overlays-in beg-B end-B))))
+	     (delq nil
+		   (mapcar (lambda (o)
+			     (and (>= (overlay-start o) beg-A)
+				  (<= (overlay-end o) end-A)
+				  (list o (overlay-start o) (overlay-end o))))
+			   (overlays-in beg-A end-A)))
+	     (delq nil
+		   (mapcar (lambda (o)
+			     (and (>= (overlay-start o) beg-B)
+				  (<= (overlay-end o) end-B)
+				  (list o (overlay-start o) (overlay-end o))))
+			   (overlays-in beg-B end-B)))))
 	   ;; Get contents.
 	   (body-A (buffer-substring beg-A end-A))
 	   (body-B (delete-and-extract-region beg-B end-B)))
@@ -5897,18 +5923,14 @@ end of ELEM-A."
       (insert body-A)
       ;; Restore ex ELEM-A overlays.
       (let ((offset (- beg-B beg-A)))
-	(mapc (lambda (ov)
-		(move-overlay
-		 (car ov) (+ (nth 1 ov) offset) (+ (nth 2 ov) offset)))
-	      (car overlays))
+	(dolist (o (car overlays))
+	  (move-overlay (car o) (+ (nth 1 o) offset) (+ (nth 2 o) offset)))
 	(goto-char beg-A)
 	(delete-region beg-A end-A)
 	(insert body-B)
 	;; Restore ex ELEM-B overlays.
-	(mapc (lambda (ov)
-		(move-overlay
-		 (car ov) (- (nth 1 ov) offset) (- (nth 2 ov) offset)))
-	      (cdr overlays)))
+	(dolist (o (cdr overlays))
+	  (move-overlay (car o) (- (nth 1 o) offset) (- (nth 2 o) offset))))
       (goto-char (org-element-property :end elem-B)))))
 
 (defun org-element-remove-indentation (s &optional n)

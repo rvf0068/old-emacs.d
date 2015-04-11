@@ -257,12 +257,17 @@ may make them unreachable."
 		(src-block
 		 (let* ((match-start (copy-marker (match-beginning 0)))
 			(ind (org-get-indentation))
+			(lang (or (org-element-property :language element)
+				  (user-error
+				   "No language for src block: %s"
+				   (or (org-element-property :name element)
+				       "(unnamed)"))))
 			(headers
-			 (cons
-			  (org-element-property :language element)
-			  (let ((params (org-element-property :parameters
-							      element)))
-			    (and params (org-split-string params "[ \t]+"))))))
+			 (cons lang
+			       (let ((params
+				      (org-element-property
+				       :parameters element)))
+				 (and params (org-split-string params))))))
 		   ;; Take care of matched block: compute replacement
 		   ;; string.  In particular, a nil REPLACEMENT means
 		   ;; the block should be left as-is while an empty
@@ -315,7 +320,9 @@ The function respects the value of the :exports header argument."
   (let ((silently (lambda () (let ((session (cdr (assoc :session (nth 2 info)))))
 			       (when (not (and session (equal "none" session)))
 				 (org-babel-exp-results info type 'silent)))))
-	(clean (lambda () (unless (eq type 'inline) (org-babel-remove-result info)))))
+	(clean (lambda () (if (eq type 'inline)
+			      (org-babel-remove-inline-result)
+			    (org-babel-remove-result info)))))
     (case (intern (or (cdr (assoc :exports (nth 2 info))) "code"))
       ('none (funcall silently) (funcall clean) "")
       ('code (funcall silently) (funcall clean) (org-babel-exp-code info type))
