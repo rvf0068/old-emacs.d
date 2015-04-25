@@ -285,7 +285,7 @@ containing the back-end used, as a symbol, and either a process
 or the time at which it finished.  It is used to build the menu
 from `org-export-stack'.")
 
-(defvar org-export--registered-backends nil
+(defvar org-export-registered-backends nil
   "List of backends currently available in the exporter.
 This variable is set with `org-export-define-backend' and
 `org-export-define-derived-backend' functions.")
@@ -929,7 +929,7 @@ mode."
   "Return export back-end named after NAME.
 NAME is a symbol.  Return nil if no such back-end is found."
   (catch 'found
-    (dolist (b org-export--registered-backends)
+    (dolist (b org-export-registered-backends)
       (when (eq (org-export-backend-name b) name)
 	(throw 'found b)))))
 
@@ -951,8 +951,8 @@ BACKEND is a structure with `org-export-backend' type."
   ;; registered, replace it with BACKEND.  Otherwise, simply add
   ;; BACKEND to the list of registered back-ends.
   (let ((old (org-export-get-backend (org-export-backend-name backend))))
-    (if old (setcar (memq old org-export--registered-backends) backend)
-      (push backend org-export--registered-backends))))
+    (if old (setcar (memq old org-export-registered-backends) backend)
+      (push backend org-export-registered-backends))))
 
 (defun org-export-barf-if-invalid-backend (backend)
   "Signal an error if BACKEND isn't defined."
@@ -1372,24 +1372,20 @@ inferior to file-local settings."
 Optional argument BACKEND is an export back-end, as returned by,
 e.g., `org-export-create-backend'.  It specifies which back-end
 specific items to read, if any."
-  (let* ((all
+  (let ((all
+	 (mapcar
+	  (lambda (o) (cons (nth 2 o) (car o)))
 	  ;; Priority is given to back-end specific options.
 	  (append (and backend (org-export-get-all-options backend))
-		  org-export-options-alist))
-	 plist)
-    (dolist (option all)
-      (let ((property (car option))
-	    (item (nth 2 option)))
-	(when (and item
-		   (not (plist-member plist property))
-		   (string-match (concat "\\(\\`\\|[ \t]\\)"
-					 (regexp-quote item)
-					 ":\\(([^)\n]+)\\|[^ \t\n\r;,.]*\\)")
-				 options))
-	  (setq plist (plist-put plist
-				 property
-				 (car (read-from-string
-				       (match-string 2 options))))))))
+		  org-export-options-alist)))
+	(start)
+	plist)
+    (while (string-match "\\(.+?\\):\\((.*?)\\|\\S-*\\)[ \t\n]*" options start)
+      (setq start (match-end 0))
+      (let ((property (cdr (assoc-string (match-string 1 options) all t))))
+	(when property
+	  (setq plist
+		(plist-put plist property (read (match-string 2 options)))))))
     plist))
 
 (defun org-export--get-subtree-options (&optional backend)
@@ -1398,8 +1394,8 @@ Optional argument BACKEND is an export back-end, as returned by,
 e.g., `org-export-create-backend'.  It specifies back-end used
 for export.  Return options as a plist."
   ;; For each buffer keyword, create a headline property setting the
-  ;; same property in communication channel. The name for the property
-  ;; is the keyword with "EXPORT_" appended to it.
+  ;; same property in communication channel.  The name for the
+  ;; property is the keyword with "EXPORT_" appended to it.
   (org-with-wide-buffer
    (let (plist
 	 ;; Look for both general keywords and back-end specific
@@ -1408,9 +1404,9 @@ for export.  Return options as a plist."
 			  org-export-options-alist)))
      ;; Make sure point is at a heading.
      (if (org-at-heading-p) (org-up-heading-safe) (org-back-to-heading t))
-     ;; Take care of EXPORT_TITLE. If it isn't defined, use headline's
-     ;; title (with no todo keyword, priority cookie or tag) as its
-     ;; fallback value.
+     ;; Take care of EXPORT_TITLE.  If it isn't defined, use
+     ;; headline's title (with no todo keyword, priority cookie or
+     ;; tag) as its fallback value.
      (let ((title (or (org-entry-get (point) "EXPORT_TITLE")
 		      (progn (looking-at org-complex-heading-regexp)
 			     (org-match-string-no-properties 4)))))
@@ -1710,7 +1706,6 @@ Return updated plist."
   ;; properties.
   (nconc
    `(:headline-numbering ,(org-export--collect-headline-numbering data info)
-     :unnumbered-headline-id ,(org-export--collect-unnumbered-headline-id data info)
      :exported-data ,(make-hash-table :test 'eq :size 4001))
    info))
 
@@ -1756,17 +1751,6 @@ for a footnotes section."
 		   when (= idx relative-level) collect (aset numbering idx (1+ n))
 		   when (> idx relative-level) do (aset numbering idx 0))))))
       options)))
-
-(defun org-export--collect-unnumbered-headline-id (data options)
-  "Return numbering of all exportable, unnumbered headlines.
-DATA is the parse tree.  OPTIONS is the plist holding export
-options.  Unnumbered headlines are numbered as a function of
-occurrence."
-  (let ((num 0))
-    (org-element-map data 'headline
-	(lambda (headline)
-	  (unless (org-export-numbered-headline-p headline options)
-	    (list headline (incf num)))))))
 
 (defun org-export--selected-trees (data info)
   "List headlines and inlinetasks with a select tag in their tree.
@@ -3026,9 +3010,9 @@ locally for the subtree through node properties."
 	      (org-completing-read
 	       "Options category: "
 	       (cons "default"
-		     (mapcar #'(lambda (b)
-				 (symbol-name (org-export-backend-name b)))
-			     org-export--registered-backends))
+		     (mapcar (lambda (b)
+			       (symbol-name (org-export-backend-name b)))
+			     org-export-registered-backends))
 	       nil t))))
 	options keywords)
     ;; Populate OPTIONS and KEYWORDS.
@@ -3721,9 +3705,6 @@ process, leading to a different order when footnotes are nested."
 ;; `org-export-get-headline-number' returns a number to unnumbered
 ;; headlines (used for internal id).
 ;;
-;; `org-export-get-headline-id' returns the unique internal id of a
-;; headline.
-;;
 ;; `org-export-low-level-p', `org-export-first-sibling-p' and
 ;; `org-export-last-sibling-p' are three useful predicates when it
 ;; comes to fulfill the `:headline-levels' property.
@@ -3756,17 +3737,6 @@ and the last level being considered as high enough, or nil."
     (when (wholenump limit)
       (let ((level (org-export-get-relative-level headline info)))
         (and (> level limit) (- level limit))))))
-
-(defun org-export-get-headline-id (headline info)
-  "Return a unique ID for HEADLINE.
-INFO is a plist holding contextual information."
-  (let ((numbered (org-export-numbered-headline-p headline info)))
-    (concat
-     (if numbered "sec-" "unnumbered-")
-     (mapconcat #'number-to-string
-		(if numbered
-		    (org-export-get-headline-number headline info)
-		  (cdr (assq headline (plist-get info :unnumbered-headline-id)))) "-"))))
 
 (defun org-export-get-headline-number (headline info)
   "Return numbered HEADLINE numbering as a list of numbers.
@@ -3922,9 +3892,6 @@ meant to be translated with `org-export-data' or alike."
 ;; `org-export-custom-protocol-maybe' handles custom protocol defined
 ;; with `org-add-link-type', which see.
 ;;
-;; `org-export-solidify-link-text' turns a string into a safer version
-;; for links, replacing most non-standard characters with hyphens.
-;;
 ;; `org-export-get-coderef-format' returns an appropriate format
 ;; string for coderefs.
 ;;
@@ -3942,11 +3909,9 @@ meant to be translated with `org-export-data' or alike."
 ;; `org-export-resolve-coderef' associates a reference to a line
 ;; number in the element it belongs, or returns the reference itself
 ;; when the element isn't numbered.
-
-(defun org-export-solidify-link-text (s)
-  "Take link text S and make a safe target out of it."
-  (save-match-data
-    (mapconcat 'identity (org-split-string s "[^a-zA-Z0-9_.-:]+") "-")))
+;;
+;; `org-export-file-uri' expands a filename as stored in :path value
+;;  of a "file" link into a file URI.
 
 (defun org-export-custom-protocol-maybe (link desc backend)
   "Try exporting LINK with a dedicated function.
@@ -4162,11 +4127,42 @@ has type \"radio\"."
 	     radio))
       info 'first-match)))
 
+(defun org-export-file-uri (filename)
+  "Return file URI associated to FILENAME."
+  (if (not (file-name-absolute-p filename)) filename
+    (concat "file:/"
+	    (and (not (org-file-remote-p filename)) "/")
+	    (if (org-string-match-p "\\`~" filename)
+		(expand-file-name filename)
+	      filename))))
+
 
 ;;;; For References
 ;;
+;; `org-export-get-reference' associate a unique reference for any
+;; object or element.
+;;
 ;; `org-export-get-ordinal' associates a sequence number to any object
 ;; or element.
+
+(defun org-export-get-reference (datum info)
+  "Return a unique reference for DATUM, as a string.
+DATUM is either an element or an object.  INFO is the current
+export state, as a plist.  Returned reference consists of
+alphanumeric characters only."
+  (let ((type (org-element-type datum))
+	(cache (or (plist-get info :internal-references)
+		   (let ((h (make-hash-table :test #'eq)))
+		     (plist-put info :internal-references h)
+		     h))))
+    (or (gethash datum cache)
+	(puthash datum
+		 (format "org%s%d"
+			 (if type
+			     (replace-regexp-in-string "-" "" (symbol-name type))
+			   "secondarystring")
+			 (incf (gethash type cache 0)))
+		 cache))))
 
 (defun org-export-get-ordinal (element info &optional types predicate)
   "Return ordinal number of an element or object.
@@ -6132,8 +6128,8 @@ back to standard interface."
 	 ;; if any.
 	 (entries
 	  (sort (sort (delq nil
-			    (mapcar 'org-export-backend-menu
-				    org-export--registered-backends))
+			    (mapcar #'org-export-backend-menu
+				    org-export-registered-backends))
 		      (lambda (a b)
 			(let ((key-a (nth 1 a))
 			      (key-b (nth 1 b)))

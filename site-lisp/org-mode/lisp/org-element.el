@@ -942,8 +942,6 @@ Assume point is at beginning of the headline."
 				     (skip-chars-backward " \r\t\n")
 				     (forward-line)
 				     (point)))))
-      ;; Clean TAGS from archive tag, if any.
-      (when archivedp (setq tags (delete org-archive-tag tags)))
       (let ((headline
 	     (list 'headline
 		   (nconc
@@ -992,10 +990,7 @@ CONTENTS is the contents of the element."
 	 (priority (org-element-property :priority headline))
 	 (title (org-element-interpret-data
 		 (org-element-property :title headline)))
-	 (tags (let ((tag-list (if (org-element-property :archivedp headline)
-				   (cons org-archive-tag
-					 (org-element-property :tags headline))
-				 (org-element-property :tags headline))))
+	 (tags (let ((tag-list (org-element-property :tags headline)))
 		 (and tag-list
 		      (format ":%s:" (mapconcat #'identity tag-list ":")))))
 	 (commentedp (org-element-property :commentedp headline))
@@ -1609,27 +1604,39 @@ CONTENTS is the contents of the element."
 (defun org-element-babel-call-parser (limit affiliated)
   "Parse a babel call.
 
-LIMIT bounds the search.  AFFILIATED is a list of which CAR is
+LIMIT bounds the search.  AFFILIATED is a list of which car is
 the buffer position at the beginning of the first affiliated
-keyword and CDR is a plist of affiliated keywords along with
+keyword and cdr is a plist of affiliated keywords along with
 their value.
 
-Return a list whose CAR is `babel-call' and CDR is a plist
-containing `:begin', `:end', `:value', `:post-blank' and
+Return a list whose car is `babel-call' and cdr is a plist
+containing `:call', `:inside-header', `:arguments',
+`:end-header', `:begin', `:end', `:value', `:post-blank' and
 `:post-affiliated' as keywords."
   (save-excursion
-    (let ((begin (car affiliated))
-	  (post-affiliated (point))
-	  (value (progn (let ((case-fold-search t))
-			  (re-search-forward "call:[ \t]*" nil t))
-			(buffer-substring-no-properties (point)
-							(line-end-position))))
-	  (pos-before-blank (progn (forward-line) (point)))
-	  (end (progn (skip-chars-forward " \r\t\n" limit)
-		      (if (eobp) (point) (line-beginning-position)))))
+    (let* ((begin (car affiliated))
+	   (post-affiliated (point))
+	   (value (progn (search-forward ":" nil t)
+			 (org-trim
+			  (buffer-substring-no-properties
+			   (point) (line-end-position)))))
+	   (pos-before-blank (progn (forward-line) (point)))
+	   (end (progn (skip-chars-forward " \r\t\n" limit)
+		       (if (eobp) (point) (line-beginning-position))))
+	   (valid-value
+	    (string-match
+	     "\\([^()\n]+?\\)\\(?:\\[\\(.*?\\)\\]\\)?(\\(.*?\\))[ \t]*\\(.*\\)"
+	     value)))
       (list 'babel-call
 	    (nconc
-	     (list :begin begin
+	     (list :call (and valid-value (match-string 1 value))
+		   :inside-header (and valid-value
+				       (org-string-nw-p (match-string 2 value)))
+		   :arguments (and valid-value
+				   (org-string-nw-p (match-string 3 value)))
+		   :end-header (and valid-value
+				    (org-string-nw-p (match-string 4 value)))
+		   :begin begin
 		   :end end
 		   :value value
 		   :post-blank (count-lines pos-before-blank end)
@@ -1639,7 +1646,13 @@ containing `:begin', `:end', `:value', `:post-blank' and
 (defun org-element-babel-call-interpreter (babel-call contents)
   "Interpret BABEL-CALL element as Org syntax.
 CONTENTS is nil."
-  (concat "#+CALL: " (org-element-property :value babel-call)))
+  (concat "#+CALL: "
+	  (org-element-property :call babel-call)
+	  (let ((h (org-element-property :inside-header babel-call)))
+	    (and h (format "[%s]" h)))
+	  (concat "(" (org-element-property :arguments babel-call) ")")
+	  (let ((h (org-element-property :end-header babel-call)))
+	    (and h (concat " " h)))))
 
 
 ;;;; Clock
@@ -2836,7 +2849,8 @@ CONTENTS is its definition, when inline, or nil."
   "Parse inline babel call at point, if any.
 
 When at an inline babel call, return a list whose car is
-`inline-babel-call' and cdr a plist with `:begin', `:end',
+`inline-babel-call' and cdr a plist with `:call',
+`:inside-header', `:arguments', `:end-header', `:begin', `:end',
 `:value' and `:post-blank' as keywords.  Otherwise, return nil.
 
 Assume point is at the beginning of the babel call."
@@ -2845,12 +2859,20 @@ Assume point is at the beginning of the babel call."
     (when (let ((case-fold-search t))
 	    (looking-at org-babel-inline-lob-one-liner-regexp))
       (let ((begin (match-end 1))
+	    (call (org-match-string-no-properties 2))
+	    (inside-header (org-string-nw-p (org-match-string-no-properties 4)))
+	    (arguments (org-string-nw-p (org-match-string-no-properties 6)))
+	    (end-header (org-string-nw-p (org-match-string-no-properties 8)))
 	    (value (buffer-substring-no-properties (match-end 1) (match-end 0)))
 	    (post-blank (progn (goto-char (match-end 0))
 			       (skip-chars-forward " \t")))
 	    (end (point)))
 	(list 'inline-babel-call
-	      (list :begin begin
+	      (list :call call
+		    :inside-header inside-header
+		    :arguments arguments
+		    :end-header end-header
+		    :begin begin
 		    :end end
 		    :value value
 		    :post-blank post-blank))))))
@@ -2858,7 +2880,13 @@ Assume point is at the beginning of the babel call."
 (defun org-element-inline-babel-call-interpreter (inline-babel-call contents)
   "Interpret INLINE-BABEL-CALL object as Org syntax.
 CONTENTS is nil."
-  (org-element-property :value inline-babel-call))
+  (concat "call_"
+	  (org-element-property :call inline-babel-call)
+	  (let ((h (org-element-property :inside-header inline-babel-call)))
+	    (and h (format "[%s]" h)))
+	  "(" (org-element-property :arguments inline-babel-call) ")"
+	  (let ((h (org-element-property :end-header inline-babel-call)))
+	    (and h (format "[%s]" h)))))
 
 
 ;;;; Inline Src Block
@@ -3090,9 +3118,7 @@ Assume point is at the beginning of the link."
 	  (when (string-match "::\\(.*\\)\\'" path)
 	    (setq search-option (match-string 1 path)
 		  path (replace-match "" nil nil path)))
-	  (when (and (file-name-absolute-p path)
-		     (not (org-string-match-p "\\`[/~]/" path)))
-	    (setq path (concat "//" path))))
+	  (setq path (replace-regexp-in-string "\\`/+" "/" path)))
 	(list 'link
 	      (list :type type
 		    :path path

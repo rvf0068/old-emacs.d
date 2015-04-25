@@ -752,7 +752,7 @@ For export specific modules, see also `org-export-backends'."
 	(const :tag "C  wl:                Links to Wanderlust folders/messages" org-wl)
 	(repeat :tag "External packages" :inline t (symbol :tag "Package"))))
 
-(defvar org-export--registered-backends) ; From ox.el.
+(defvar org-export-registered-backends) ; From ox.el.
 (declare-function org-export-derived-backend-p "ox" (backend &rest backends))
 (declare-function org-export-backend-name "ox" (backend))
 (defcustom org-export-backends '(ascii html icalendar latex)
@@ -772,7 +772,7 @@ interface or run the following code, where VAL stands for the new
 value of the variable, after updating it:
 
   \(progn
-    \(setq org-export--registered-backends
+    \(setq org-export-registered-backends
           \(org-remove-if-not
            \(lambda (backend)
              \(let ((name (org-export-backend-name backend)))
@@ -781,9 +781,9 @@ value of the variable, after updating it:
                      \(dolist (b val)
                        \(and (org-export-derived-backend-p b name)
                             \(throw 'parentp t)))))))
-           org-export--registered-backends))
-    \(let ((new-list (mapcar 'org-export-backend-name
-                            org-export--registered-backends)))
+           org-export-registered-backends))
+    \(let ((new-list (mapcar #'org-export-backend-name
+                            org-export-registered-backends)))
       \(dolist (backend val)
         \(cond
          \((not (load (format \"ox-%s\" backend) t t))
@@ -804,7 +804,7 @@ depends on, if any."
 	   ;; Any back-end not required anymore (not present in VAL and not
 	   ;; a parent of any back-end in the new value) is removed from the
 	   ;; list of registered back-ends.
-	   (setq org-export--registered-backends
+	   (setq org-export-registered-backends
 		 (org-remove-if-not
 		  (lambda (backend)
 		    (let ((name (org-export-backend-name backend)))
@@ -813,11 +813,11 @@ depends on, if any."
 			    (dolist (b val)
 			      (and (org-export-derived-backend-p b name)
 				   (throw 'parentp t)))))))
-		  org-export--registered-backends))
+		  org-export-registered-backends))
 	   ;; Now build NEW-LIST of both new back-ends and required
 	   ;; parents.
-	   (let ((new-list (mapcar 'org-export-backend-name
-				   org-export--registered-backends)))
+	   (let ((new-list (mapcar #'org-export-backend-name
+				   org-export-registered-backends)))
 	     (dolist (backend val)
 	       (cond
 		((not (load (format "ox-%s" backend) t t))
@@ -10443,24 +10443,22 @@ Use TAB to complete link prefixes, then RET for type-specific completion support
 
 (defun org-file-complete-link (&optional arg)
   "Create a file link using completion."
-  (let (file link)
-    (setq file (org-iread-file-name "File: "))
-    (let ((pwd (file-name-as-directory (expand-file-name ".")))
-	  (pwd1 (file-name-as-directory (abbreviate-file-name
-					 (expand-file-name ".")))))
-      (cond
-       ((equal arg '(16))
-	(setq link (concat
-		    "file:"
-		    (abbreviate-file-name (expand-file-name file)))))
-       ((string-match (concat "^" (regexp-quote pwd1) "\\(.+\\)") file)
-	(setq link  (concat "file:" (match-string 1 file))))
-       ((string-match (concat "^" (regexp-quote pwd) "\\(.+\\)")
-		      (expand-file-name file))
-	(setq link  (concat
-		     "file:" (match-string 1 (expand-file-name file)))))
-       (t (setq link (concat "file:" file)))))
-    link))
+  (let ((file (org-iread-file-name "File: "))
+	(pwd (file-name-as-directory (expand-file-name ".")))
+	(pwd1 (file-name-as-directory (abbreviate-file-name
+				       (expand-file-name ".")))))
+    (cond ((equal arg '(16))
+	   (concat "file:"
+		   (abbreviate-file-name (expand-file-name file))))
+	  ((string-match
+	    (concat "^" (regexp-quote pwd1) "\\(.+\\)") file)
+	   (concat "file:" (match-string 1 file)))
+	  ((string-match
+	    (concat "^" (regexp-quote pwd) "\\(.+\\)")
+	    (expand-file-name file))
+	   (concat "file:"
+		   (match-string 1 (expand-file-name file))))
+	  (t (concat "file:" file)))))
 
 (defun org-iread-file-name (&rest args)
   "Read-file-name using `ido-mode' speedup if available.
@@ -10469,11 +10467,11 @@ See `read-file-name' for a description of parameters."
   (org-without-partial-completion
    (if (and org-completion-use-ido
             (fboundp 'ido-read-file-name)
-            (boundp 'ido-mode) ido-mode
-            (listp (second args)))
+            (org-bound-and-true-p ido-mode)
+            (listp (nth 1 args)))
        (let ((ido-enter-matching-directory nil))
-         (apply 'ido-read-file-name args))
-     (apply 'read-file-name args))))
+         (apply #'ido-read-file-name args))
+     (apply #'read-file-name args))))
 
 (defun org-completing-read (&rest args)
   "Completing-read with SPACE being a normal character."
@@ -10500,27 +10498,28 @@ from."
     (iswitchb-read-buffer prompt)))
 
 (defun org-icompleting-read (&rest args)
-  "Completing-read using `ido-mode' or `iswitchb' speedups if available."
+  "Completing-read using `ido-mode' or `iswitchb' speedups if available.
+Should be called like `completing-read'."
   (org-without-partial-completion
-   (if (and org-completion-use-ido
-	    (fboundp 'ido-completing-read)
-	    (boundp 'ido-mode) ido-mode
-	    (listp (second args)))
-       (let ((ido-enter-matching-directory nil))
-	 (apply 'ido-completing-read (concat (car args))
-		(if (consp (car (nth 1 args)))
-		    (mapcar 'car (nth 1 args))
-		  (nth 1 args))
-		(cddr args)))
-     (if (and org-completion-use-iswitchb
-	      (boundp 'iswitchb-mode) iswitchb-mode
-	      (listp (second args)))
-	 (apply 'org-iswitchb-completing-read (concat (car args))
-		(if (consp (car (nth 1 args)))
-		    (mapcar 'car (nth 1 args))
-		  (nth 1 args))
-		(cddr args))
-       (apply 'completing-read args)))))
+   (if (not (listp (nth 1 args)))
+       ;; Ido only supports lists as the COLLECTION argument.  Use
+       ;; default completion function when second argument is not
+       ;; a list.
+       (apply #'completing-read args)
+     (let ((ido-enter-matching-directory nil))
+       (apply (cond ((and org-completion-use-ido
+			  (fboundp 'ido-completing-read)
+			  (org-bound-and-true-p ido-mode))
+		     #'ido-completing-read)
+		    ((and org-completion-use-iswitchb
+			  (org-bound-and-true-p iswitchb-mode))
+		     #'org-iswitchb-completing-read)
+		    (t #'completing-read))
+	      (pop args)
+	      (if (org-some #'consp (car args))
+		  (mapcar #'car (pop args))
+		(pop args))
+	      args)))))
 
 (defun org-extract-attributes (s)
   "Extract the attributes cookie from a string and set as text property."
@@ -12298,7 +12297,7 @@ Export keywords include options, block names, attributes and
 keywords relative to each registered export back-end."
   (let (keywords)
     (dolist (backend
-	     (org-bound-and-true-p org-export--registered-backends)
+	     (org-bound-and-true-p org-export-registered-backends)
 	     (delq nil keywords))
       ;; Back-end name (for keywords, like #+LATEX:)
       (push (upcase (symbol-name (org-export-backend-name backend))) keywords)
@@ -19120,8 +19119,10 @@ inspection."
 			(make-temp-name (expand-file-name  "ltxmathml-out"))))
 	 (cmd (format-spec
 	       org-latex-to-mathml-convert-command
-	       `((?j . ,(shell-quote-argument
-			 (expand-file-name org-latex-to-mathml-jar-file)))
+	       `((?j . ,(and org-latex-to-mathml-jar-file
+			 (shell-quote-argument
+			  (expand-file-name
+			   org-latex-to-mathml-jar-file))))
 		 (?I . ,(shell-quote-argument tmp-in-file))
 		 (?i . ,latex-frag)
 		 (?o . ,(shell-quote-argument tmp-out-file)))))
@@ -19886,7 +19887,6 @@ boundaries."
 (org-defkey org-mode-map "\C-c\C-xo"    'org-toggle-ordered-property)
 (org-defkey org-mode-map "\C-c\C-xi"    'org-insert-columns-dblock)
 (org-defkey org-mode-map [(control ?c) (control ?x) ?\;] 'org-timer-set-timer)
-(org-defkey org-mode-map [(control ?c) (control ?x) ?\:] 'org-timer-cancel-timer)
 
 (org-defkey org-mode-map "\C-c\C-x."    'org-timer)
 (org-defkey org-mode-map "\C-c\C-x-"    'org-timer-item)

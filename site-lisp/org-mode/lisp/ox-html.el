@@ -1516,8 +1516,7 @@ arguments CAPTION and LABEL are given, use them for caption and
     (format (if html5-fancy "\n<figure%s>%s%s\n</figure>"
 	      "\n<div%s class=\"figure\">%s%s\n</div>")
 	    ;; ID.
-	    (if (not (org-string-nw-p label)) ""
-	      (format " id=\"%s\"" (org-export-solidify-link-text label)))
+	    (if (org-string-nw-p label) (format " id=\"%s\"" label) "")
 	    ;; Contents.
 	    (format "\n<p>%s</p>" contents)
 	    ;; Caption.
@@ -1650,7 +1649,7 @@ INFO is a plist used as a communication channel."
 	  (loop for (n type raw) in fn-alist collect
 		(cons n (if (eq (org-element-type raw) 'org-data)
 			    (org-trim (org-export-data raw info))
-			  (format "<p>%s</p>"
+			  (format "<p class=\"footpara\">%s</p>"
 				  (org-trim (org-export-data raw info))))))))
     (when fn-alist
       (format
@@ -2205,9 +2204,7 @@ INFO is a plist used as a communication channel."
 		    (org-export-get-tags headline info))))
     (format "<a href=\"#%s\">%s</a>"
 	    ;; Label.
-	    (org-export-solidify-link-text
-	     (or (org-element-property :CUSTOM_ID headline)
-		 (org-export-get-headline-id headline info)))
+	    (org-export-get-reference headline info)
 	    ;; Body.
 	    (concat
 	     (and (not (org-export-low-level-p headline info))
@@ -2235,7 +2232,8 @@ of listings as a string, or nil if it is empty."
 					 (org-html--translate "Listing %d:" info))))
 		(mapconcat
 		 (lambda (entry)
-		   (let ((label (org-element-property :name entry))
+		   (let ((label (and (org-element-property :name entry)
+				     (org-export-get-reference entry info)))
 			 (title (org-trim
 				 (org-export-data
 				  (or (org-export-get-caption entry t)
@@ -2246,7 +2244,7 @@ of listings as a string, or nil if it is empty."
 		      (if (not label)
 			  (concat (format initial-fmt (incf count)) " " title)
 			(format "<a href=\"#%s\">%s %s</a>"
-				(org-export-solidify-link-text label)
+				label
 				(format initial-fmt (incf count))
 				title))
 		      "</li>")))
@@ -2271,7 +2269,8 @@ of tables as a string, or nil if it is empty."
 					 (org-html--translate "Table %d:" info))))
 		(mapconcat
 		 (lambda (entry)
-		   (let ((label (org-element-property :name entry))
+		   (let ((label (and (org-element-property :name entry)
+				     (org-export-get-reference entry info)))
 			 (title (org-trim
 				 (org-export-data
 				  (or (org-export-get-caption entry t)
@@ -2282,7 +2281,7 @@ of tables as a string, or nil if it is empty."
 		      (if (not label)
 			  (concat (format initial-fmt (incf count)) " " title)
 			(format "<a href=\"#%s\">%s %s</a>"
-				(org-export-solidify-link-text label)
+				label
 				(format initial-fmt (incf count))
 				title))
 		      "</li>")))
@@ -2445,18 +2444,18 @@ holding contextual information."
            (full-text (funcall (plist-get info :html-format-headline-function)
                                todo todo-type priority text tags info))
            (contents (or contents ""))
-           (ids (delq nil
+	   (ids (delq nil
                       (list (org-element-property :CUSTOM_ID headline)
-                            (org-export-get-headline-id headline info)
+                            (org-export-get-reference headline info)
                             (org-element-property :ID headline))))
            (preferred-id (car ids))
-           (extra-ids (mapconcat
-                       (lambda (id)
-                         (org-html--anchor
-                          (org-export-solidify-link-text
-                           (if (org-uuidgen-p id) (concat "ID-" id) id))
-                          nil nil info))
-                       (cdr ids) "")))
+           (extra-ids
+	    (mapconcat
+	     (lambda (id)
+	       (org-html--anchor
+		(if (org-uuidgen-p id) (concat "ID-" id) id)
+		nil nil info))
+	     (cdr ids) "")))
       (if (org-export-low-level-p headline info)
           ;; This is a deep sub-tree: export it as a list item.
           (let* ((type (if numberedp 'ordered 'unordered))
@@ -2476,9 +2475,8 @@ holding contextual information."
           ;; Standard headline.  Export it as a section.
           (format "<%s id=\"%s\" class=\"%s\">%s%s</%s>\n"
                   (org-html--container headline info)
-                  (format "outline-container-%s"
-                          (or (org-element-property :CUSTOM_ID headline)
-                              (org-export-get-headline-id headline info)))
+                  (concat "outline-container-"
+			  (org-export-get-reference headline info))
                   (concat (format "outline-%d" level)
                           (and extra-class " ")
                           extra-class)
@@ -2533,15 +2531,13 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
   "Transcode an INLINE-SRC-BLOCK element from Org to HTML.
 CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
-  (let* ((org-lang (org-element-property :language inline-src-block))
-	 (code (org-element-property :value inline-src-block)))
-    (let ((lang (org-element-property :language inline-src-block))
-	  (code (org-html-format-code inline-src-block info))
-	  (label (let ((lbl (org-element-property :name inline-src-block)))
-		   (if (not lbl) ""
-		       (format " id=\"%s\""
-			       (org-export-solidify-link-text lbl))))))
-      (format "<code class=\"src src-%s\"%s>%s</code>" lang label code))))
+  (let ((lang (org-element-property :language inline-src-block))
+	(code (org-html-format-code inline-src-block info))
+	(label
+	 (let ((lbl (and (org-element-property :name inline-src-block)
+			 (org-export-get-reference inline-src-block info))))
+	   (if (not lbl) "" (format " id=\"%s\"" lbl)))))
+    (format "<code class=\"src src-%s\"%s>%s</code>" lang label code)))
 
 ;;;; Inlinetask
 
@@ -2843,28 +2839,22 @@ INFO is a plist holding contextual information.  See
 	    (setq raw-path
 		  (funcall link-org-files-as-html-maybe raw-path info))
 	    ;; If file path is absolute, prepend it with protocol
-	    ;; component - "file:".
+	    ;; component - "file://".
 	    (cond
 	     ((file-name-absolute-p raw-path)
-	      (setq raw-path (concat "file:" raw-path)))
+	      (setq raw-path (org-export-file-uri raw-path)))
 	     ((and home use-abs-url)
 	      (setq raw-path (concat (file-name-as-directory home) raw-path))))
 	    ;; Add search option, if any.  A search option can be
-	    ;; relative to a custom-id or a headline title.  Append
-	    ;; a hash sign to any unresolved option, as it might point
-	    ;; to a target.
+	    ;; relative to a custom-id, a headline title a name,
+	    ;; a target or a radio-target.
 	    (let ((option (org-element-property :search-option link)))
-	      (cond ((not option) raw-path)
-		    ((eq (aref option 0) ?#) (concat raw-path option))
-		    (t
-		     (let ((destination
-			    (org-publish-resolve-external-fuzzy-link
-			     (org-element-property :path link) option)))
-		       (concat raw-path
-			       (if (not destination) (concat "#" option)
-				 (concat "#sec-"
-					 (mapconcat #'number-to-string
-						    destination "-")))))))))
+	      (if (not option) raw-path
+		(concat raw-path
+			"#"
+			(org-publish-resolve-external-link
+			 option
+			 (org-element-property :path link))))))
 	   (t raw-path)))
 	 ;; Extract attributes from parent's paragraph.  HACK: Only do
 	 ;; this for the first link in parent (inner image link for
@@ -2896,9 +2886,9 @@ INFO is a plist holding contextual information.  See
       (let ((destination (org-export-resolve-radio-link link info)))
 	(if (not destination) desc
 	  (format "<a href=\"#%s\"%s>%s</a>"
-		  (org-export-solidify-link-text
-		   (org-element-property :value destination))
-		  attributes desc))))
+		  (org-export-get-reference destination info)
+		  attributes
+		  desc))))
      ;; Links pointing to a headline: Find destination and build
      ;; appropriate referencing command.
      ((member type '("custom-id" "fuzzy" "id"))
@@ -2922,43 +2912,42 @@ INFO is a plist holding contextual information.  See
 			(org-element-property :raw-link link) info))))
 	  ;; Link points to a headline.
 	  (headline
-	   (let ((href (or (and (string= type "custom-id")
-				(org-element-property :CUSTOM_ID destination))
-			   (org-export-get-headline-id destination info)))
+	   (let ((href (org-export-get-reference destination info))
 		 ;; What description to use?
 		 (desc
 		  ;; Case 1: Headline is numbered and LINK has no
 		  ;; description.  Display section number.
 		  (if (and (org-export-numbered-headline-p destination info)
 			   (not desc))
-		      (mapconcat 'number-to-string
+		      (mapconcat #'number-to-string
 				 (org-export-get-headline-number
 				  destination info) ".")
 		    ;; Case 2: Either the headline is un-numbered or
 		    ;; LINK has a custom description.  Display LINK's
 		    ;; description or headline's title.
-		    (or desc (org-export-data (org-element-property
-					       :title destination) info)))))
-	     (format "<a href=\"#%s\"%s>%s</a>"
-		     (org-export-solidify-link-text href) attributes desc)))
+		    (or desc
+			(org-export-data
+			 (org-element-property :title destination) info)))))
+	     (format "<a href=\"#%s\"%s>%s</a>" href attributes desc)))
 	  ;; Fuzzy link points to a target or an element.
 	  (t
-	   (let* ((path (org-export-solidify-link-text path))
-		  (org-html-standalone-image-predicate 'org-html--has-caption-p)
+	   (let* ((ref (org-export-get-reference destination info))
+		  (org-html-standalone-image-predicate
+		   #'org-html--has-caption-p)
 		  (number (cond
 			   (desc nil)
 			   ((org-html-standalone-image-p destination info)
 			    (org-export-get-ordinal
 			     (org-element-map destination 'link
-			       'identity info t)
+			       #'identity info t)
 			     info 'link 'org-html-standalone-image-p))
 			   (t (org-export-get-ordinal
 			       destination info nil 'org-html--has-caption-p))))
 		  (desc (cond (desc)
 			      ((not number) "No description for this link")
 			      ((numberp number) (number-to-string number))
-			      (t (mapconcat 'number-to-string number ".")))))
-	     (format "<a href=\"#%s\"%s>%s</a>" path attributes desc))))))
+			      (t (mapconcat #'number-to-string number ".")))))
+	     (format "<a href=\"#%s\"%s>%s</a>" ref attributes desc))))))
      ;; Coderef: replace link with the reference name or the
      ;; equivalent line number.
      ((string= type "coderef")
@@ -2999,10 +2988,11 @@ CONTENTS is the contents of the paragraph, as a string.  INFO is
 the plist used as a communication channel."
   (let* ((parent (org-export-get-parent paragraph))
 	 (parent-type (org-element-type parent))
-	 (style '((footnote-definition " class=\"footpara\"")))
+	 (style '((footnote-definition " class=\"footpara\"")
+		  (org-data " class=\"footpara\"")))
 	 (attributes (org-html--make-attribute-string
 		      (org-export-read-attribute :attr_html paragraph)))
-	 (extra (or (cadr (assoc parent-type style)) "")))
+	 (extra (or (cadr (assq parent-type style)) "")))
     (cond
      ((and (eq parent-type 'item)
 	   (not (org-export-get-previous-element paragraph info))
@@ -3028,7 +3018,8 @@ the plist used as a communication channel."
 			     'identity info t)
 			   info nil 'org-html-standalone-image-p))
 		  "</span> " raw))))
-	    (label (org-element-property :name paragraph)))
+	    (label (and (org-element-property :name paragraph)
+			(org-export-get-reference paragraph info))))
 	(org-html--wrap-image contents info caption label)))
      ;; Regular paragraph.
      (t (format "<p%s%s>\n%s</p>"
@@ -3176,7 +3167,7 @@ holding contextual information."
 		class-num
 		(or (org-element-property :CUSTOM_ID parent)
 		    section-number
-		    (org-export-get-headline-id parent info))
+		    (org-export-get-reference parent info))
 		(or contents ""))))))
 
 ;;;; Radio Target
@@ -3185,9 +3176,8 @@ holding contextual information."
   "Transcode a RADIO-TARGET object from Org to HTML.
 TEXT is the text of the target.  INFO is a plist holding
 contextual information."
-  (let ((id (org-export-solidify-link-text
-	     (org-element-property :value radio-target))))
-    (org-html--anchor id text nil info)))
+  (let ((ref (org-export-get-reference radio-target info)))
+    (org-html--anchor ref text nil info)))
 
 ;;;; Special Block
 
@@ -3225,10 +3215,9 @@ contextual information."
     (let ((lang (org-element-property :language src-block))
 	  (caption (org-export-get-caption src-block))
 	  (code (org-html-format-code src-block info))
-	  (label (let ((lbl (org-element-property :name src-block)))
-		   (if (not lbl) ""
-		     (format " id=\"%s\""
-			     (org-export-solidify-link-text lbl))))))
+	  (label (let ((lbl (and (org-element-property :name src-block)
+				 (org-export-get-reference src-block info))))
+		   (if lbl (format " id=\"%s\"" lbl) ""))))
       (if (not lang) (format "<pre class=\"example\"%s>\n%s</pre>" label code)
 	(format
 	 "<div class=\"org-src-container\">\n%s%s\n</div>"
@@ -3390,14 +3379,14 @@ contextual information."
     (table.el (org-html-table--table.el-table table info))
     ;; Case 2: Standard table.
     (t
-     (let* ((label (org-element-property :name table))
-	    (caption (org-export-get-caption table))
+     (let* ((caption (org-export-get-caption table))
 	    (number (org-export-get-ordinal
-		     table info nil 'org-html--has-caption-p))
+		     table info nil #'org-html--has-caption-p))
 	    (attributes
 	     (org-html--make-attribute-string
 	      (org-combine-plists
-	       (and label (list :id (org-export-solidify-link-text label)))
+	       (and (org-element-property :name table)
+		    (list :id (org-export-get-reference table info)))
 	       (and (not (org-html-html5-p info))
 		    (plist-get info :html-table-attributes))
 	       (org-export-read-attribute :attr_html table))))
@@ -3445,9 +3434,8 @@ contextual information."
   "Transcode a TARGET object from Org to HTML.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
-  (let ((id (org-export-solidify-link-text
-	     (org-element-property :value target))))
-    (org-html--anchor id nil nil info)))
+  (let ((ref (org-export-get-reference target info)))
+    (org-html--anchor ref nil nil info)))
 
 ;;;; Timestamp
 
