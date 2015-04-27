@@ -1,6 +1,6 @@
 ;;; ox-md.el --- Markdown Back-End for Org Export Engine
 
-;; Copyright (C) 2012-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou@gmail.com>
 ;; Keywords: org, wp, markdown
@@ -68,8 +68,6 @@ This variable can be set to either `atx' or `setext'."
 		(org-open-file (org-md-export-to-markdown nil s v)))))))
   :translate-alist '((bold . org-md-bold)
 		     (code . org-md-verbatim)
-		     (comment . (lambda (&rest args) ""))
-		     (comment-block . (lambda (&rest args) ""))
 		     (example-block . org-md-example-block)
 		     (export-block . org-md-export-block)
 		     (fixed-width . org-md-example-block)
@@ -197,11 +195,9 @@ a communication channel."
 		 (let ((char (org-element-property :priority headline)))
 		   (and char (format "[#%c] " char)))))
 	   (anchor
-	    (when (plist-get info :with-toc)
-	      (org-html--anchor
-	       (or (org-element-property :CUSTOM_ID headline)
-		   (org-export-get-headline-id headline info))
-	       nil nil info)))
+	    (and (plist-get info :with-toc)
+		 (org-html--anchor
+		  (org-export-get-reference headline info) nil nil info)))
 	   ;; Headline text without tags.
 	   (heading (concat todo priority title))
 	   (style (plist-get info :md-headline-style)))
@@ -314,7 +310,7 @@ a communication channel."
 	(type (org-element-property :type link)))
     (cond
      ;; Link type is handled by a special function.
-     ((org-export-custom-protocol-maybe link contents info))
+     ((org-export-custom-protocol-maybe link contents 'md))
      ((member type '("custom-id" "id"))
       (let ((destination (org-export-resolve-id-link link info)))
 	(if (stringp destination)	; External file.
@@ -366,11 +362,7 @@ a communication channel."
 		 ((member type '("http" "https" "ftp"))
 		  (concat type ":" raw-path))
 		 ((string= type "file")
-		  (let ((path (funcall link-org-files-as-md raw-path)))
-		    (if (not (file-name-absolute-p path)) path
-		      ;; If file path is absolute, prepend it
-		      ;; with "file:" component.
-		      (concat "file:" path))))
+		  (org-export-file-uri (funcall link-org-files-as-md raw-path)))
 		 (t raw-path))))
 	  (if (not contents) (format "<%s>" path)
 	    (format "[%s](%s)" contents path)))))))

@@ -1,5 +1,5 @@
 ;;; ox-publish.el --- Publish Related Org Mode Files as a Website
-;; Copyright (C) 2006-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2015 Free Software Foundation, Inc.
 
 ;; Author: David O'Toole <dto@gnu.org>
 ;; Maintainer: Carsten Dominik <carsten DOT dominik AT gmail DOT com>
@@ -175,6 +175,7 @@ included.  See the back-end documentation for more information.
   :with-footnotes           `org-export-with-footnotes'
   :with-inlinetasks         `org-export-with-inlinetasks'
   :with-latex               `org-export-with-latex'
+  :with-planning            `org-export-with-planning'
   :with-priority            `org-export-with-priority'
   :with-properties          `org-export-with-properties'
   :with-smart-quotes        `org-export-with-smart-quotes'
@@ -186,7 +187,7 @@ included.  See the back-end documentation for more information.
   :with-tags                `org-export-with-tags'
   :with-tasks               `org-export-with-tasks'
   :with-timestamps          `org-export-with-timestamps'
-  :with-planning            `org-export-with-planning'
+  :with-title               `org-export-with-title'
   :with-todo-keywords       `org-export-with-todo-keywords'
 
 The following properties may be used to control publishing of
@@ -582,7 +583,7 @@ Return output file name."
 		   (body-p (plist-get plist :body-only)))
 	       (org-export-to-file backend output-file
 		 nil nil nil body-p
-		 ;; Add `org-publish-collect-numbering' and
+		 ;; Add `org-publish--collect-references' and
 		 ;; `org-publish-collect-index' to final output
 		 ;; filters.  The latter isn't dependent on
 		 ;; `:makeindex', since we want to keep it up-to-date
@@ -590,7 +591,7 @@ Return output file name."
 		 (org-combine-plists
 		  plist
 		  `(:filter-final-output
-		    ,(cons 'org-publish-collect-numbering
+		    ,(cons 'org-publish--collect-references
 			   (cons 'org-publish-collect-index
 				 (plist-get plist :filter-final-output))))))))
       ;; Remove opened buffer in the process.
@@ -838,17 +839,15 @@ time in `current-time' format."
 	   (date (plist-get
 		  (with-current-buffer file-buf
 		    (if visiting
-			(org-export-with-buffer-copy (org-export-get-environment))
+			(org-export-with-buffer-copy
+			 (org-export-get-environment))
 		      (org-export-get-environment)))
 		  :date)))
       (unless visiting (kill-buffer file-buf))
-      ;; DATE is either a timestamp object or a secondary string.  If it
-      ;; is a timestamp or if the secondary string contains a timestamp,
+      ;; DATE is a secondary string.  If it contains a timestamp,
       ;; convert it to internal format.  Otherwise, use FILE
       ;; modification time.
-      (cond ((eq (org-element-type date) 'timestamp)
-	     (org-time-string-to-time (org-element-interpret-data date)))
-	    ((let ((ts (and (consp date) (assq 'timestamp date))))
+      (cond ((let ((ts (and (consp date) (assq 'timestamp date))))
 	       (and ts
 		    (let ((value (org-element-interpret-data ts)))
 		      (and (org-string-nw-p value)
@@ -1069,31 +1068,90 @@ publishing directory."
 ;; This part implements tools to resolve [[file.org::*Some headline]]
 ;; links, where "file.org" belongs to the current project.
 
-(defun org-publish-collect-numbering (output backend info)
+(defun org-publish--collect-references (output backend info)
+  "Store headlines references for current published file.
+
+OUPUT is the produced output, as a string.  BACKEND is the export
+back-end used, as a symbol.  INFO is the final export state, as
+a plist.
+
+References are stored as an alist ((TYPE SEARCH) . VALUE) where
+
+  TYPE is a symbol among `headline', `custom-id', `target' and
+  `other'.
+
+  SEARCH is the string a link is expected to match.  It is
+
+    - headline's title, as a string, with all whitespace
+      characters and statistics cookies removed, if TYPE is
+      `headline'.
+
+    - CUSTOM_ID value if TYPE is `custom-id'.
+
+    - target's or radio-target's name if TYPE is `target'.
+
+    - NAME affiliated keyword is TYPE is `other'.
+
+  VALUE is an internal reference used in the document, as
+  a string.
+
+This function is meant to be used as a final out filter.  See
+`org-publish-org-to'."
   (org-publish-cache-set-file-property
-   (plist-get info :input-file) :numbering
-   (mapcar (lambda (entry)
-	     (cons (org-split-string
-		    (replace-regexp-in-string
-		     "\\[[0-9]+%\\]\\|\\[[0-9]+/[0-9]+\\]" ""
-		     (org-element-property :raw-value (car entry))))
-		   (cdr entry)))
-	   (plist-get info :headline-numbering)))
+   (plist-get info :input-file) :references
+   (let (refs)
+     (when (hash-table-p (plist-get info :internal-references))
+       (maphash
+	(lambda (k v)
+	  (case (org-element-type k)
+	    ((headline inlinetask)
+	     (push (cons
+		    (cons 'headline
+			  (replace-regexp-in-string
+			   "\\[[0-9]+%\\]\\|\\[[0-9]+/[0-9]+\\]\\|[ \r\t\n]+" ""
+			   (org-element-property :raw-value k)))
+		    v)
+		   refs)
+	     (let ((custom-id (org-element-property :CUSTOM_ID k)))
+	       (when custom-id
+		 (push (cons (cons 'custom-id custom-id) v) refs))))
+	    ((radio-target target)
+	     (push
+	      (cons (cons 'target
+			  (replace-regexp-in-string
+			   "[ \r\t\n]+" "" (org-element-property :value k)))
+		    v)
+	      refs))
+	    ((org-element-property :name k)
+	     (push (cons (cons 'other (org-element-property :name k)) v) refs)))
+	  refs)
+	(plist-get info :internal-references)))
+     refs))
   ;; Return output unchanged.
   output)
 
-(defun org-publish-resolve-external-fuzzy-link (file fuzzy)
-  "Return numbering for headline matching FUZZY search in FILE.
+(defun org-publish-resolve-external-link (search file)
+  "Return reference for elements or objects matching SEARCH in FILE.
 
-Return value is a list of numbers, or nil.  This function allows
-to resolve external fuzzy links like:
+Return value is an internal reference, as a string.
 
-  [[file.org::*fuzzy][description]]"
-  (when org-publish-cache
-    (cdr (assoc (org-split-string
-		 (if (eq (aref fuzzy 0) ?*) (substring fuzzy 1) fuzzy))
-		(org-publish-cache-get-file-property
-		 (expand-file-name file) :numbering nil t)))))
+This function allows to resolve external links like:
+
+  [[file.org::*fuzzy][description]]
+  [[file.org::#custom-id][description]]
+  [[file.org::fuzzy][description]]"
+  (let ((references (org-publish-cache-get-file-property
+		     (expand-file-name file) :references nil t))
+	(search (replace-regexp-in-string "[ \r\t\n]+" "" search)))
+    (cond
+     ((cdr (case (aref search 0)
+	     (?* (assoc (cons 'headline (substring search 1)) references))
+	     (?# (assoc (cons 'custom-id (substring search 1)) references))
+	     (t (or (assoc (cons 'target search) references)
+		    (assoc (cons 'other search) references)
+		    (assoc (cons 'headline search) references))))))
+     (t (message "Unknown cross-reference \"%s\" in file \"%s\"" search file)
+	"MissingReference"))))
 
 
 

@@ -125,6 +125,10 @@
 (setq org-src-preserve-indentation t)
 (setq org-support-shift-select 'always)
 
+;; see http://stackoverflow.com/questions/28126222/latex-math-mode-font-color-in-org-mode
+(eval-after-load 'org
+  '(setf org-highlight-latex-and-related '(latex)))
+
 ; the space at the beginning is useful to move the cursor
 (setq org-agenda-prefix-format 
       '((agenda . " %i %-12:c%?-12t% s")
@@ -223,3 +227,4 @@
 
 ;; see http://orgmode.org/w/?p=worg.git;a=commitdiff;h=022e5ecafdda4c2a89322251795a437a0918d4c5
 (add-to-list 'ispell-skip-region-alist '("#\\+begin_src". "#\\+end_src"))
+

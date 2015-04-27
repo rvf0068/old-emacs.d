@@ -1,6 +1,6 @@
 ;;; ox-beamer.el --- Beamer Back-End for Org Export Engine
 
-;; Copyright (C) 2007-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2015 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten.dominik AT gmail DOT com>
 ;;         Nicolas Goaziou <n.goaziou AT gmail DOT com>
@@ -133,6 +133,15 @@ You might want to put e.g. \"allowframebreaks=0.9\" here."
   :type '(string :tag "Outline frame options"))
 
 
+(defcustom org-beamer-subtitle-format "\\subtitle{%s}"
+  "Format string used for transcoded subtitle.
+The format string should have at most one \"%s\"-expression,
+which is replaced with the subtitle."
+  :group 'org-export-beamer
+  :version "25.1"
+  :package-version '(Org . "8.3")
+  :type '(string :tag "Format string"))
+
 
 ;;; Internal Variables
 
@@ -233,13 +242,14 @@ Return overlay specification, as a string, or nil."
   :options-alist
   '((:headline-levels nil "H" org-beamer-frame-level)
     (:latex-class "LATEX_CLASS" nil "beamer" t)
+    (:beamer-subtitle-format nil nil org-beamer-subtitle-format)
     (:beamer-column-view-format "COLUMNS" nil org-beamer-column-view-format)
     (:beamer-theme "BEAMER_THEME" nil org-beamer-theme)
     (:beamer-color-theme "BEAMER_COLOR_THEME" nil nil t)
     (:beamer-font-theme "BEAMER_FONT_THEME" nil nil t)
     (:beamer-inner-theme "BEAMER_INNER_THEME" nil nil t)
     (:beamer-outer-theme "BEAMER_OUTER_THEME" nil nil t)
-    (:beamer-header-extra "BEAMER_HEADER" nil nil newline)
+    (:beamer-header "BEAMER_HEADER" nil nil newline)
     (:beamer-environments-extra nil nil org-beamer-environments-extra)
     (:beamer-frame-default-options nil nil org-beamer-frame-default-options)
     (:beamer-outline-frame-options nil nil org-beamer-outline-frame-options)
@@ -646,15 +656,27 @@ as a communication channel."
   "Transcode an ITEM element into Beamer code.
 CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
-  (let ((action (let ((first-element (car (org-element-contents item))))
-		  (and (eq (org-element-type first-element) 'paragraph)
-		       (org-beamer--element-has-overlay-p first-element))))
-	(output (org-export-with-backend 'latex item contents info)))
-    (if (or (not action) (not (string-match "\\\\item" output))) output
-      ;; If the item starts with a paragraph and that paragraph starts
-      ;; with an export snippet specifying an overlay, insert it after
-      ;; \item command.
-      (replace-match (concat "\\\\item" action) nil nil output))))
+  (org-export-with-backend
+   ;; Delegate item export to `latex'.  However, we use `beamer'
+   ;; transcoders for objects in the description tag.
+   (org-export-create-backend
+    :parent 'beamer
+    :transcoders
+    (list
+     (cons
+      'item
+      (lambda (item c i)
+	(let ((action
+	       (let ((first (car (org-element-contents item))))
+		 (and (eq (org-element-type first) 'paragraph)
+		      (org-beamer--element-has-overlay-p first))))
+	      (output (org-latex-item item contents info)))
+	  (if (not (and action (string-match "\\\\item" output))) output
+	    ;; If the item starts with a paragraph and that paragraph
+	    ;; starts with an export snippet specifying an overlay,
+	    ;; append it to the \item command.
+	    (replace-match (concat "\\\\item" action) nil nil output)))))))
+   item contents info))
 
 
 ;;;; Keyword
@@ -691,15 +713,14 @@ used as a communication channel."
 	(path (org-element-property :path link)))
     (cond
      ;; Link type is handled by a special function.
-     ((org-export-custom-protocol-maybe link contents info))
+     ((org-export-custom-protocol-maybe link contents 'beamer))
      ;; Use \hyperlink command for all internal links.
      ((equal type "radio")
       (let ((destination (org-export-resolve-radio-link link info)))
 	(if (not destination) contents
 	  (format "\\hyperlink%s{%s}{%s}"
 		  (or (org-beamer--element-has-overlay-p link) "")
-		  (org-export-solidify-link-text
-		   (org-element-property :value destination))
+		  (org-export-get-reference destination info)
 		  contents))))
      ((and (member type '("custom-id" "fuzzy" "id"))
 	   (let ((destination (if (string= type "fuzzy")
@@ -721,11 +742,11 @@ used as a communication channel."
 			    label
 			    contents))))
 	       (target
-		(let ((path (org-export-solidify-link-text path)))
-		  (if (not contents) (format "\\ref{%s}" path)
+		(let ((ref (org-export-get-reference destination info)))
+		  (if (not contents) (format "\\ref{%s}" ref)
 		    (format "\\hyperlink%s{%s}{%s}"
 			    (or (org-beamer--element-has-overlay-p link) "")
-			    path
+			    ref
 			    contents))))))))
      ;; Otherwise, use `latex' back-end.
      (t (org-export-with-backend 'latex link contents info)))))
@@ -763,7 +784,8 @@ contextual information."
 	      'option)
 	     ;; Eventually insert contents and close environment.
 	     contents
-	     latex-type))))
+	     latex-type)
+     info)))
 
 
 ;;;; Radio Target
@@ -774,8 +796,7 @@ TEXT is the text of the target.  INFO is a plist holding
 contextual information."
   (format "\\hypertarget%s{%s}{%s}"
 	  (or (org-beamer--element-has-overlay-p radio-target) "")
-	  (org-export-solidify-link-text
-	   (org-element-property :value radio-target))
+	  (org-export-get-reference radio-target info)
 	  text))
 
 
@@ -785,8 +806,7 @@ contextual information."
   "Transcode a TARGET object into Beamer code.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
-  (format "\\label{%s}"
-	  (org-export-solidify-link-text (org-element-property :value target))))
+  (format "\\label{%s}" (org-export-get-reference target info)))
 
 
 ;;;; Template
@@ -798,7 +818,8 @@ information."
   "Return complete document string after Beamer conversion.
 CONTENTS is the transcoded contents string.  INFO is a plist
 holding export options."
-  (let ((title (org-export-data (plist-get info :title) info)))
+  (let ((title (org-export-data (plist-get info :title) info))
+	(subtitle (org-export-data (plist-get info :subtitle) info)))
     (concat
      ;; 1. Time-stamp.
      (and (plist-get info :time-stamp-file)
@@ -825,8 +846,7 @@ holding export options."
 	     (concat (org-element-normalize-string
 		      (plist-get info :latex-header))
 		     (org-element-normalize-string
-		      (plist-get info :latex-header-extra))
-		     (plist-get info :beamer-header-extra)))))
+		      (plist-get info :latex-header-extra))))))
 	  info)))
      ;; 3. Insert themes.
      (let ((format-theme
@@ -866,24 +886,28 @@ holding export options."
        (format "\\date{%s}\n" (org-export-data date info)))
      ;; 7. Title
      (format "\\title{%s}\n" title)
-     ;; 8. Hyperref options.
-     (when (plist-get info :latex-hyperref-p)
-       (format "\\hypersetup{\n  pdfkeywords={%s},\n  pdfsubject={%s},\n  pdfcreator={%s}}\n"
-	       (or (plist-get info :keywords) "")
-	       (or (plist-get info :description) "")
-	       (if (not (plist-get info :with-creator)) ""
-		 (plist-get info :creator))))
-     ;; 9. Document start.
+     (when (org-string-nw-p subtitle)
+       (concat (format (plist-get info :beamer-subtitle-format) subtitle) "\n"))
+     ;; 8. Beamer-header
+     (let ((beamer-header (plist-get info :beamer-header)))
+       (when beamer-header
+	 (format "%s\n" (plist-get info :beamer-header))))
+     ;; 9. Hyperref options.
+     (let ((template (plist-get info :latex-hyperref-template)))
+       (and (stringp template)
+	    (format-spec template (org-latex--format-spec info))))
+     ;; 10. Document start.
      "\\begin{document}\n\n"
-     ;; 10. Title command.
+     ;; 11. Title command.
      (org-element-normalize-string
-      (cond ((string= "" title) nil)
+      (cond ((not (plist-get info :with-title)) nil)
+	    ((string= "" title) nil)
 	    ((not (stringp org-latex-title-command)) nil)
 	    ((string-match "\\(?:[^%]\\|^\\)%s"
 			   org-latex-title-command)
 	     (format org-latex-title-command title))
 	    (t org-latex-title-command)))
-     ;; 11. Table of contents.
+     ;; 12. Table of contents.
      (let ((depth (plist-get info :with-toc)))
        (when depth
 	 (concat
@@ -895,16 +919,13 @@ holding export options."
 	    (format "\\setcounter{tocdepth}{%d}\n" depth))
 	  "\\tableofcontents\n"
 	  "\\end{frame}\n\n")))
-     ;; 12. Document's body.
+     ;; 13. Document's body.
      contents
-     ;; 13. Creator.
-     (let ((creator-info (plist-get info :with-creator)))
-       (cond
-	((not creator-info) "")
-	((eq creator-info 'comment)
-	 (format "%% %s\n" (plist-get info :creator)))
-	(t (concat (plist-get info :creator) "\n"))))
-     ;; 14. Document end.
+     ;; 14. Creator.
+     (if (plist-get info :with-creator)
+	 (concat (plist-get info :creator) "\n")
+       "")
+     ;; 15. Document end.
      "\\end{document}")))
 
 

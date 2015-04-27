@@ -164,12 +164,6 @@ var of the same value."
       (mapconcat echo-var var "\n"))
      (t (funcall echo-var var)))))
 
-(defun org-babel-sh-table-or-results (results)
-  "Convert RESULTS to an appropriate elisp value.
-If the results look like a table, then convert them into an
-Emacs-lisp table, otherwise return the results as a string."
-  (org-babel-script-escape results))
-
 (defun org-babel-sh-initiate-session (&optional session params)
   "Initiate a session named SESSION according to PARAMS."
   (when (and session (not (string= session "none")))
@@ -208,11 +202,11 @@ return the value of the last statement in BODY."
              (with-temp-file stdin-file (insert (or stdin "")))
              (with-temp-buffer
                (call-process-shell-command
-                (if shebang
-                    script-file
-                  (format "%s %s" shell-file-name script-file))
+                (concat (if shebang script-file
+			  (format "%s %s" shell-file-name script-file))
+			(and cmdline (concat " " cmdline)))
                 stdin-file
-                (current-buffer) nil cmdline)
+		(current-buffer))
                (buffer-string))))
           (session                      ; session evaluation
            (mapconcat

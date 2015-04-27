@@ -1,0 +1,19 @@
+# -*- mode: snippet -*-
+# name: pgfplot
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: pgfp
+# --
+
+#+name: $1
+#+header: :file (by-backend (latex "$1.tikz") (beamer "$1.tikz") (t "$1.png"))
+#+begin_src latex :results raw file :exports both
+  \begin{tikzpicture}[scale=0.7]
+    \begin{axis}
+      $0 
+    \end{axis}
+  \end{tikzpicture}
+#+end_src
+
+#+attr_html: :width 400 :alt $1 :align center
+#+attr_latex: :float t :width ""
+#+results: $1

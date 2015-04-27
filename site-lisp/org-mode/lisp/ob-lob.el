@@ -1,6 +1,6 @@
 ;;; ob-lob.el --- functions supporting the Library of Babel
 
-;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
 
 ;; Authors: Eric Schulte
 ;;	 Dan Davison
@@ -116,9 +116,10 @@ if so then run the appropriate source block from the Library."
 			   (match-string 2) (match-string 11)))
 	       (save-excursion
 		 (forward-line -1)
-		 (and (looking-at (concat org-babel-src-name-regexp
-					  "\\([^\n]*\\)$"))
-		      (org-no-properties (match-string 1))))))))))
+		 (save-match-data
+		   (and (looking-at (concat org-babel-src-name-regexp
+					    "\\([^\n]*\\)$"))
+			(org-no-properties (match-string 1)))))))))))
 
 (defvar org-babel-default-header-args:emacs-lisp) ; Defined in ob-emacs-lisp.el
 (defun org-babel-lob-execute (info)

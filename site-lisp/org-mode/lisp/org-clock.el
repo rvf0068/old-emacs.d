@@ -87,6 +87,7 @@ Return value is either a string, an integer, or nil."
           ((org-string-nw-p p)
 	   (if (org-string-match-p "\\`[0-9]+\\'" p) (string-to-number p) p))
 	  ((org-string-nw-p org-clock-into-drawer))
+	  ((integerp org-clock-into-drawer) org-clock-into-drawer)
 	  ((not org-clock-into-drawer) nil)
 	  ((org-log-into-drawer))
 	  (t "LOGBOOK"))))
@@ -1092,9 +1093,11 @@ If `only-dangling-p' is non-nil, only ask to resolve dangling
 (defvar org-x11idle-exists-p
   ;; Check that x11idle exists
   (and (eq window-system 'x)
-       (eq (call-process-shell-command "command" nil nil nil "-v" org-clock-x11idle-program-name) 0)
+       (eq (call-process-shell-command
+	    (format "command -v %s" org-clock-x11idle-program-name))
+	   0)
        ;; Check that x11idle can retrieve the idle time
-       (eq (call-process-shell-command org-clock-x11idle-program-name nil nil nil) 0)))
+       (eq (call-process-shell-command org-clock-x11idle-program-name) 0)))
 
 (defun org-x11-idle-seconds ()
   "Return the current X11 idle time in seconds."
@@ -1349,8 +1352,7 @@ With three universal prefix arguments, interactively prompt
 for a todo state to switch to, overriding the existing value
 `org-clock-in-switch-to-state'."
   (interactive "P")
-  (if (equal arg '(4))
-      (org-clock-in (org-clock-select-task))
+  (if (equal arg '(4)) (org-clock-in arg)
     (let ((start-time (if (or org-clock-continuously (equal arg '(16)))
 			  (or org-clock-out-time
 			      (org-current-time org-clock-rounding-minutes t))
@@ -2641,10 +2643,10 @@ from the dynamic block definition."
     total-time))
 
 (defun org-clocktable-indent-string (level)
+  "Return indentation string according to LEVEL.
+LEVEL is an integer.  Indent by two spaces per level above 1."
   (if (= level 1) ""
-    (let ((str " "))
-      (dotimes (k (1- level) str)
-	(setq str (concat "\\emsp" str))))))
+    (concat "\\_" (make-string (* 2 (1- level)) ?\s))))
 
 (defun org-clocktable-steps (params)
   "Step through the range to make a number of clock tables."

@@ -1,0 +1,17 @@
+# -*- mode: snippet -*-
+# name: fontsample
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: font
+# --
+
+** $1$0
+
+#+headers: :headers '("\\\\usepackage[T1]{fontenc}\\\\usepackage{$1}") :border 1em 
+#+begin_src latex :file $1.pdf :results raw
+  \begin{Huge}
+    The quick brown fox jumps
+    over the lazy dog\\\\
+    ¿¡ñÑáéíóúüÁÉÍÓÚÜ 
+  \end{Huge}
+#+end_src
+

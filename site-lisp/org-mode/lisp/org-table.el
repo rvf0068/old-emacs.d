@@ -1,6 +1,6 @@
 ;;; org-table.el --- The table editor for Org-mode
 
-;; Copyright (C) 2004-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2015 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -722,7 +722,7 @@ When nil, simply write \"#ERROR\" in corrupted fields.")
   (let* (
 	 ;; Limits of table
 	 (beg (org-table-begin))
-	 (end (org-table-end))
+	 (end (copy-marker (org-table-end)))
 	 ;; Current cursor position
 	 (linepos (org-current-line))
 	 (colpos (org-table-current-column))
@@ -931,14 +931,13 @@ With argument TABLE-TYPE, go to the beginning of a table.el-type table."
 (defun org-table-end (&optional table-type)
   "Find the end of the table and return its position.
 With argument TABLE-TYPE, go to the end of a table.el-type table."
-  (save-excursion
-    (if (not (re-search-forward
-	      (if table-type org-table-any-border-regexp
-		org-table-border-regexp)
-	      nil t))
-	(goto-char (point-max))
-      (goto-char (match-beginning 0)))
-    (point-marker)))
+  (if (save-excursion
+	(re-search-forward
+	 (if table-type org-table-any-border-regexp
+	   org-table-border-regexp)
+	 nil t))
+      (match-beginning 0)
+    (point-max)))
 
 ;;;###autoload
 (defun org-table-justify-field-maybe (&optional new)
@@ -1037,9 +1036,10 @@ Before doing so, re-align the table if necessary."
       (goto-char (match-end 0))))
 
 (defun org-table-beginning-of-field (&optional n)
-  "Move to the end of the current table field.
-If already at or after the end, move to the end of the next table field.
-With numeric argument N, move N-1 fields forward first."
+  "Move to the beginning of the current table field.
+If already at or before the beginning, move to the beginning of the
+previous field.
+With numeric argument N, move N-1 fields backward first."
   (interactive "p")
   (let ((pos (point)))
     (while (> n 1)
@@ -1052,10 +1052,9 @@ With numeric argument N, move N-1 fields forward first."
     (if (>= (point) pos) (org-table-beginning-of-field 2))))
 
 (defun org-table-end-of-field (&optional n)
-  "Move to the beginning of the current table field.
-If already at or before the beginning, move to the beginning of the
-previous field.
-With numeric argument N, move N-1 fields backward first."
+  "Move to the end of the current table field.
+If already at or after the end, move to the end of the next table field.
+With numeric argument N, move N-1 fields forward first."
   (interactive "p")
   (let ((pos (point)))
     (while (> n 1)
@@ -1377,7 +1376,7 @@ However, when FORCE is non-nil, create new columns if necessary."
   (org-table-find-dataline)
   (let* ((col (max 1 (org-table-current-column)))
 	 (beg (org-table-begin))
-	 (end (org-table-end))
+	 (end (copy-marker (org-table-end)))
 	 ;; Current cursor position
 	 (linepos (org-current-line))
 	 (colpos col))
@@ -1448,7 +1447,7 @@ first dline below it is used.  When ABOVE is non-nil, the one above is used."
   (org-table-check-inside-data-field)
   (let* ((col (org-table-current-column))
 	 (beg (org-table-begin))
-	 (end (org-table-end))
+	 (end (copy-marker (org-table-end)))
 	 ;; Current cursor position
 	 (linepos (org-current-line))
 	 (colpos col))
@@ -1493,7 +1492,7 @@ first dline below it is used.  When ABOVE is non-nil, the one above is used."
   (let* ((col (org-table-current-column))
 	 (col1 (if left (1- col) col))
 	 (beg (org-table-begin))
-	 (end (org-table-end))
+	 (end (copy-marker (org-table-end)))
 	 ;; Current cursor position
 	 (linepos (org-current-line))
 	 (colpos (if left (1- col) (1+ col))))
@@ -1904,8 +1903,8 @@ blindly applies a recipe that works for simple tables."
   (require 'table)
   (if (org-at-table.el-p)
       ;; convert to Org-mode table
-      (let ((beg (move-marker (make-marker) (org-table-begin t)))
-	    (end (move-marker (make-marker) (org-table-end t))))
+      (let ((beg (copy-marker (org-table-begin t)))
+	    (end (copy-marker (org-table-end t))))
 	(table-unrecognize-region beg end)
 	(goto-char beg)
 	(while (re-search-forward "^\\([ \t]*\\)\\+-.*\n" end t)
@@ -1913,8 +1912,8 @@ blindly applies a recipe that works for simple tables."
 	(goto-char beg))
     (if (org-at-table-p)
 	;; convert to table.el table
-	(let ((beg (move-marker (make-marker) (org-table-begin)))
-	      (end (move-marker (make-marker) (org-table-end))))
+	(let ((beg (copy-marker (org-table-begin)))
+	      (end (copy-marker (org-table-end))))
 	  ;; first, get rid of all horizontal lines
 	  (goto-char beg)
 	  (while (re-search-forward "^\\([ \t]*\\)|-.*\n" end t)
@@ -2758,7 +2757,7 @@ not overwrite the stored one."
 	(org-table--error-on-old-row-references form)
 	;; Insert remote references
 	(setq form (org-table-remote-reference-indirection form))
-	(while (string-match "\\<remote([ \t]*\\([-_a-zA-Z0-9]+\\)[ \t]*,[ \t]*\\([^\n)]+\\))" form)
+	(while (string-match "\\<remote([ \t]*\\([^,)]+\\)[ \t]*,[ \t]*\\([^\n)]+\\))" form)
 	  (setq form
 		(replace-match
 		 (save-match-data
@@ -3152,7 +3151,7 @@ known that the table will be realigned a little later anyway."
 	;; Get the correct line range to process
 	(if all
 	    (progn
-	      (setq end (move-marker (make-marker) (1+ (org-table-end))))
+	      (setq end (copy-marker (1+ (org-table-end))))
 	      (goto-char (setq beg (org-table-begin)))
 	      (if (re-search-forward org-table-calculate-mark-regexp end t)
 		  ;; This is a table with marked lines, compute selected lines
@@ -3730,16 +3729,16 @@ minutes or seconds."
 
 (defun org-table-fedit-shift-reference (dir)
   (cond
-   ((org-at-regexp-p "\\(\\<[a-zA-Z]\\)&")
+   ((org-in-regexp "\\(\\<[a-zA-Z]\\)&")
     (if (memq dir '(left right))
 	(org-rematch-and-replace 1 (eq dir 'left))
       (user-error "Cannot shift reference in this direction")))
-   ((org-at-regexp-p "\\(\\<[a-zA-Z]\\{1,2\\}\\)\\([0-9]+\\)")
+   ((org-in-regexp "\\(\\<[a-zA-Z]\\{1,2\\}\\)\\([0-9]+\\)")
     ;; A B3-like reference
     (if (memq dir '(up down))
 	(org-rematch-and-replace 2 (eq dir 'up))
       (org-rematch-and-replace 1 (eq dir 'left))))
-   ((org-at-regexp-p
+   ((org-in-regexp
      "\\(@\\|\\.\\.\\)\\([-+]?\\(I+\\>\\|[0-9]+\\)\\)\\(\\$\\([-+]?[0-9]+\\)\\)?")
     ;; An internal reference
     (if (memq dir '(up down))
@@ -3896,21 +3895,21 @@ With prefix ARG, apply the new formulas to the table."
 	  var name e what match dest)
       (if local (org-table-get-specials))
       (setq what (cond
-		  ((org-at-regexp-p "^@[0-9]+[ \t=]")
+		  ((org-in-regexp "^@[0-9]+[ \t=]")
 		   (setq match (concat (substring (match-string 0) 0 -1)
 				       "$1.."
 				       (substring (match-string 0) 0 -1)
 				       "$100"))
 		   'range)
-		  ((or (org-at-regexp-p org-table-range-regexp2)
-		       (org-at-regexp-p org-table-translate-regexp)
-		       (org-at-regexp-p org-table-range-regexp))
+		  ((or (org-in-regexp org-table-range-regexp2)
+		       (org-in-regexp org-table-translate-regexp)
+		       (org-in-regexp org-table-range-regexp))
 		   (setq match
 			 (save-match-data
 			   (org-table-convert-refs-to-rc (match-string 0))))
 		   'range)
-		  ((org-at-regexp-p "\\$[a-zA-Z][a-zA-Z0-9]*") 'name)
-		  ((org-at-regexp-p "\\$[0-9]+") 'column)
+		  ((org-in-regexp "\\$[a-zA-Z][a-zA-Z0-9]*") 'name)
+		  ((org-in-regexp "\\$[0-9]+") 'column)
 		  ((not local) nil)
 		  (t (user-error "No reference at point")))
 	    match (and what (or match (match-string 0))))
