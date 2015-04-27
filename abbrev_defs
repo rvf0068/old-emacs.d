@@ -155,8 +155,9 @@
     ("mcd" "máximo común divisor" nil 3)
     ("nc" "número complejo" nil 0)
     ("ncs" "números complejos" nil 1)
+    ("pda" "punto de acumulación" nil 2)
     ("pm" "polinomio mínimo" nil 5)
-    ("ssi" "si y solo si" nil 1)
+    ("ssi" "si y solo si" nil 9)
     ("ts" "topological space" nil 1)
    ))
 
@@ -169,6 +170,8 @@
 (define-abbrev-table 'process-menu-mode-abbrev-table '())
 
 (define-abbrev-table 'prog-mode-abbrev-table '())
+
+(define-abbrev-table 'pylint-mode-abbrev-table '())
 
 (define-abbrev-table 'python-mode-abbrev-table '())
 
