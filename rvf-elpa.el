@@ -37,6 +37,7 @@
     org2blog
     orgbox
     pandoc-mode
+    pdf-tools
     smart-mode-line
     smartparens
     smex

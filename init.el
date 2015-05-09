@@ -145,6 +145,8 @@
 ;; Next row is needed for C-c C-c in pgn files to display position
 (load-library "chess-file")
 
+(pdf-tools-install)
+
 (diary)
 
 (if (equal system-name "lahp")
