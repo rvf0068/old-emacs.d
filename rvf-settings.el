@@ -37,3 +37,6 @@
 
 ;; python mode
 (add-to-list 'auto-mode-alist '("\\.sage\\'" . python-mode))
+
+(add-to-list 'auto-mode-alist '("\\.pdf\\'" . pdf-view-mode))
+
