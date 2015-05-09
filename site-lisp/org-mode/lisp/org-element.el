@@ -159,16 +159,20 @@ specially in `org-element--object-lex'.")
 		"$" "\\|"
 		;; Tables (any type).
 		"\\(?:|\\|\\+-[-+]\\)" "\\|"
-		;; Blocks (any type), Babel calls and keywords.  This
-		;; is only an indication and need some thorough check.
-		"#\\(?:[+ ]\\|$\\)" "\\|"
-		;; Drawers (any type) and fixed-width areas.  This is
-		;; also only an indication.
-		":" "\\|"
+		;; Comments, keyword-like or block-like constructs.
+		;; Blocks and keywords with dual values need to be
+		;; double-checked.
+		"#\\(?: \\|$\\|\\+\\(?:"
+		"BEGIN_\\S-+" "\\|"
+		"\\S-+\\(?:\\[.*\\]\\)?:[ \t]*\\)\\)"
+		"\\|"
+		;; Drawers (any type) and fixed-width areas.  Drawers
+		;; need to be double-checked.
+		":\\(?: \\|$\\|[-_[:word:]]+:[ \t]*$\\)" "\\|"
 		;; Horizontal rules.
 		"-\\{5,\\}[ \t]*$" "\\|"
 		;; LaTeX environments.
-		"\\\\begin{\\([A-Za-z0-9]+\\*?\\)}" "\\|"
+		"\\\\begin{\\([A-Za-z0-9*]+\\)}" "\\|"
 		;; Clock lines.
 		(regexp-quote org-clock-string) "\\|"
 		;; Lists.
@@ -320,7 +324,7 @@ This list is checked after translations have been applied.  See
 `org-element-keyword-translation-alist'.")
 
 (defconst org-element--affiliated-re
-  (format "[ \t]*#\\+\\(?:%s\\):\\(?: \\|$\\)"
+  (format "[ \t]*#\\+\\(?:%s\\):[ \t]*"
 	  (concat
 	   ;; Dual affiliated keywords.
 	   (format "\\(?1:%s\\)\\(?:\\[\\(.*\\)\\]\\)?"
@@ -330,8 +334,7 @@ This list is checked after translations have been applied.  See
 	   (format "\\(?1:%s\\)"
 		   (regexp-opt
 		    (org-remove-if
-		     #'(lambda (keyword)
-			 (member keyword org-element-dual-keywords))
+		     (lambda (k) (member k org-element-dual-keywords))
 		     org-element-affiliated-keywords)))
 	   "\\|"
 	   ;; Export attributes.
@@ -1178,11 +1181,11 @@ Assume point is at the beginning of the item."
     (looking-at org-list-full-item-re)
     (let* ((begin (point))
 	   (bullet (org-match-string-no-properties 1))
-	   (checkbox (let ((box (org-match-string-no-properties 3)))
+	   (checkbox (let ((box (match-string 3)))
 		       (cond ((equal "[ ]" box) 'off)
 			     ((equal "[X]" box) 'on)
 			     ((equal "[-]" box) 'trans))))
-	   (counter (let ((c (org-match-string-no-properties 2)))
+	   (counter (let ((c (match-string 2)))
 		      (save-match-data
 			(cond
 			 ((not c) nil)
@@ -1192,8 +1195,7 @@ Assume point is at the beginning of the item."
 			 ((string-match "[0-9]+" c)
 			  (string-to-number (match-string 0 c)))))))
 	   (end (progn (goto-char (nth 6 (assq (point) struct)))
-		       (unless (bolp) (forward-line))
-		       (point)))
+		       (if (bolp) (point) (line-beginning-position 2))))
 	   (contents-begin
 	    (progn (goto-char
 		    ;; Ignore tags in un-ordered lists: they are just
@@ -1202,30 +1204,27 @@ Assume point is at the beginning of the item."
 			     (save-match-data (string-match "[.)]" bullet)))
 			(match-beginning 4)
 		      (match-end 0)))
-		   (skip-chars-forward " \r\t\n" limit)
-		   ;; If first line isn't empty, contents really start
-		   ;; at the text after item's meta-data.
-		   (if (= (point-at-bol) begin) (point) (point-at-bol))))
-	   (contents-end (progn (goto-char end)
-				(skip-chars-backward " \r\t\n")
-				(forward-line)
-				(point)))
+		   (skip-chars-forward " \r\t\n" end)
+		   (cond ((= (point) end) nil)
+			 ;; If first line isn't empty, contents really
+			 ;; start at the text after item's meta-data.
+			 ((= (line-beginning-position) begin) (point))
+			 (t (line-beginning-position)))))
+	   (contents-end (and contents-begin
+			      (progn (goto-char end)
+				     (skip-chars-backward " \r\t\n")
+				     (line-beginning-position 2))))
 	   (item
 	    (list 'item
 		  (list :bullet bullet
 			:begin begin
 			:end end
-			;; CONTENTS-BEGIN and CONTENTS-END may be
-			;; mixed up in the case of an empty item
-			;; separated from the next by a blank line.
-			;; Thus ensure the former is always the
-			;; smallest.
-			:contents-begin (min contents-begin contents-end)
-			:contents-end (max contents-begin contents-end)
+			:contents-begin contents-begin
+			:contents-end contents-end
 			:checkbox checkbox
 			:counter counter
 			:structure struct
-			:post-blank (count-lines contents-end end)
+			:post-blank (count-lines (or contents-end begin) end)
 			:post-affiliated begin))))
       (org-element-put-property
        item :tag
@@ -2233,65 +2232,42 @@ Assume point is at the beginning of the paragraph."
 	   (before-blank
 	    (let ((case-fold-search t))
 	      (end-of-line)
-	      (if (not (re-search-forward
-			org-element-paragraph-separate limit 'm))
-		  limit
-		;; A matching `org-element-paragraph-separate' is not
-		;; necessarily the end of the paragraph.  In
-		;; particular, lines starting with # or : as a first
-		;; non-space character are ambiguous.  We have to
-		;; check if they are valid Org syntax (e.g., not an
-		;; incomplete keyword).
-		(beginning-of-line)
-		(while (not
-			(or
-			 ;; There's no ambiguity for other symbols or
-			 ;; empty lines: stop here.
-			 (looking-at "[ \t]*\\(?:[^:#]\\|$\\)")
-			 ;; Stop at valid fixed-width areas.
-			 (looking-at "[ \t]*:\\(?: \\|$\\)")
-			 ;; Stop at drawers.
-			 (and (looking-at org-drawer-regexp)
-			      (save-excursion
-				(re-search-forward
-				 "^[ \t]*:END:[ \t]*$" limit t)))
-			 ;; Stop at valid comments.
-			 (looking-at "[ \t]*#\\(?: \\|$\\)")
-			 ;; Stop at valid dynamic blocks.
-			 (and (looking-at org-dblock-start-re)
-			      (save-excursion
-				(re-search-forward
-				 "^[ \t]*#\\+END:?[ \t]*$" limit t)))
-			 ;; Stop at valid blocks.
-			 (and (looking-at "[ \t]*#\\+BEGIN_\\(\\S-+\\)")
-			      (save-excursion
-				(re-search-forward
-				 (format "^[ \t]*#\\+END_%s[ \t]*$"
-					 (regexp-quote
-					  (org-match-string-no-properties 1)))
-				 limit t)))
-			 ;; Stop at valid latex environments.
-			 (and (looking-at org-element--latex-begin-environment)
-			      (save-excursion
-				(re-search-forward
-				 (format org-element--latex-end-environment
-					 (regexp-quote
-					  (org-match-string-no-properties 1)))
-				 limit t)))
-			 ;; Stop at valid keywords.
-			 (looking-at "[ \t]*#\\+\\S-+:")
-			 ;; Skip everything else.
-			 (not
-			  (progn
-			    (end-of-line)
-			    (re-search-forward org-element-paragraph-separate
-					       limit 'm)))))
-		  (beginning-of-line)))
+	      ;; A matching `org-element-paragraph-separate' is not
+	      ;; necessarily the end of the paragraph.  In particular,
+	      ;; drawers, blocks or LaTeX environments opening lines
+	      ;; must be closed.  Moreover keywords with a secondary
+	      ;; value must belong to "dual keywords".
+	      (while (not
+		      (cond
+		       ((not (and (re-search-forward
+				   org-element-paragraph-separate limit 'move)
+				  (progn (beginning-of-line) t))))
+		       ((looking-at org-drawer-regexp)
+			(save-excursion
+			  (re-search-forward "^[ \t]*:END:[ \t]*$" limit t)))
+		       ((looking-at "[ \t]*#\\+BEGIN_\\(\\S-+\\)")
+			(save-excursion
+			  (re-search-forward
+			   (format "^[ \t]*#\\+END_%s[ \t]*$"
+				   (regexp-quote (match-string 1)))
+			   limit t)))
+		       ((looking-at org-element--latex-begin-environment)
+			(save-excursion
+			  (re-search-forward
+			   (format org-element--latex-end-environment
+				   (regexp-quote (match-string 1)))
+			   limit t)))
+		       ((looking-at "[ \t]*#\\+\\(\\S-+\\)\\[.*\\]:")
+			(member-ignore-case (match-string 1)
+					    org-element-dual-keywords))
+		       ;; Everything else is unambiguous.
+		       (t)))
+		(end-of-line))
 	      (if (= (point) limit) limit
 		(goto-char (line-beginning-position)))))
-	   (contents-end (progn (skip-chars-backward " \r\t\n" contents-begin)
-				(forward-line)
-				(point)))
+	   (contents-end (save-excursion
+			   (skip-chars-backward " \r\t\n" contents-begin)
+			   (line-beginning-position 2)))
 	   (end (progn (skip-chars-forward " \r\t\n" limit)
 		       (if (eobp) (point) (line-beginning-position)))))
       (list 'paragraph

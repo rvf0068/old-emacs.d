@@ -2315,9 +2315,7 @@ Used as a fall back file for org-capture.el, for templates that
 do not specify a target file."
   :group 'org-refile
   :group 'org-capture
-  :type '(choice
-	  (const :tag "Default from remember-data-file" nil)
-	  file))
+  :type 'file)
 
 (defcustom org-goto-interface 'outline
   "The default interface to be used for `org-goto'.
@@ -4577,12 +4575,12 @@ If TABLE-TYPE is non-nil, also check for table.el-type tables."
 		  (&optional also-non-dangling-p prompt last-valid))
 
 (defun org-at-TBLFM-p (&optional pos)
-  "Return t when point (or POS) is in #+TBLFM line."
+  "Non-nil when point (or POS) is in #+TBLFM line."
   (save-excursion
-    (let ((pos pos)))
     (goto-char (or pos (point)))
-    (beginning-of-line 1)
-    (looking-at org-TBLFM-regexp)))
+    (beginning-of-line)
+    (and (eq (org-element-type (org-element-at-point)) 'table)
+	 (looking-at org-TBLFM-regexp))))
 
 (defvar org-clock-start-time)
 (defvar org-clock-marker (make-marker)
@@ -9565,7 +9563,7 @@ The refresh happens only for the current tree (not subtree)."
 	    (when (org-at-property-p)
 	      (put-text-property
 	       (save-excursion (org-back-to-heading t) (point))
-	       (org-end-of-subtree t t)
+	       (save-excursion (org-end-of-subtree t t) (point))
 	       'org-category
 	       value)))))))))
 
@@ -10836,7 +10834,7 @@ link in a property drawer line."
 			(shell-command cmd buf)
 			(when (featurep 'midnight)
 			  (setq clean-buffer-list-kill-buffer-names
-				(cons buf
+				(cons (buffer-name buf)
 				      clean-buffer-list-kill-buffer-names))))
 		    (user-error "Abort"))))
 	       ((equal type "elisp")
@@ -22747,7 +22745,8 @@ ELEMENT is an element containing point.  CONTENTSP is non-nil
 when indentation is to be computed according to contents of
 ELEMENT."
   (let ((type (org-element-type element))
-	(start (org-element-property :begin element)))
+	(start (org-element-property :begin element))
+	(post-affiliated (org-element-property :post-affiliated element)))
     (org-with-wide-buffer
      (cond
       (contentsp
@@ -22757,14 +22756,8 @@ ELEMENT."
 	  (if (not org-adapt-indentation) 0
 	    (let ((level (org-current-level)))
 	      (if level (1+ level) 0))))
-	 (item
-	  (org-list-item-body-column
-	   (org-element-property :post-affiliated element)))
-	 (plain-list
-	  (save-excursion
-	    (goto-char (org-element-property :post-affiliated element))
-	    (org-get-indentation)))
-	 (otherwise
+	 ((item plain-list) (org-list-item-body-column post-affiliated))
+	 (t
 	  (goto-char start)
 	  (org-get-indentation))))
       ((memq type '(headline inlinetask nil))
@@ -22825,6 +22818,11 @@ ELEMENT."
 	  ((< (line-beginning-position) start)
 	   (org--get-expected-indentation
 	    (org-element-property :parent element) t))
+	  ;; Line above is the beginning of an element, i.e., point
+	  ;; was originally on the blank lines between element's start
+	  ;; and contents.
+	  ((= (line-beginning-position) post-affiliated)
+	   (org--get-expected-indentation element t))
 	  ;; POS is after contents in a greater element.  Indent like
 	  ;; the beginning of the element.
 	  ;;
@@ -22835,7 +22833,11 @@ ELEMENT."
 		(let ((cend (org-element-property :contents-end element)))
 		  (and cend (<= cend pos))))
 	   (if (memq type '(footnote-definition item plain-list))
-	       (org--get-expected-indentation (org-element-at-point) nil)
+	       (let ((last (org-element-at-point)))
+		 (org--get-expected-indentation
+		  last
+		  (memq (org-element-type last)
+			'(footnote-definition item plain-list))))
 	     (goto-char start)
 	     (org-get-indentation)))
 	  ;; In any other case, indent like the current line.
@@ -24344,19 +24346,42 @@ respect customization of `org-odd-levels-only'."
 
 (defun org-next-block (arg &optional backward block-regexp)
   "Jump to the next block.
-With a prefix argument ARG, jump forward ARG many source blocks.
+
+With a prefix argument ARG, jump forward ARG many blocks.
+
 When BACKWARD is non-nil, jump to the previous block.
-When BLOCK-REGEXP is non-nil, use this regexp to find blocks."
+
+When BLOCK-REGEXP is non-nil, use this regexp to find blocks.
+Match data is set according to this regexp when the function
+returns.
+
+Return point at beginning of the opening line of found block.
+Throw an error if no block is found."
   (interactive "p")
-  (let ((re (or block-regexp org-block-regexp))
-	(re-search-fn (or (and backward 're-search-backward)
-			  're-search-forward)))
-    (if (looking-at re) (forward-char 1))
-    (condition-case nil
-	(funcall re-search-fn re nil nil arg)
-      (error (user-error "No %s code blocks"
-			 (if backward "previous" "further" ))))
-    (goto-char (match-beginning 0)) (org-show-context)))
+  (let ((re (or block-regexp "^[ \t]*#\\+BEGIN"))
+	(case-fold-search t)
+	(search-fn (if backward #'re-search-backward #'re-search-forward))
+	(count (or arg 1))
+	(origin (point))
+	last-element)
+    (if backward (beginning-of-line) (end-of-line))
+    (while (and (> count 0) (funcall search-fn re nil t))
+      (let ((element (save-excursion
+		       (goto-char (match-beginning 0))
+		       (save-match-data (org-element-at-point)))))
+	(when (and (memq (org-element-type element)
+			 '(center-block comment-block dynamic-block
+					example-block export-block quote-block
+					special-block src-block verse-block))
+		   (<= (match-beginning 0)
+		       (org-element-property :post-affiliated element)))
+	  (setq last-element element)
+	  (decf count))))
+    (if (= count 0)
+	(prog1 (goto-char (org-element-property :post-affiliated last-element))
+	  (org-show-context))
+      (goto-char origin)
+      (user-error "No %s code blocks" (if backward "previous" "further")))))
 
 (defun org-previous-block (arg &optional block-regexp)
   "Jump to the previous block.

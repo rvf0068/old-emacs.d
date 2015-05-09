@@ -187,14 +187,6 @@ This string must include a \"%s\" which will be replaced by the results."
   "^[ \t]*#\\+headers?:[ \t]*\\([^\n]*\\)$"
   "Regular expression used to match multi-line header arguments.")
 
-(defvar org-babel-src-name-w-name-regexp
-  (concat org-babel-src-name-regexp
-	  "\\("
-	  org-babel-multi-line-header-regexp
-	  "\\)*"
-	  "\\([^()\f\t\n\r\v]+\\)")
-  "Regular expression matching source name lines with a name.")
-
 (defvar org-babel-src-block-regexp
   (concat
    ;; (1) indentation                 (2) lang
@@ -271,8 +263,8 @@ Returns a list
 		  (org-babel-merge-params
 		   (nth 2 info)
 		   (org-babel-parse-header-arguments (match-string 1)))))
-	  (when (looking-at org-babel-src-name-w-name-regexp)
-	    (setq name (org-no-properties (match-string 3)))))
+	  (when (looking-at (org-babel-named-src-block-regexp-for-name))
+	    (setq name (org-match-string-no-properties 9))))
       ;; inline source block
       (when (org-babel-get-inline-src-block-matches)
 	(setq head (match-beginning 0))
@@ -461,7 +453,7 @@ then run `org-babel-switch-to-session'."
     (colnames	. ((nil no yes)))
     (comments	. ((no link yes org both noweb)))
     (dir	. :any)
-    (eval	. ((never query)))
+    (eval	. ((yes no no-export strip-export eval never query)))
     (exports	. ((code results both none)))
     (epilogue   . :any)
     (file	. :any)
@@ -592,10 +584,15 @@ to raise errors for all languages.")
 (defvar org-babel-after-execute-hook nil
   "Hook for functions to be called after `org-babel-execute-src-block'")
 
-(defun org-babel-named-src-block-regexp-for-name (name)
-  "This generates a regexp used to match a src block named NAME."
-  (concat org-babel-src-name-regexp (regexp-quote name)
-	  "[ \t(]*[\r\n]\\(?:^[[:space:]]*#.*[\r\n]\\)*"
+(defun org-babel-named-src-block-regexp-for-name (&optional name)
+  "This generates a regexp used to match a src block named NAME.
+If NAME is nil, match any name.  Matched name is then put in
+match group 9.  Other match groups are defined in
+`org-babel-src-block-regexp'."
+  (concat org-babel-src-name-regexp
+	  (concat (if name (regexp-quote name) "\\(?9:.*?\\)") "[ \t]*" )
+	  "\\(?:\n[ \t]*#\\+\\S-+:.*\\)*?"
+	  "\n"
 	  (substring org-babel-src-block-regexp 1)))
 
 (defun org-babel-named-data-regexp-for-name (name)
@@ -1758,23 +1755,22 @@ If the point is not on a source block then return nil."
 (defun org-babel-find-named-block (name)
   "Find a named source-code block.
 Return the location of the source block identified by source
-NAME, or nil if no such block exists.  Set match data according to
-org-babel-named-src-block-regexp."
+NAME, or nil if no such block exists.  Set match data according
+to `org-babel-named-src-block-regexp'."
   (save-excursion
-    (let ((case-fold-search t)
-	  (regexp (org-babel-named-src-block-regexp-for-name name)) msg)
-      (goto-char (point-min))
-      (when (or (re-search-forward regexp nil t)
-		(re-search-backward regexp nil t))
-        (match-beginning 0)))))
+    (goto-char (point-min))
+    (ignore-errors
+      (org-next-block 1 nil (org-babel-named-src-block-regexp-for-name name)))))
 
 (defun org-babel-src-block-names (&optional file)
   "Returns the names of source blocks in FILE or the current buffer."
+  (when file (find-file file))
   (save-excursion
-    (when file (find-file file)) (goto-char (point-min))
-    (let ((case-fold-search t) names)
-      (while (re-search-forward org-babel-src-name-w-name-regexp nil t)
-	(setq names (cons (match-string 3) names)))
+    (goto-char (point-min))
+    (let ((re (org-babel-named-src-block-regexp-for-name))
+	  names)
+      (while (ignore-errors (org-next-block 1 nil re))
+	(push (org-match-string-no-properties 9) names))
       names)))
 
 ;;;###autoload

@@ -635,8 +635,9 @@
 	(let ((org-adapt-indentation t)) (org-indent-line))
 	(org-get-indentation))))
   ;; On blank lines at the end of a list, indent like last element
-  ;; within it if the line is still in the list.  Otherwise, indent
-  ;; like the whole list.
+  ;; within it if the line is still in the list.  If the last element
+  ;; is an item, indent like its contents.  Otherwise, indent like the
+  ;; whole list.
   (should
    (= 4
       (org-test-with-temp-text "* H\n- A\n  - AA\n"
@@ -649,6 +650,12 @@
       (goto-char (point-max))
       (let ((org-adapt-indentation t)) (org-indent-line))
       (org-get-indentation))))
+  (should
+   (= 4
+      (org-test-with-temp-text "* H\n- A\n  - \n"
+	(goto-char (point-max))
+	(let ((org-adapt-indentation t)) (org-indent-line))
+	(org-get-indentation))))
   ;; Likewise, on a blank line at the end of a footnote definition,
   ;; indent at column 0 if line belongs to the definition.  Otherwise,
   ;; indent like the definition itself.
@@ -2309,6 +2316,92 @@ Text.
       (mapcar (lambda (ov) (cons (overlay-start ov) (overlay-end ov)))
 	      (overlays-in (point-min) (point-max)))))))
 
+(ert-deftest test-org/next-block ()
+  "Test `org-next-block' specifications."
+  ;; Regular test.
+  (should
+   (org-test-with-temp-text "Paragraph\n#+BEGIN_CENTER\ncontents\n#+END_CENTER"
+     (org-next-block 1)
+     (looking-at "#\\+BEGIN_CENTER")))
+  ;; Ignore case.
+  (should
+   (org-test-with-temp-text "Paragraph\n#+begin_center\ncontents\n#+end_center"
+     (let ((case-fold-search nil))
+       (org-next-block 1)
+       (looking-at "#\\+begin_center"))))
+  ;; Ignore current line.
+  (should
+   (org-test-with-temp-text
+       "#+BEGIN_QUOTE\n#+END_QUOTE\n#+BEGIN_CENTER\n#+END_CENTER"
+     (org-next-block 1)
+     (looking-at "#\\+BEGIN_CENTER")))
+  ;; Throw an error when no block is found.
+  (should-error
+   (org-test-with-temp-text "Paragraph"
+     (org-next-block 1)))
+  ;; With an argument, skip many blocks at once.
+  (should
+   (org-test-with-temp-text
+       "Start\n#+BEGIN_CENTER\nA\n#+END_CENTER\n#+BEGIN_QUOTE\nB\n#+END_QUOTE"
+     (org-next-block 2)
+     (looking-at "#\\+BEGIN_QUOTE")))
+  ;; With optional argument BLOCK-REGEXP, filter matched blocks.
+  (should
+   (org-test-with-temp-text
+       "Start\n#+BEGIN_CENTER\nA\n#+END_CENTER\n#+BEGIN_QUOTE\nB\n#+END_QUOTE"
+     (org-next-block 1 nil "^[ \t]*#\\+BEGIN_QUOTE")
+     (looking-at "#\\+BEGIN_QUOTE")))
+  ;; Optional argument is also case-insensitive.
+  (should
+   (org-test-with-temp-text
+       "Start\n#+BEGIN_CENTER\nA\n#+END_CENTER\n#+begin_quote\nB\n#+end_quote"
+     (let ((case-fold-search nil))
+       (org-next-block 1 nil "^[ \t]*#\\+BEGIN_QUOTE")
+       (looking-at "#\\+begin_quote")))))
+
+(ert-deftest test-org/previous-block ()
+  "Test `org-previous-block' specifications."
+  ;; Regular test.
+  (should
+   (org-test-with-temp-text "#+BEGIN_CENTER\ncontents\n#+END_CENTER\n<point>"
+     (org-previous-block 1)
+     (looking-at "#\\+BEGIN_CENTER")))
+  ;; Ignore case.
+  (should
+   (org-test-with-temp-text "#+begin_center\ncontents\n#+end_center\n<point>"
+     (let ((case-fold-search nil))
+       (org-previous-block 1)
+       (looking-at "#\\+begin_center"))))
+  ;; Ignore current line.
+  (should
+   (org-test-with-temp-text
+       "#+BEGIN_QUOTE\n#+END_QUOTE\n#+BEGIN_CENTER<point>\n#+END_CENTER"
+     (org-previous-block 1)
+     (looking-at "#\\+BEGIN_QUOTE")))
+  ;; Throw an error when no block is found.
+  (should-error
+   (org-test-with-temp-text "Paragraph<point>"
+     (org-previous-block 1)))
+  ;; With an argument, skip many blocks at once.
+  (should
+   (org-test-with-temp-text
+       "#+BEGIN_CENTER\nA\n#+END_CENTER\n#+BEGIN_QUOTE\nB\n#+END_QUOTE\n<point>"
+     (org-previous-block 2)
+     (looking-at "#\\+BEGIN_CENTER")))
+  ;; With optional argument BLOCK-REGEXP, filter matched blocks.
+  (should
+   (org-test-with-temp-text
+       "#+BEGIN_CENTER\nA\n#+END_CENTER\n#+BEGIN_QUOTE\nB\n#+END_QUOTE\n<point>"
+     (org-previous-block 1 "^[ \t]*#\\+BEGIN_QUOTE")
+     (looking-at "#\\+BEGIN_QUOTE")))
+  ;; Optional argument is also case-insensitive.
+  (should
+   (org-test-with-temp-text
+       "#+BEGIN_CENTER\nA\n#+END_CENTER\n#+begin_quote\nB\n#+end_quote\n<point>"
+     (let ((case-fold-search nil))
+       (org-next-block 1 "^[ \t]*#\\+BEGIN_QUOTE")
+       (looking-at "#\\+begin_quote")))))
+
 
 ;;; Outline structure
 
@@ -3008,6 +3101,13 @@ Text.
   (should
    (equal "cat"
 	  (org-test-with-temp-text "* H\n:PROPERTIES:\n:CATEGORY: cat\n:END:"
+	    (cdr (assoc "CATEGORY" (org-entry-properties nil "CATEGORY"))))))
+  (should
+   (equal "cat2"
+	  (org-test-with-temp-text
+	      (concat "* H\n:PROPERTIES:\n:CATEGORY: cat1\n:END:"
+		      "\n"
+		      "** H2\n:PROPERTIES:\n:CATEGORY: cat2\n:END:<point>")
 	    (cdr (assoc "CATEGORY" (org-entry-properties nil "CATEGORY"))))))
   ;; Get standard properties.
   (should

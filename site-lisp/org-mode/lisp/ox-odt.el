@@ -765,15 +765,15 @@ link's path."
 		:value-type (regexp :tag "Path")))
 
 (defcustom org-odt-inline-image-rules
-  '(("file" . "\\.\\(jpeg\\|jpg\\|png\\|gif\\)\\'"))
+  '(("file" . "\\.\\(jpeg\\|jpg\\|png\\|gif\\|svg\\)\\'"))
   "Rules characterizing image files that can be inlined into ODT.
 
 A rule consists in an association whose key is the type of link
 to consider, and value is a regexp that will be matched against
 link's path."
   :group 'org-export-odt
-  :version "24.4"
-  :package-version '(Org . "8.0")
+  :version "25.1"
+  :package-version '(Org . "8.3")
   :type '(alist :key-type (string :tag "Type")
 		:value-type (regexp :tag "Path")))
 
