@@ -88,6 +88,20 @@
       (insert "Q")
      ))
 
+;; from Nicolas Richard <theonewiththeevillook@yahoo.fr>
+;; Date: Fri, 8 Mar 2013 16:23:02 +0100
+;; Message-ID: <87vc913oh5.fsf@yahoo.fr>
+(defun yf/org-electric-dollar nil
+  "When called once, insert \\(\\) and leave point in between.
+When called twice, replace the previously inserted \\(\\) by one $."
+  (interactive)
+  (if (and (looking-at "\\\\)") (looking-back "\\\\("))
+      (progn (delete-char 2)
+             (delete-char -2)
+             (insert "$"))
+    (insert "\\(\\)")
+    (backward-char 2)))
+
 ;; see http://stackoverflow.com/a/25778692/577007
 (add-hook 'org-mode-hook
 	  (lambda ()
@@ -101,10 +115,7 @@
             (setq yas/trigger-key [tab])
             (add-to-list 'org-tab-first-hook 'yas/org-very-safe-expand)
             (define-key yas/keymap [tab] 'yas/next-field)
-	    (local-set-key (kbd "$")
-			   (lambda () (interactive)
-			     (insert "\\(\\)")
-			     (forward-char -2)))
+	    (local-set-key (kbd "$") 'yf/org-electric-dollar)
 	    (local-set-key (kbd "C") 'org-cdlatex-complex-numbers)
 	    (local-set-key (kbd "R") 'org-cdlatex-real-numbers)
 	    (local-set-key (kbd "Q") 'org-cdlatex-rational-numbers)
