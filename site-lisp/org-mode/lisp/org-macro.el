@@ -123,7 +123,17 @@ function installs the following ones: \"property\",
 		(push cell templates))))))
     ;; Install hard-coded macros.
     (mapc update-templates
-	  (list (cons "property" "(eval (org-entry-get nil \"$1\" 'selective))")
+	  (list (cons "property"
+		      "(eval (save-excursion
+        (let ((l \"$2\"))
+          (when (org-string-nw-p l)
+            (condition-case _
+                (let ((org-link-search-must-match-exact-headline t))
+                  (org-link-search l nil nil t))
+              (error
+               (error \"Macro property failed: cannot find location %s\"
+                      l)))))
+        (org-entry-get nil \"$1\" 'selective)))")
 		(cons "time" "(eval (format-time-string \"$1\"))")))
     (let ((visited-file (buffer-file-name (buffer-base-buffer))))
       (when (and visited-file (file-exists-p visited-file))
@@ -166,7 +176,10 @@ TEMPLATES is an alist of templates used for expansion.  See
 `org-macro-templates' for a buffer-local default value.
 
 If optional arg FINALIZE is non-nil, raise an error if a macro is
-found in the buffer with no definition in TEMPLATES."
+found in the buffer with no definition in TEMPLATES.
+
+Optional argument KEYWORDS, when non-nil is a list of keywords,
+as strings, where macro expansion is allowed."
   (save-excursion
     (goto-char (point-min))
     (let ((properties-regexp
