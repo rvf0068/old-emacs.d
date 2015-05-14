@@ -8,4 +8,6 @@
                  (format "g++ -Wall -g %s -o %s" (file-name-nondirectory buffer-file-name)
 			 (file-name-base buffer-file-name)
 			 ))
+	    (smartparens-mode 1)
+	    (yas/minor-mode-on)
 	    ))
