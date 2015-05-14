@@ -186,6 +186,8 @@ When called twice, replace the previously inserted \\(\\) by one $."
 	("=" org-verbatim verbatim)
 	("~" org-code verbatim)))
 
+(setq org-journal-dir "~/Dropbox/org/journal")
+
 ;; this overwrites the definition in org.el
 (defun org-reftex-citation ()
   (interactive)
