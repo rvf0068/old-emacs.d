@@ -833,8 +833,38 @@
 
 ;;; Editing
 
+(ert-deftest test-org/delete-indentation ()
+  "Test `org-delete-indentation' specifications."
+  ;; Regular test.
+  (should (equal "foo bar"
+		(org-test-with-temp-text
+		    "foo \n bar<point>"
+		  (org-delete-indentation)
+		  (buffer-string))))
+  ;; With optional argument.
+  (should (equal "foo bar"
+		(org-test-with-temp-text
+		    "foo<point> \n bar"
+		  (org-delete-indentation t)
+		  (buffer-string))))
+  ;; At headline text should be appended to the headline text.
+  (should
+   (equal"* foo bar :tag:"
+	 (let (org-auto-align-tags)
+	   (org-test-with-temp-text
+	       "* foo :tag:\n bar<point>"
+	     (org-delete-indentation)
+	     (buffer-string)))))
+  (should
+   (equal "* foo bar :tag:"
+	  (let (org-auto-align-tags)
+	    (org-test-with-temp-text
+		"* foo <point>:tag:\n bar"
+	      (org-delete-indentation t)
+	      (buffer-string))))))
+
 (ert-deftest test-org/return ()
-  "Test RET (`org-return') specifications."
+  "Test `org-return' specifications."
   ;; Regular test.
   (should
    (equal "Para\ngraph"
@@ -878,11 +908,36 @@
 	  (org-test-with-temp-text "- A\n<point>- B"
 	    (org-return t)
 	    (buffer-string))))
-  ;; Special case: on tags part of a headline, add a newline below it
-  ;; instead of breaking it.
+  ;; On tags part of a headline, add a newline below it instead of
+  ;; breaking it.
   (should
    (equal "* H :tag:\n"
 	  (org-test-with-temp-text "* H :<point>tag:"
+	    (org-return)
+	    (buffer-string))))
+  ;; Before headline text, add a newline below it instead of breaking
+  ;; it.
+  (should
+   (equal "* TODO H :tag:\n"
+	  (org-test-with-temp-text "* <point>TODO H :tag:"
+	    (org-return)
+	    (buffer-string))))
+  (should
+   (equal "* TODO [#B] H :tag:\n"
+	  (org-test-with-temp-text "* TODO<point> [#B] H :tag:"
+	    (org-return)
+	    (buffer-string))))
+  ;; At headline text, break headline text but preserve tags.
+  (should
+   (equal "* TODO [#B] foo    :tag:\nbar"
+	  (let (org-auto-align-tags)
+	    (org-test-with-temp-text "* TODO [#B] foo<point>bar :tag:"
+	      (org-return)
+	      (buffer-string)))))
+  ;; At bol of headline insert newline.
+  (should
+   (equal "\n* h"
+	  (org-test-with-temp-text "<point>* h"
 	    (org-return)
 	    (buffer-string)))))
 

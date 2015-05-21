@@ -2472,7 +2472,7 @@ When `full-file-path', include the full file path."
   "Non-nil means complete the outline path in hierarchical steps.
 When Org-mode uses the refile interface to select an outline path
 \(see variable `org-refile-use-outline-path'), the completion of
-the path can be done is a single go, or if can be done in steps down
+the path can be done in a single go, or it can be done in steps down
 the headline hierarchy.  Going in steps is probably the best if you
 do not use a special completion package like `ido' or `icicles'.
 However, when using these packages, going in one step can be very
@@ -19832,6 +19832,7 @@ boundaries."
 (org-defkey org-mode-map [remap comment-dwim] 'org-comment-dwim)
 (org-defkey org-mode-map [remap forward-paragraph] 'org-forward-paragraph)
 (org-defkey org-mode-map [remap backward-paragraph] 'org-backward-paragraph)
+(org-defkey org-mode-map "\M-^"     'org-delete-indentation)
 (org-defkey org-mode-map "\C-m"     'org-return)
 (org-defkey org-mode-map "\C-j"     'org-return-indent)
 (org-defkey org-mode-map "\C-c?"    'org-table-field-info)
@@ -21159,6 +21160,39 @@ This command does many different things, depending on context:
     (let ((org-note-abort t))
       (funcall org-finish-function))))
 
+(defun org-delete-indentation (&optional ARG)
+  "Join current line to previous and fix whitespace at join.
+
+If previous line is a headline add to headline title.  Otherwise
+the function calls `delete-indentation'.
+
+With argument, join this line to following line."
+  (interactive "*P")
+  (if (save-excursion
+	(if ARG (beginning-of-line)
+	  (forward-line -1))
+	(looking-at org-complex-heading-regexp))
+      ;; At headline.
+      (let ((tags-column (when (match-beginning 5)
+			   (save-excursion (goto-char (match-beginning 5))
+					   (current-column))))
+	    (string (concat " " (progn (when ARG (forward-line 1))
+				       (org-trim (delete-and-extract-region
+						  (line-beginning-position)
+						  (line-end-position)))))))
+	(unless (bobp) (delete-region (point) (1- (point))))
+	(goto-char (or (match-end 4)
+		       (match-beginning 5)
+		       (match-end 0)))
+	(skip-chars-backward " \t")
+	(save-excursion (insert string))
+	;; Adjust alignment of tags.
+	(when tags-column
+	  (org-align-tags-here (if org-auto-align-tags
+				   org-tags-column
+				 tags-column))))
+    (delete-indentation ARG)))
+
 (defun org-open-line (n)
   "Insert a new row in tables, call `open-line' elsewhere.
 If `org-special-ctrl-o' is nil, just call `open-line' everywhere."
@@ -21185,16 +21219,37 @@ will not happen if point is in a table or on a \"dead\"
 object (e.g., within a comment).  In these case, you need to use
 `org-open-at-point' directly."
   (interactive)
-  (if (and (save-excursion
-	     (beginning-of-line)
-	     (looking-at org-todo-line-regexp))
-	   (match-beginning 3)
-	   (>= (point) (match-beginning 3)))
-      ;; Point is on headline tags.  Do not break them: add a newline
-      ;; after the headline instead.
-      (progn (org-show-entry)
-	     (end-of-line)
-	     (if indent (newline-and-indent) (newline)))
+  (if (and (not (bolp))
+	   (save-excursion (beginning-of-line)
+			   (looking-at org-complex-heading-regexp)))
+      ;; At headline.
+      (let ((tags-column (when (match-beginning 5)
+			   (save-excursion (goto-char (match-beginning 5))
+					   (current-column))))
+	    ;; Test if before or after headline title.
+	    (string (when (and (match-end 4)
+			       (not (or (< (point)
+					   (or (match-end 3)
+					       (match-end 2)
+					       (save-excursion
+						 (goto-char (match-beginning 4))
+						 (skip-chars-backward " \t")
+						 (point))))
+					(and (match-beginning 5)
+					     (>= (point) (match-beginning 5))))))
+		      ;; Point is on headline keywords, tags or cookies.  Do not break
+		      ;; them: add a newline after the headline instead.
+		      (org-string-nw-p
+		       (delete-and-extract-region (point) (match-end 4))))))
+	;; Adjust alignment of tags.
+	(when (and tags-column string)
+	  (org-align-tags-here (if org-auto-align-tags
+				   org-tags-column
+				 tags-column)))
+	(end-of-line)
+	(org-show-entry)
+	(if indent (newline-and-indent) (newline))
+	(and string (save-excursion (insert (org-trim string)))))
     (let* ((context (if org-return-follows-link (org-element-context)
 		      (org-element-at-point)))
 	   (type (org-element-type context)))
@@ -24391,7 +24446,7 @@ Throw an error if no block is found."
 	  (decf count))))
     (if (= count 0)
 	(prog1 (goto-char (org-element-property :post-affiliated last-element))
-	  (org-show-context))
+	  (save-match-data (org-show-context)))
       (goto-char origin)
       (user-error "No %s code blocks" (if backward "previous" "further")))))
 
