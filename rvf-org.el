@@ -67,36 +67,29 @@
 (defun yas/org-very-safe-expand ()
   (let ((yas/fallback-behavior 'return-nil)) (yas/expand)))
 
+;; idea from 
+;; http://endlessparentheses.com/keymap-for-launching-external-applications-and-websites.html
+(defmacro field-org (exec symb)
+  "Return a function that runs the executable EXEC."
+  (let ((func-name (intern (concat "org-cdlatex-" exec))))
+    `(progn
+       (defun ,func-name ()
+         ,(format "Print the %s numbers." exec)
+         (interactive)
+	 (if (org-inside-LaTeX-fragment-p)
+	     (if (looking-back (concat "\\\\mathbb{" ,symb "}"))
+		 (progn (delete-char -10)
+			(insert ,symb))
+	       (insert "\\mathbb{" ,symb "}"))
+	   (insert ,symb)
+	   ))
+       (define-key org-mode-map ,symb ',func-name)
+       #',func-name)))
+
 ;; inside math mode, pressing C once gives \mathbb{C}. Twice gives C.
-(defun org-cdlatex-complex-numbers ()
-  (interactive)
-  (if (org-inside-LaTeX-fragment-p)
-      (if (looking-back "\\\\mathbb{C}")
-	  (progn (delete-char -10)
-		 (insert "C"))
-	(insert "\\mathbb{C}"))
-    (insert "C")
-    ))
-
-(defun org-cdlatex-real-numbers ()
-  (interactive)
-  (if (org-inside-LaTeX-fragment-p)
-      (if (looking-back "\\\\mathbb{R}")
-	  (progn (delete-char -10)
-		 (insert "R"))
-	(insert "\\mathbb{R}"))
-    (insert "R")
-    ))
-
-(defun org-cdlatex-rational-numbers ()
-  (interactive)
-  (if (org-inside-LaTeX-fragment-p)
-      (if (looking-back "\\\\mathbb{Q}")
-	  (progn (delete-char -10)
-		 (insert "Q"))
-	(insert "\\mathbb{Q}"))
-    (insert "Q")
-    ))
+(field-org "complex" "C")
+(field-org "real" "R")
+(field-org "rational" "Q")
 
 ;; from Nicolas Richard <theonewiththeevillook@yahoo.fr>
 ;; Date: Fri, 8 Mar 2013 16:23:02 +0100
@@ -126,9 +119,6 @@ When called twice, replace the previously inserted \\(\\) by one $."
             (add-to-list 'org-tab-first-hook 'yas/org-very-safe-expand)
             (define-key yas/keymap [tab] 'yas/next-field)
 	    (local-set-key (kbd "$") 'yf/org-electric-dollar)
-	    (local-set-key (kbd "C") 'org-cdlatex-complex-numbers)
-	    (local-set-key (kbd "R") 'org-cdlatex-real-numbers)
-	    (local-set-key (kbd "Q") 'org-cdlatex-rational-numbers)
 	    ))
 
 ;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
