@@ -11,3 +11,5 @@ elpa
 /custom.el
 /url/cookies
 /request/curl-cookie-jar
+/.org-id-locations
+/bookmarks
