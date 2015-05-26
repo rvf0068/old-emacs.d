@@ -10,6 +10,8 @@
 ;; org stuff
 (setq org-agenda-files "~/Dropbox/org/agenda/agendafiles")
 
+(setq org-journal-dir "~/Dropbox/org/journal/")
+
 (setq org-tag-faces '(
                       ("LIMA" . (:foreground "green" :weight bold :underline t))
                       ("Maestría" . (:foreground "magenta" :weight bold :underline t))
