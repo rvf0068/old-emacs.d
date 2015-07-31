@@ -71,14 +71,6 @@
                "lualatex %s"
                TeX-run-command nil nil) t)
 
-;; From: Tassilo Horn <tsdh@gnu.org>
-;; Subject: Re: OT: Have a look at PDF Tools (new PDF viewer for Emacs)
-;; To: auctex@gnu.org
-;; Date: Thu, 23 Apr 2015 06:20:35 +0200
-(setq TeX-view-program-selection '((output-dvi "Evince")
-                                   (output-pdf "PDF Tools") 
-                                   (output-html "xdg-open")))
-
 ;; some functions
 
 (defun split-for-tikz2pdf ()
