@@ -8,6 +8,10 @@
 (font-latex-add-keywords '(("alert" "{")) 'italic-command)
 (setq font-latex-fontify-sectioning 1.15)
 
+(TeX-add-symbols
+ '("emph" 1)
+)
+
 (LaTeX-add-environments
  '("definition")
  '("theorem")
