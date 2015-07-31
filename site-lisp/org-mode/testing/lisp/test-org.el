@@ -352,7 +352,7 @@
 	    (buffer-string))))
   (should
    (equal "#+name: table\n| a |\n"
-	  (org-test-with-temp-text "#+name: table\n| a |"
+	  (org-test-with-temp-text "#+name: table\n| a |\n"
 	    (org-fill-paragraph)
 	    (buffer-string))))
   ;; At a paragraph, preserve line breaks.
@@ -1067,6 +1067,52 @@
      (org-insert-todo-heading-respect-content)
      (and (eobp) (org-at-heading-p)))))
 
+(ert-deftest test-org/clone-with-time-shift ()
+  "Test `org-clone-subtree-with-time-shift'."
+  ;; Clone non-repeating once.
+  (should
+   (equal "\
+* H1\n<2015-06-21>
+* H1\n<2015-06-23>
+"
+	  (org-test-with-temp-text "* H1\n<2015-06-21 Sun>"
+	    (org-clone-subtree-with-time-shift 1 "+2d")
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)\\( \\+[0-9][hdmwy]\\)?>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Clone repeating once.
+  (should
+   (equal "\
+* H1\n<2015-06-21>
+* H1\n<2015-06-23>
+* H1\n<2015-06-25 +1w>
+"
+	  (org-test-with-temp-text "* H1\n<2015-06-21 Sun +1w>"
+	    (org-clone-subtree-with-time-shift 1 "+2d")
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)\\( \\+[0-9][hdmwy]\\)?>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Clone non-repeating zero times.
+  (should
+   (equal "\
+* H1\n<2015-06-21>
+"
+	  (org-test-with-temp-text "* H1\n<2015-06-21 Sun>"
+	    (org-clone-subtree-with-time-shift 0 "+2d")
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)\\( \\+[0-9][hdmwy]\\)?>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Clone repeating "zero" times.
+  (should
+   (equal "\
+* H1\n<2015-06-21>
+* H1\n<2015-06-23 +1w>
+"
+	  (org-test-with-temp-text "* H1\n<2015-06-21 Sun +1w>"
+	    (org-clone-subtree-with-time-shift 0 "+2d")
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)\\( \\+[0-9][hdmwy]\\)?>" "" (buffer-string)
+	     nil nil 1)))))
 
 
 ;;; Fixed-Width Areas
@@ -1769,7 +1815,15 @@ drops support for Emacs 24.1 and 24.2."
        (org-end-of-line)
        (and (progn (org-beginning-of-line) (looking-at "Headline"))
 	    (progn (org-beginning-of-line) (bolp))
-	    (progn (org-beginning-of-line) (looking-at "Headline")))))))
+	    (progn (org-beginning-of-line) (looking-at "Headline"))))))
+  ;; Special case: Do not error when the buffer contains only a single
+  ;; asterisk.
+  (should
+   (org-test-with-temp-text "*<point>"
+     (let ((org-special-ctrl-a/e t)) (org-beginning-of-line))))
+  (should
+   (org-test-with-temp-text "*<point>"
+     (let ((org-special-ctrl-a/e nil)) (org-beginning-of-line)))))
 
 (ert-deftest test-org/end-of-line ()
   "Test `org-end-of-line' specifications."
@@ -2812,6 +2866,165 @@ Text.
 	 "* Headline\n*** Inlinetask\n*** END\n<point>DEADLINE: <2014-03-04 tue.>"
        (let ((org-inlinetask-min-level 3)) (org-at-planning-p))))))
 
+(ert-deftest test-org/add-planning-info ()
+  "Test `org-add-planning-info'."
+  ;; Create deadline when `org-adapt-indentation' is non-nil.
+  (should
+   (equal "* H\n  DEADLINE: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "* H\nParagraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info 'deadline "<2015-06-25 Thu>"))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Create deadline when `org-adapt-indentation' is nil.
+  (should
+   (equal "* H\nDEADLINE: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "* H\nParagraph<point>"
+	    (let ((org-adapt-indentation nil))
+	      (org-add-planning-info 'deadline "<2015-06-25 Thu>"))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Update deadline when `org-adapt-indentation' is non-nil.
+  (should
+   (equal "* H\n  DEADLINE: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "\
+* H
+  DEADLINE: <2015-06-24 Wed>
+Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info 'deadline "<2015-06-25 Thu>"))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Update deadline when `org-adapt-indentation' is nil.
+  (should
+   (equal "* H\nDEADLINE: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "\
+* H
+DEADLINE: <2015-06-24 Wed>
+Paragraph<point>"
+	    (let ((org-adapt-indentation nil))
+	      (org-add-planning-info 'deadline "<2015-06-25 Thu>"))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Schedule when `org-adapt-indentation' is non-nil.
+  (should
+   (equal "* H\n  SCHEDULED: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "* H\nParagraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info 'scheduled "<2015-06-25 Thu>"))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Schedule when `org-adapt-indentation' is nil.
+  (should
+   (equal "* H\nSCHEDULED: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "* H\nParagraph<point>"
+	    (let ((org-adapt-indentation nil))
+	      (org-add-planning-info 'scheduled "<2015-06-25 Thu>"))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Add deadline when scheduled.
+  (should
+   (equal "\
+* H
+  DEADLINE: <2015-06-25> SCHEDULED: <2015-06-24>
+Paragraph"
+	  (org-test-with-temp-text "\
+* H
+  SCHEDULED: <2015-06-24 Wed>
+Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info 'deadline "<2015-06-25 Thu>"))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Remove middle entry.
+  (should
+   (equal "\
+* H
+  CLOSED: [2015-06-24] SCHEDULED: <2015-06-24>
+Paragraph"
+	  (org-test-with-temp-text "\
+* H
+  CLOSED: [2015-06-24 Wed] DEADLINE: <2015-06-25 Thu> SCHEDULED: <2015-06-24 Wed>
+Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info nil nil 'deadline))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)[]>]" "" (buffer-string)
+	     nil nil 1))))
+  ;; Remove last entry and then middle entry (order should not
+  ;; matter).
+  (should
+   (equal "\
+* H
+  CLOSED: [2015-06-24]
+Paragraph"
+	  (org-test-with-temp-text "\
+* H
+  CLOSED: [2015-06-24 Wed] DEADLINE: <2015-06-25 Thu> SCHEDULED: <2015-06-24 Wed>
+Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info nil nil 'scheduled 'deadline))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)[]>]" "" (buffer-string)
+	     nil nil 1))))
+  ;; Remove closed when `org-adapt-indentation' is non-nil.
+  (should
+   (equal "* H\n  DEADLINE: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "\
+* H
+  CLOSED: [2015-06-25 Thu] DEADLINE: <2015-06-25 Thu>
+Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info nil nil 'closed))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Remove closed when `org-adapt-indentation' is nil.
+  (should
+   (equal "* H\nDEADLINE: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "\
+* H
+CLOSED: [2015-06-25 Thu] DEADLINE: <2015-06-25 Thu>
+Paragraph<point>"
+	    (let ((org-adapt-indentation nil))
+	      (org-add-planning-info nil nil 'closed))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Remove closed entry and delete empty line.
+  (should
+   (equal "\
+* H
+Paragraph"
+	  (org-test-with-temp-text "\
+* H
+  CLOSED: [2015-06-24 Wed]
+Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info nil nil 'closed))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  ;; Remove one entry and update another.
+  (should
+   (equal "* H\n  DEADLINE: <2015-06-25>\nParagraph"
+	  (org-test-with-temp-text "\
+* H
+  SCHEDULED: <2015-06-23 Tue> DEADLINE: <2015-06-24 Wed>
+Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info 'deadline "<2015-06-25 Thu>" 'scheduled))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1)))))
+
 
 ;;; Property API
 
@@ -2996,7 +3209,8 @@ Text.
   (should-not
    (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:"
      (org-entry-get (point) "B" nil t)))
-  ;; Handle inheritance, when allowed.
+  ;; Handle inheritance, when allowed.  Include extended values and
+  ;; possibly global values.
   (should
    (equal
     "1"
@@ -3011,7 +3225,25 @@ Text.
   (should-not
    (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:END:\n** <point>H2"
      (let ((org-use-property-inheritance nil))
-       (org-entry-get (point) "A" 'selective)))))
+       (org-entry-get (point) "A" 'selective))))
+  (should
+   (equal
+    "1 2"
+    (org-test-with-temp-text
+	"* H\n:PROPERTIES:\n:A: 1\n:END:\n** H2\n:PROPERTIES:\n:A+: 2\n:END:"
+      (org-entry-get (point-max) "A" t))))
+  (should
+   (equal "1"
+	  (org-test-with-temp-text
+	      "#+PROPERTY: A 0\n* H\n:PROPERTIES:\n:A: 1\n:END:"
+	    (org-mode-restart)
+	    (org-entry-get (point-max) "A" t))))
+  (should
+   (equal "0 1"
+	  (org-test-with-temp-text
+	      "#+PROPERTY: A 0\n* H\n:PROPERTIES:\n:A+: 1\n:END:"
+	    (org-mode-restart)
+	    (org-entry-get (point-max) "A" t)))))
 
 (ert-deftest test-org/entry-properties ()
   "Test `org-entry-properties' specifications."
@@ -3164,6 +3396,23 @@ Text.
 		      "\n"
 		      "** H2\n:PROPERTIES:\n:CATEGORY: cat2\n:END:<point>")
 	    (cdr (assoc "CATEGORY" (org-entry-properties nil "CATEGORY"))))))
+  ;; Get "TIMESTAMP" and "TIMESTAMP_IA" properties.
+  (should
+   (equal "<2012-03-29 thu.>"
+    (org-test-with-temp-text "* Entry\n<2012-03-29 thu.>"
+      (cdr (assoc "TIMESTAMP" (org-entry-properties))))))
+  (should
+   (equal "[2012-03-29 thu.]"
+    (org-test-with-temp-text "* Entry\n[2012-03-29 thu.]"
+      (cdr (assoc "TIMESTAMP_IA" (org-entry-properties))))))
+  (should
+   (equal "<2012-03-29 thu.>"
+    (org-test-with-temp-text "* Entry\n[2014-03-04 tue.]<2012-03-29 thu.>"
+      (cdr (assoc "TIMESTAMP" (org-entry-properties nil "TIMESTAMP"))))))
+  (should
+   (equal "[2014-03-04 tue.]"
+    (org-test-with-temp-text "* Entry\n<2012-03-29 thu.>[2014-03-04 tue.]"
+      (cdr (assoc "TIMESTAMP_IA" (org-entry-properties nil "TIMESTAMP_IA"))))))
   ;; Get standard properties.
   (should
    (equal "1"

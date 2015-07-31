@@ -410,10 +410,14 @@ Some other text
    (equal ":results output"
 	  (org-test-with-temp-text "#+CALL: test[:results output]()"
 	    (org-element-property :inside-header (org-element-at-point)))))
-  ;; Parse arguments.
+  ;; Parse arguments, which can be nested.
   (should
    (equal "n=4"
 	  (org-test-with-temp-text "#+CALL: test(n=4)"
+	    (org-element-property :arguments (org-element-at-point)))))
+  (should
+   (equal "test()"
+	  (org-test-with-temp-text "#+CALL: test(test())"
 	    (org-element-property :arguments (org-element-at-point)))))
   ;; Parse end header.
   (should
@@ -3330,8 +3334,7 @@ Text
   ;; Do not find objects in table rules.
   (should
    (eq 'table-row
-       (org-test-with-temp-text "| a | b |\n+---+---+\n| c | d |"
-	 (forward-line)
+       (org-test-with-temp-text "| a | b |\n|-<point>--|---|\n| c | d |"
 	 (org-element-type (org-element-context)))))
   ;; Find objects in parsed affiliated keywords.
   (should
@@ -3586,7 +3589,21 @@ Text
 	 (let ((org-element-use-cache t))
 	   (org-element-at-point)
 	   (insert "+:")
-	   (org-element-type (org-element-at-point)))))))
+	   (org-element-type (org-element-at-point))))))
+  ;; Properly handle elements not altered by modifications but whose
+  ;; parents were removed from cache.
+  (should
+   (org-test-with-temp-text
+       "Paragraph\n\n\n\n#+begin_center\n<point>contents\n#+end_center"
+     (let ((org-element-use-cache t)
+	   (parent-end (point-max)))
+       (org-element-at-point)
+       (save-excursion (search-backward "Paragraph")
+		       (forward-line 2)
+		       (insert "\n  "))
+       (eq (org-element-property
+	    :end (org-element-property :parent (org-element-at-point)))
+	   (+ parent-end 3))))))
 
 
 (provide 'test-org-element)

@@ -334,8 +334,7 @@ for the JavaScript code in this tag.
   td.org-left   { text-align: left;   }
   td.org-center { text-align: center; }
   dt { font-weight: bold; }
-  .footpara:nth-child(2) { display: inline; }
-  .footpara { display: block; }
+  .footpara { display: inline; }
   .footdef  { margin-bottom: 1em; }
   .figure { padding: 1em; }
   .figure p { text-align: center; }
@@ -1436,28 +1435,29 @@ https://developer.mozilla.org/en-US/docs/Mozilla/Mobile/Viewport_meta_tag"
   :group 'org-export-html
   :version "25.1"
   :package-version '(Org . "8.3")
-  :type '(list :greedy t
-	       (list :tag "Width of viewport"
-		     (const :format "             " width)
-		     (choice (const :tag "unset" "")
-			     (string)))
-	       (list :tag "Initial scale"
-		     (const :format "             " initial-scale)
-		     (choice (const :tag "unset" "")
-			     (string)))
-	       (list :tag "Minimum scale/zoom"
-		     (const :format "             " minimum-scale)
-		     (choice (const :tag "unset" "")
-			     (string)))
-	       (list :tag "Maximum scale/zoom"
-		     (const :format "             " maximum-scale)
-		     (choice (const :tag "unset" "")
-			     (string)))
-	       (list :tag "User scalable/zoomable"
-		     (const :format "             " user-scalable)
-		     (choice (const :tag "unset" "")
-			     (const "true")
-			     (const "false")))))
+  :type '(choice (const :tag "Disable" nil)
+		 (list :tag "Enable"
+		       (list :tag "Width of viewport"
+			     (const :format "             " width)
+			     (choice (const :tag "unset" "")
+				     (string)))
+		       (list :tag "Initial scale"
+			     (const :format "             " initial-scale)
+			     (choice (const :tag "unset" "")
+				     (string)))
+		       (list :tag "Minimum scale/zoom"
+			     (const :format "             " minimum-scale)
+			     (choice (const :tag "unset" "")
+				     (string)))
+		       (list :tag "Maximum scale/zoom"
+			     (const :format "             " maximum-scale)
+			     (choice (const :tag "unset" "")
+				     (string)))
+		       (list :tag "User scalable/zoomable"
+			     (const :format "             " user-scalable)
+			     (choice (const :tag "unset" "")
+				     (const "true")
+				     (const "false"))))))
 
 ;;;; Todos
 
@@ -1649,7 +1649,7 @@ INFO is a plist used as a communication channel."
 	  (loop for (n type raw) in fn-alist collect
 		(cons n (if (eq (org-element-type raw) 'org-data)
 			    (org-trim (org-export-data raw info))
-			  (format "<p class=\"footpara\">%s</p>"
+			  (format "<div class=\"footpara\">%s</div>"
 				  (org-trim (org-export-data raw info))))))))
     (when fn-alist
       (format
@@ -1701,7 +1701,6 @@ INFO is a plist used as a communication channel."
 					     'mime-charset))
 		     "iso-8859-1")))
     (concat
-     (format "<title>%s</title>\n" title)
      (when (plist-get info :time-stamp-file)
        (format-time-string
 	(concat "<!-- "
@@ -1714,6 +1713,20 @@ INFO is a plist used as a communication channel."
 	 "meta" " http-equiv=\"Content-Type\" content=\"text/html;charset=%s\""
 	 info))
       charset) "\n"
+     (let ((viewport-options
+	    (org-remove-if-not (lambda (cell) (org-string-nw-p (cadr cell)))
+			       (plist-get info :html-viewport))))
+       (and viewport-options
+	    (concat
+	     (org-html-close-tag
+	      "meta"
+	      (format " name=\"viewport\" content=\"%s\""
+		      (mapconcat
+		       (lambda (elm) (format "%s=%s" (car elm) (cadr elm)))
+		       viewport-options ", "))
+	      info)
+	     "\n")))
+     (format "<title>%s</title>\n" title)
      (org-html-close-tag "meta" " name=\"generator\" content=\"Org-mode\"" info)
      "\n"
      (and (org-string-nw-p author)
@@ -1736,20 +1749,7 @@ INFO is a plist used as a communication channel."
 			       (format " name=\"keywords\" content=\"%s\""
 				       (funcall protect-string keywords))
 			       info)
-	   "\n"))
-     (let ((viewport-options
-	    (org-remove-if-not (lambda (cell) (org-string-nw-p (cadr cell)))
-			       (plist-get info :html-viewport))))
-       (and viewport-options
-	    (concat
-	     (org-html-close-tag
-	      "meta"
-	      (format " name=\"viewport\" content=\"%s\""
-		      (mapconcat
-		       (lambda (elm) (format "%s=%s" (car elm) (cadr elm)))
-		       viewport-options ", "))
-	      info)
-	     "\n"))))))
+	   "\n")))))
 
 (defun org-html--build-head (info)
   "Return information for the <head>..</head> of the HTML output.
@@ -2044,10 +2044,6 @@ is the language used for CODE, as a string, or nil."
 	  (setq code (with-temp-buffer
 		       ;; Switch to language-specific mode.
 		       (funcall lang-mode)
-		       ;; Disable fci-mode if present
-		       (when (and (fboundp 'fci-mode)
-				  (require 'fill-column-indicator nil 'noerror))
-			 (fci-mode -1))
 		       (insert code)
 		       ;; Fontify buffer.
 		       (font-lock-ensure)
@@ -2204,7 +2200,8 @@ INFO is a plist used as a communication channel."
 		    (org-export-get-tags headline info))))
     (format "<a href=\"#%s\">%s</a>"
 	    ;; Label.
-	    (org-export-get-reference headline info)
+	    (or (org-element-property :CUSTOM_ID headline)
+		(org-export-get-reference headline info))
 	    ;; Body.
 	    (concat
 	     (and (not (org-export-low-level-p headline info))
@@ -2805,7 +2802,6 @@ images, set it to:
 
 (defun org-html-link (link desc info)
   "Transcode a LINK object from Org to HTML.
-
 DESC is the description part of the link, or the empty string.
 INFO is a plist holding contextual information.  See
 `org-export-data'."
@@ -2912,7 +2908,8 @@ INFO is a plist holding contextual information.  See
 			(org-element-property :raw-link link) info))))
 	  ;; Link points to a headline.
 	  (headline
-	   (let ((href (org-export-get-reference destination info))
+	   (let ((href (or (org-element-property :CUSTOM_ID destination)
+			   (org-export-get-reference destination info)))
 		 ;; What description to use?
 		 (desc
 		  ;; Case 1: Headline is numbered and LINK has no

@@ -96,6 +96,10 @@ functions.  The Org version of these functions skips over inline tasks
 *** Behavior of ~org-return~ changed
 If point is before or after the headline title, insert newline without
 changing the headline.
+*** ~org-timer-default-timer~ type changed from number to string
+If you have, in your configuration, something like =(setq
+org-timer-default-timer 10)= replace it with =(setq
+org-timer-default-timer "10")=.
 ** Removed functions
 *** Removed function ~org-translate-time~
 Use ~org-timestamp-translate~ instead.
@@ -142,7 +146,9 @@ removed.
 *** Removed option ~org-koma-letter-use-title~
 Use org-export-with-title instead.  See also below.
 *** Removed option ~org-entities-ascii-explanatory~
-This variable had no effect since Org 8.0.
+This variable has no effect since Org 8.0.
+*** Removed option ~org-table-error-on-row-ref-crossing-hline~
+This variable has no effect since August 2009.
 *** Removed MathML-related options from ~org-html-mathjax-options~
 MathJax automatically chooses the best display technology based on the
 end-users browser.  You may force initial usage of MathML via
@@ -379,6 +385,22 @@ a dedicated buffer.  It works even if buffer is currently narrowed.
 *** New function ~org-delete-indentation~ bound to ~M-^~
 Work as ~delete-indentation~ unless at heading, in which case text is
 added to headline text.
+*** Support for images in Texinfo export
+~Texinfo~ back-end now handles images.  See manual for details.
+*** Support for captions in Texinfo export
+Tables and source blocks can now have captions.  Additionally, lists
+of tables and lists of listings can be inserted in the document with
+=#+TOC= keyword.
+*** Countdown timer support hh:mm:ss format
+In addition to setting countdown timers in minutes, they can also be
+set using the hh:mm:ss format.
+*** Extend ~org-clone-subtree-with-time-shift~
+~org-clone-subtree-with-time-shift~ now accepts 0 as an argument for
+the number of clones, which removes the repeater from the original
+subtree and creates one shifted, repeating clone.
+*** None-floating tables, graphics and blocks can have captions
+*** New time block for clock tables : ~untilnow~
+It encompasses all past closed clocks.
 ** Miscellaneous
 *** Strip all meta data from ITEM special property
 ITEM special property does not contain TODO, priority or tags anymore.
@@ -407,6 +429,10 @@ when ~org-link-search-must-match-exact-headline~ is not nil.
 *** ~org-latex-hyperref-template~, ~org-latex-title-command~ formatting
 New formatting keys are supported.  See the respective docstrings.
 Note, ~org-latex-hyperref-template~ has a new default value.
+*** ~float, wasysym, marvosym~ are removed from ~org-latex-default-packages-alist~
+If you require any of these package add them to your preamble via
+~org-latex-packages-alist~. Org also uses default LaTeX ~\tolerance~
+now.
 * Version 8.2
 
 ** Incompatible changes
@@ -1482,7 +1508,7 @@ See http://orgmode.org/elpa/
    | =C-c C-x E=     | =E=    | [[doc::org-inc-effort][org-inc-effort]]              |
    |                 | =#=    | [[doc::org-toggle-comment][org-toggle-comment]]          |
    |                 | =:=    | [[doc::org-columns][org-columns]]                 |
-   |                 | =W=    | Set =APPT_WARNTIME=         |
+   |                 | =W=    | Set =APPT_WARNTIME=          |
    | =k=             |        | [[doc::org-agenda-capture][org-agenda-capture]]          |
    | C-c ,           | ,      | [[doc::org-priority][org-priority]]                |
 

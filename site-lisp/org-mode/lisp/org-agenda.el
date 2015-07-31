@@ -2070,7 +2070,7 @@ When nil, `q' will kill the single agenda buffer."
       (setq org-agenda-sticky new-value)
       (org-agenda-kill-all-agenda-buffers)
       (and (org-called-interactively-p 'interactive)
-	   (message "Sticky agenda was %s"
+	   (message "Sticky agenda %s"
 		    (if org-agenda-sticky "enabled" "disabled"))))))
 
 (defvar org-agenda-buffer nil
@@ -3642,10 +3642,12 @@ FILTER-ALIST is an alist of filters we need to apply when
 
 (defun org-agenda-prepare (&optional name)
   (let ((filter-alist (if org-agenda-persistent-filter
-			  (list `(tag . ,org-agenda-tag-filter)
-				`(re . ,org-agenda-regexp-filter)
-				`(effort . ,org-agenda-effort-filter)
-				`(car . ,org-agenda-category-filter)))))
+			  (with-current-buffer
+			      (get-buffer-create org-agenda-buffer-name)
+			    (list `(tag . ,org-agenda-tag-filter)
+				  `(re . ,org-agenda-regexp-filter)
+				  `(effort . ,org-agenda-effort-filter)
+				  `(cat . ,org-agenda-category-filter))))))
     (if (org-agenda-use-sticky-p)
 	(progn
 	  (put 'org-agenda-tag-filter :preset-filter nil)

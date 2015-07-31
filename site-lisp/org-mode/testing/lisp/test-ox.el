@@ -225,77 +225,81 @@ variable, and communication channel under `info'."
 (ert-deftest test-org-export/get-subtree-options ()
   "Test setting options from headline's properties."
   ;; EXPORT_TITLE.
-  (org-test-with-temp-text "#+TITLE: Title
-* Headline
+  (should
+   (equal '("Subtree Title")
+	  (org-test-with-temp-text "#+TITLE: Title
+* Headline<point>
   :PROPERTIES:
   :EXPORT_TITLE: Subtree Title
   :END:
 Paragraph"
-    (forward-line)
-    (should (equal (plist-get (org-export-get-environment nil t) :title)
-		   '("Subtree Title"))))
-  :title
-  '("subtree-title")
+	    (plist-get (org-export-get-environment nil t) :title))))
   ;; EXPORT_OPTIONS.
-  (org-test-with-temp-text "#+OPTIONS: H:1
-* Headline
+  (should
+   (= 2
+      (org-test-with-temp-text "#+OPTIONS: H:1
+* Headline<point>
   :PROPERTIES:
   :EXPORT_OPTIONS: H:2
   :END:
 Paragraph"
-    (forward-line)
-    (should
-     (= 2 (plist-get (org-export-get-environment nil t) :headline-levels))))
+	(plist-get (org-export-get-environment nil t) :headline-levels))))
   ;; EXPORT_DATE.
-  (org-test-with-temp-text "#+DATE: today
-* Headline
+  (should
+   (equal '("29-03-2012")
+	  (org-test-with-temp-text "#+DATE: today
+* Headline<point>
   :PROPERTIES:
   :EXPORT_DATE: 29-03-2012
   :END:
 Paragraph"
-    (forward-line)
-    (should (equal (plist-get (org-export-get-environment nil t) :date)
-		   '("29-03-2012"))))
+	    (plist-get (org-export-get-environment nil t) :date))))
   ;; Properties with `split' behaviour are stored as a list of
   ;; strings.
   (should
    (equal '("a" "b")
 	  (org-test-with-temp-text "#+EXCLUDE_TAGS: noexport
-* Headline
+* Headline<point>
   :PROPERTIES:
   :EXPORT_EXCLUDE_TAGS: a b
   :END:
 Paragraph"
-	    (progn
-	      (forward-line)
-	      (plist-get (org-export-get-environment nil t) :exclude-tags)))))
+	    (plist-get (org-export-get-environment nil t) :exclude-tags))))
   ;; Handle :PROPERTY+: syntax.
   (should
    (equal '("a" "b")
 	  (org-test-with-temp-text "#+EXCLUDE_TAGS: noexport
-* Headline
+* Headline<point>
   :PROPERTIES:
   :EXPORT_EXCLUDE_TAGS: a
   :EXPORT_EXCLUDE_TAGS+: b
   :END:
 Paragraph"
-	    (progn
-	      (forward-line)
-	      (plist-get (org-export-get-environment nil t) :exclude-tags)))))
+	    (plist-get (org-export-get-environment nil t) :exclude-tags))))
   ;; Export properties are case-insensitive.
-  (org-test-with-temp-text "* Headline
+  (should
+   (equal '("29-03-2012")
+	  (org-test-with-temp-text "* Headline
   :PROPERTIES:
   :EXPORT_Date: 29-03-2012
   :END:
 Paragraph"
-    (should (equal (plist-get (org-export-get-environment nil t) :date)
-		   '("29-03-2012"))))
+	    (plist-get (org-export-get-environment nil t) :date))))
   ;; Still grab correct options when section above is empty.
   (should
    (equal '("H1")
-	  (org-test-with-temp-text "* H1\n** H11\n** H12"
-	    (progn (forward-line 2)
-		   (plist-get (org-export-get-environment nil t) :title))))))
+	  (org-test-with-temp-text "* H1\n** H11\n** H12<point>"
+	    (plist-get (org-export-get-environment nil t) :title))))
+  ;; More than one property can refer to the same node property.
+  (should
+   (equal '("1" "1")
+	  (org-test-with-temp-text
+	      "* H\n:PROPERTIES:\n:EXPORT_A: 1\n:END:\n<point>"
+	    (let* ((backend (org-export-create-backend
+			     :options '((:k1 "A")
+					(:k2 "A"))))
+		   (options (org-export-get-environment backend t)))
+	      (list (plist-get options :k1) (plist-get options :k2)))))))
 
 (ert-deftest test-org-export/set-title ()
   "Test title setting."
@@ -1826,38 +1830,43 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
 			    (car (org-element-contents def))))))))
 	  info))))
     ;; Test nested footnote in invisible definitions.
-    (org-test-with-temp-text "Text[1]\n\n[1] B [2]\n\n[2] C."
-      ;; Hide definitions.
-      (narrow-to-region (point) (point-at-eol))
-      (let* ((tree (org-element-parse-buffer))
-	     (info (org-combine-plists
-		    `(:parse-tree ,tree)
-		    (org-export-collect-tree-properties
-		     tree (org-export-get-environment)))))
-	;; Both footnotes should be seen.
-	(should
-	 (= (length (org-export-collect-footnote-definitions info)) 2))))
+    (should
+     (= 2
+	(org-test-with-temp-text "Text[1]\n\n[1] B [2]\n\n[2] C."
+	  (narrow-to-region (point) (line-end-position))
+	  (catch 'exit
+	    (org-export-as
+	     (org-export-create-backend
+	      :transcoders
+	      '((section
+		 .
+		 (lambda (s c i)
+		   (throw 'exit (length
+				 (org-export-collect-footnote-definitions
+				  i))))))))))))
     ;; Test export of footnotes defined outside parsing scope.
     (should
      (equal
       "ParagraphOut of scope\n"
       (org-test-with-temp-text "[fn:1] Out of scope
 * Title
-Paragraph[fn:1]"
+<point>Paragraph[fn:1]"
 	(let ((backend (org-test-default-backend)))
 	  (setf (org-export-backend-transcoders backend)
-		(cons (cons 'footnote-reference
-			    (lambda (fn contents info)
-			      (org-element-interpret-data
-			       (org-export-get-footnote-definition fn info))))
-		      (org-export-backend-transcoders backend)))
-	  (forward-line)
+		(append
+		 (list (cons 'footnote-reference
+			     (lambda (fn contents info)
+			       (org-element-interpret-data
+				(org-export-get-footnote-definition fn info))))
+		       (cons 'footnote-definition #'ignore)
+		       (cons 'headline #'ignore))
+		 (org-export-backend-transcoders backend)))
 	  (org-export-as backend 'subtree)))))
     ;; Footnotes without a definition should throw an error.
     (should-error
      (org-test-with-parsed-data "Text[fn:1]"
        (org-export-get-footnote-definition
-	(org-element-map tree 'footnote-reference 'identity info t) info)))
+	(org-element-map tree 'footnote-reference #'identity info t) info)))
     ;; Footnote section should be ignored in TOC and in headlines
     ;; numbering.
     (should
@@ -2391,14 +2400,7 @@ Paragraph[1][2][fn:lbl3:C<<target>>][[test]][[target]]\n[1] A\n\n[2] <<test>>B"
    (org-test-with-parsed-data "* Head [100%]\n[[Head]]"
      (org-element-map tree 'link
        (lambda (link) (org-export-resolve-fuzzy-link link info))
-       info t)))
-  ;; Headline match is position dependent.
-  (should-not
-   (apply
-    'eq
-    (org-test-with-parsed-data "* H1\n[[*H1]]\n* H1\n[[*H1]]"
-      (org-element-map tree 'link
-	(lambda (link) (org-export-resolve-fuzzy-link link info)) info)))))
+       info t))))
 
 (ert-deftest test-org-export/resolve-coderef ()
   "Test `org-export-resolve-coderef' specifications."
@@ -2545,7 +2547,12 @@ Another text. (ref:text)
        (org-test-with-parsed-data "[[hl]]\n* hl"
 	 (org-element-type
 	  (org-export-resolve-fuzzy-link
-	   (org-element-map tree 'link 'identity info t) info))))))
+	   (org-element-map tree 'link 'identity info t) info)))))
+  ;; Handle url-encoded fuzzy links.
+  (should
+   (org-test-with-parsed-data "* A B\n[[A%20B]]"
+     (org-export-resolve-fuzzy-link
+      (org-element-map tree 'link #'identity info t) info))))
 
 (ert-deftest test-org-export/resolve-id-link ()
   "Test `org-export-resolve-id-link' specifications."

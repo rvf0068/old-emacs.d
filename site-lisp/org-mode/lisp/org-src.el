@@ -34,15 +34,26 @@
 (require 'org-compat)
 (require 'ob-keys)
 (require 'ob-comint)
-(eval-when-compile
-  (require 'cl))
+(eval-when-compile (require 'cl))
 
-(declare-function org-do-remove-indentation "org" (&optional n))
-(declare-function org-get-indentation "org" (&optional line))
-(declare-function org-switch-to-buffer-other-window "org" (&rest args))
-(declare-function org-pop-to-buffer-same-window
-		  "org-compat" (&optional buffer-or-name norecord label))
 (declare-function org-base-buffer "org" (buffer))
+(declare-function org-do-remove-indentation "org" (&optional n))
+(declare-function org-element-at-point "org-element" ())
+(declare-function org-element-context "org-element" (&optional element))
+(declare-function org-element-lineage "org-element"
+		  (blob &optional types with-self))
+(declare-function org-element-property "org-element" (property element))
+(declare-function org-element-type "org-element" (element))
+(declare-function org-footnote-goto-definition "org-footnote"
+		  (label &optional location))
+(declare-function org-get-indentation "org" (&optional line))
+(declare-function org-pop-to-buffer-same-window "org-compat"
+		  (&optional buffer-or-name norecord label))
+(declare-function org-some "org" (pred seq))
+(declare-function org-switch-to-buffer-other-window "org" (&rest args))
+(declare-function org-trim "org" (s))
+
+(defvar org-element-all-elements)
 
 (defcustom org-edit-src-turn-on-auto-save nil
   "Non-nil means turn `auto-save-mode' on when editing a source block.
@@ -195,15 +206,16 @@ issued in the language major mode buffer."
 ;;; Internal functions and variables
 
 (defvar org-src--allow-write-back t)
-(defvar org-src--remote nil)
+(defvar org-src--auto-save-timer nil)
+(defvar org-src--babel-info nil)
 (defvar org-src--beg-marker nil)
 (defvar org-src--block-indentation nil)
-(defvar org-src--auto-save-timer nil)
 (defvar org-src--end-marker nil)
 (defvar org-src--from-org-mode nil)
 (defvar org-src--overlay nil)
+(defvar org-src--preserve-indentation nil)
+(defvar org-src--remote nil)
 (defvar org-src--saved-temp-window-config nil)
-(defvar org-src--babel-info nil)
 
 (defun org-src--construct-edit-buffer-name (org-buffer-name lang)
   "Construct the buffer name for a source editing buffer."
@@ -273,15 +285,15 @@ where BEG and END are buffer positions and CONTENTS is a string."
   (let ((type (org-element-type datum)))
     (cond
      ((eq type 'footnote-definition)
-      (let ((beg (org-with-wide-buffer
-		  (goto-char (org-element-property :post-affiliated datum))
-		  (search-forward "]")))
-	    (end (or (org-element-property :contents-end datum) beg)))
+      (let* ((beg (org-with-wide-buffer
+		   (goto-char (org-element-property :post-affiliated datum))
+		   (search-forward "]")))
+	     (end (or (org-element-property :contents-end datum) beg)))
 	(list beg end (buffer-substring-no-properties beg end))))
      ((org-element-property :contents-begin datum)
-      (list (org-element-property :contents-begin datum)
-	    (org-element-property :contents-end datum)
-	    (buffer-substring-no-properties beg end)))
+      (let ((beg (org-element-property :contents-begin datum))
+	    (end (org-element-property :contents-end datum)))
+	(list beg end (buffer-substring-no-properties beg end))))
      ((memq type '(example-block export-block src-block))
       (list (org-with-wide-buffer
 	     (goto-char (org-element-property :post-affiliated datum))
@@ -348,7 +360,7 @@ spaces after it as being outside."
   "Return buffer contents in a format appropriate for write back.
 Assume point is in the corresponding edit buffer."
   (let ((indentation (or org-src--block-indentation 0))
-	(preserve-indentation org-src-preserve-indentation)
+	(preserve-indentation org-src--preserve-indentation)
 	(contents (org-with-wide-buffer (buffer-string)))
 	(write-back org-src--allow-write-back))
     (with-temp-buffer
@@ -442,7 +454,7 @@ Leave point in edit buffer."
 	(org-set-local 'org-src--end-marker end)
 	(org-set-local 'org-src--remote remote)
 	(org-set-local 'org-src--block-indentation ind)
-	(org-set-local 'org-src-preserve-indentation preserve-ind)
+	(org-set-local 'org-src--preserve-indentation preserve-ind)
 	(org-set-local 'org-src--overlay overlay)
 	(org-set-local 'org-src--allow-write-back write-back)
 	;; Start minor mode.
@@ -507,9 +519,9 @@ Escaping happens when a line starts with \"*\", \"#+\", \",*\" or
 \",#+\" by appending a comma to it."
   (interactive "r")
   (save-excursion
-    (goto-char beg)
-    (while (re-search-forward "^[ \t]*,?\\(\\*\\|#\\+\\)" end t)
-      (replace-match ",\\1" nil nil nil 1))))
+    (goto-char end)
+    (while (re-search-backward "^[ \t]*,?\\(\\*\\|#\\+\\)" beg t)
+      (save-excursion (replace-match ",\\1" nil nil nil 1)))))
 
 (defun org-escape-code-in-string (s)
   "Escape lines in string S.
@@ -523,9 +535,9 @@ Un-escaping happens by removing the first comma on lines starting
 with \",*\", \",#+\", \",,*\" and \",,#+\"."
   (interactive "r")
   (save-excursion
-    (goto-char beg)
-    (while (re-search-forward "^[ \t]*,?\\(,\\)\\(?:\\*\\|#\\+\\)" end t)
-      (replace-match "" nil nil nil 1))))
+    (goto-char end)
+    (while (re-search-backward "^[ \t]*,?\\(,\\)\\(?:\\*\\|#\\+\\)" beg t)
+      (save-excursion (replace-match "" nil nil nil 1)))))
 
 (defun org-unescape-code-in-string (s)
   "Un-escape lines in string S.
@@ -577,14 +589,16 @@ See also `org-src-mode-hook'."
 	  (run-with-idle-timer
 	   org-edit-src-auto-save-idle-delay t
 	   (lambda ()
-	     (let (edit-flag)
-	       (dolist (b (buffer-list))
-		 (when (org-src-edit-buffer-p)
-		   (unless edit-flag (setq edit-flag t))
-		   (when (buffer-modified-p) (org-edit-src-save))))
-	       (unless edit-flag
-		 (cancel-timer org-src--auto-save-timer)
-		 (setq org-src--auto-save-timer nil))))))))
+	     (save-excursion
+	       (let (edit-flag)
+		 (dolist (b (buffer-list))
+		   (with-current-buffer b
+		     (when (org-src-edit-buffer-p)
+		       (unless edit-flag (setq edit-flag t))
+		       (when (buffer-modified-p) (org-edit-src-save)))))
+		 (unless edit-flag
+		   (cancel-timer org-src--auto-save-timer)
+		   (setq org-src--auto-save-timer nil)))))))))
 
 (defun org-src-mode-configure-edit-buffer ()
   (when (org-bound-and-true-p org-src--from-org-mode)
@@ -831,15 +845,17 @@ name of the sub-editing buffer."
 	   (org-src--construct-edit-buffer-name (buffer-name) lang))
        lang-f
        (and (null code)
-	    (lambda ()
-	      (unless org-src-preserve-indentation
-		(untabify (point-min) (point-max))
-		(when (> org-edit-src-content-indentation 0)
-		  (let ((ind (make-string org-edit-src-content-indentation ?\s)))
-		    (while (not (eobp))
-		      (unless (looking-at "[ \t]*$") (insert ind))
-		      (forward-line)))))
-	      (org-escape-code-in-region (point-min) (point-max))))
+	    `(lambda ()
+	       (unless ,(or org-src-preserve-indentation
+			    (org-element-property :preserve-indent element))
+		 (untabify (point-min) (point-max))
+		 (when (> org-edit-src-content-indentation 0)
+		   (let ((ind (make-string org-edit-src-content-indentation
+					   ?\s)))
+		     (while (not (eobp))
+		       (unless (looking-at "[ \t]*$") (insert ind))
+		       (forward-line)))))
+	       (org-escape-code-in-region (point-min) (point-max))))
        (and code (org-unescape-code-in-string code)))
       ;; Finalize buffer.
       (org-set-local 'org-coderef-label-format

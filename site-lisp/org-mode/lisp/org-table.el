@@ -38,6 +38,17 @@
   (require 'cl))
 (require 'org)
 
+(declare-function org-element-at-point "org-element" ())
+(declare-function org-element-contents "org-element" (element))
+(declare-function org-element-extract-element "org-element" (element))
+(declare-function org-element-interpret-data "org-element" (data))
+(declare-function org-element-lineage "org-element"
+		  (blob &optional types with-self))
+(declare-function org-element-map "org-element"
+		  (data types fun
+			&optional info first-match no-recursion with-affiliated))
+(declare-function org-element-property "org-element" (property element))
+
 (declare-function org-export-string-as "ox"
 		  (string backend &optional body-only ext-plist))
 (declare-function org-export-create-backend "ox")
@@ -328,11 +339,6 @@ Constants can also be defined on a per-file basis using a line like
   "Non-nil means lines marked with |#| or |*| will be recomputed automatically.
 Automatically means when TAB or RET or C-c C-c are pressed in the line."
   :group 'org-table-calculation
-  :type 'boolean)
-
-(defcustom org-table-error-on-row-ref-crossing-hline t
-  "OBSOLETE VARIABLE, please see `org-table-relative-ref-may-cross-hline'."
-  :group 'org-table
   :type 'boolean)
 
 (defcustom org-table-relative-ref-may-cross-hline t
@@ -719,225 +725,188 @@ When nil, simply write \"#ERROR\" in corrupted fields.")
 (defun org-table-align ()
   "Align the table at point by aligning all vertical bars."
   (interactive)
-  (let* (
-	 ;; Limits of table
-	 (beg (org-table-begin))
-	 (end (copy-marker (org-table-end)))
-	 ;; Current cursor position
-	 (linepos (org-current-line))
-	 (colpos (org-table-current-column))
-	 (winstart (window-start))
-	 (winstartline (org-current-line (min winstart (1- (point-max)))))
-	 lines (new "") lengths l typenums ty fields maxfields i
-	 column
-	 (indent "") cnt frac
-	 rfmt hfmt
-	 (spaces '(1 . 1))
-	 (sp1 (car spaces))
-	 (sp2 (cdr spaces))
-	 (rfmt1 (concat
-		 (make-string sp2 ?\ ) "%%%s%ds" (make-string sp1 ?\ ) "|"))
-	 (hfmt1 (concat
-		 (make-string sp2 ?-) "%s" (make-string sp1 ?-) "+"))
-	 emptystrings links dates emph raise narrow
-	 falign falign1 fmax f1 f2 len c e space)
-    (untabify beg end)
-    (remove-text-properties beg end '(org-cwidth t org-dwidth t display t))
-    ;; Check if we have links or dates
+  (let ((beg (org-table-begin))
+	(end (copy-marker (org-table-end)))
+	(linepos (copy-marker (line-beginning-position)))
+	(colpos (org-table-current-column)))
+    ;; Make sure invisible characters in the table are at the right
+    ;; place since column widths take them into account.
+    (font-lock-fontify-region beg end)
+    (move-marker org-table-aligned-begin-marker beg)
+    (move-marker org-table-aligned-end-marker end)
     (goto-char beg)
-    (setq links (re-search-forward org-bracket-link-regexp end t))
-    (goto-char beg)
-    (setq emph (and org-hide-emphasis-markers
-		    (re-search-forward org-emph-re end t)))
-    (goto-char beg)
-    (setq raise (and org-use-sub-superscripts
-		     (re-search-forward org-match-substring-regexp end t)))
-    (goto-char beg)
-    (setq dates (and org-display-custom-times
-		     (re-search-forward org-ts-regexp-both end t)))
-    ;; Make sure the link properties are right
-    (when links (goto-char beg) (while (org-activate-bracket-links end)))
-    ;; Make sure the date properties are right
-    (when dates (goto-char beg) (while (org-activate-dates end)))
-    (when emph (goto-char beg) (while (org-do-emphasis-faces end)))
-    (when raise (goto-char beg) (while (org-raise-scripts end)))
-
-    ;; Check if we are narrowing any columns
-    (goto-char beg)
-    (setq narrow (and org-table-do-narrow
-		      org-format-transports-properties-p
-		      (re-search-forward "<[lrc]?[0-9]+>" end t)))
-    (goto-char beg)
-    (setq falign (re-search-forward "<[lrc][0-9]*>" end t))
-    (goto-char beg)
-    ;; Get the rows
-    (setq lines (org-split-string
-		 (buffer-substring beg end) "\n"))
-    ;; Store the indentation of the first line
-    (if (string-match "^ *" (car lines))
-	(setq indent (make-string (- (match-end 0) (match-beginning 0)) ?\ )))
-    ;; Mark the hlines by setting the corresponding element to nil
-    ;; At the same time, we remove trailing space.
-    (setq lines (mapcar (lambda (l)
-			  (if (string-match "^ *|-" l)
-			      nil
-			    (if (string-match "[ \t]+$" l)
-				(substring l 0 (match-beginning 0))
-			      l)))
-			lines))
-    ;; Get the data fields by splitting the lines.
-    (setq fields (mapcar
-		  (lambda (l)
-		    (org-split-string l " *| *"))
-		  (delq nil (copy-sequence lines))))
-    ;; How many fields in the longest line?
-    (condition-case nil
-	(setq maxfields (apply 'max (mapcar 'length fields)))
-      (error
-       (kill-region beg end)
-       (org-table-create org-table-default-size)
-       (user-error "Empty table - created default table")))
-    ;; A list of empty strings to fill any short rows on output
-    (setq emptystrings (make-list maxfields ""))
-    ;; Check for special formatting.
-    (setq i -1)
-    (while (< (setq i (1+ i)) maxfields)   ;; Loop over all columns
-      (setq column (mapcar (lambda (x) (or (nth i x) "")) fields))
-      ;; Check if there is an explicit width specified
-      (setq fmax nil)
-      (when (or narrow falign)
-	(setq c column fmax nil falign1 nil)
-	(while c
-	  (setq e (pop c))
-	  (when (and (stringp e) (string-match "^<\\([lrc]\\)?\\([0-9]+\\)?>$" e))
-	    (if (match-end 1) (setq falign1 (match-string 1 e)))
-	    (if (and org-table-do-narrow (match-end 2))
-		(setq fmax (string-to-number (match-string 2 e)) c nil))))
-	;; Find fields that are wider than fmax, and shorten them
-	(when fmax
-	  (loop for xx in column do
-		(when (and (stringp xx)
-			   (> (org-string-width xx) fmax))
-		  (org-add-props xx nil
+    (let* ((indent (progn (looking-at "[ \t]*") (match-string 0)))
+	   ;; Table's rows.  Separators are replaced by nil.  Trailing
+	   ;; spaces are also removed.
+	   (lines (mapcar (lambda (l)
+			    (and (not (org-string-match-p "\\`[ \t]*|-" l))
+				 (let ((l (org-trim l)))
+				   (remove-text-properties
+				    0 (length l) '(display t org-cwidth t) l)
+				   l)))
+			  (org-split-string (buffer-substring beg end) "\n")))
+	   ;; Get the data fields by splitting the lines.
+	   (fields (mapcar (lambda (l) (org-split-string l " *| *"))
+			   (remq nil lines)))
+	   ;; Compute number of fields in the longest line.  If the
+	   ;; table contains no field, create a default table.
+	   (maxfields (if fields (apply #'max (mapcar #'length fields))
+			(kill-region beg end)
+			(org-table-create org-table-default-size)
+			(user-error "Empty table - created default table")))
+	   ;; A list of empty strings to fill any short rows on output.
+	   (emptycells (make-list maxfields ""))
+	   lengths typenums)
+      ;; Check for special formatting.
+      (dotimes (i maxfields)
+	(let ((column (mapcar (lambda (x) (or (nth i x) "")) fields))
+	      fmax falign)
+	  ;; Look for an explicit width or alignment.
+	  (when (save-excursion
+		  (or (re-search-forward "| *<[lrc][0-9]*> *\\(|\\|$\\)" end t)
+		      (and org-table-do-narrow
+			   (re-search-forward
+			    "| *<[lrc]?[0-9]+> *\\(|\\|$\\)" end t))))
+	    (catch :exit
+	      (dolist (cell column)
+		(when (string-match "\\`<\\([lrc]\\)?\\([0-9]+\\)?>\\'" cell)
+		  (when (match-end 1) (setq falign (match-string 1 cell)))
+		  (when (and org-table-do-narrow (match-end 2))
+		    (setq fmax (string-to-number (match-string 2 cell))))
+		  (when (or falign fmax) (throw :exit nil)))))
+	    ;; Find fields that are wider than FMAX, and shorten them.
+	    (when fmax
+	      (dolist (x column)
+		(when (> (org-string-width x) fmax)
+		  (org-add-props x nil
 		    'help-echo
-		    (concat "Clipped table field, use C-c ` to edit.  Full value is:\n"
-			    (org-no-properties (copy-sequence xx))))
-		  (setq f1 (min fmax (or (string-match org-bracket-link-regexp xx) fmax)))
-		  (unless (> f1 1)
-		    (user-error "Cannot narrow field starting with wide link \"%s\""
-			   (match-string 0 xx)))
-		  (setq f2 (length xx))
-		  (if (= (org-string-width xx)
-			 f2)
-		      (setq f2 f1)
-		    (setq f2 1)
-		    (while (< (org-string-width (substring xx 0 f2))
-			      f1)
-		      (setq f2 (1+ f2))))
-		  (add-text-properties f2 (length xx) (list 'org-cwidth t) xx)
-		  (add-text-properties (if (>= (string-width (substring xx (1- f2) f2)) 2)
-					   (1- f2) (- f2 2)) f2
-					   (list 'display org-narrow-column-arrow)
-					   xx)))))
-      ;; Get the maximum width for each column
-      (push (apply 'max (or fmax 1) 1 (mapcar 'org-string-width column))
-	    lengths)
-      ;; Get the fraction of numbers, to decide about alignment of the column
-      (if falign1
-	  (push (equal (downcase falign1) "r") typenums)
-	(setq cnt 0 frac 0.0)
-	(loop for x in column do
-	      (if (equal x "")
-		  nil
-		(setq frac ( / (+ (* frac cnt)
-				  (if (string-match org-table-number-regexp x) 1 0))
-			       (setq cnt (1+ cnt))))))
-	(push (>= frac org-table-number-fraction) typenums)))
-    (setq lengths (nreverse lengths) typenums (nreverse typenums))
+		    (concat
+		     (substitute-command-keys
+		      "Clipped table field, use \\[org-table-edit-field] to \
+edit.  Full value is:\n")
+		     (substring-no-properties x)))
+		  (let ((l (length x))
+			(f1 (min fmax
+				 (or (string-match org-bracket-link-regexp x)
+				     fmax)))
+			(f2 1))
+		    (unless (> f1 1)
+		      (user-error
+		       "Cannot narrow field starting with wide link \"%s\""
+		       (match-string 0 x)))
+		    (if (= (org-string-width x) l) (setq f2 f1)
+		      (setq f2 1)
+		      (while (< (org-string-width (substring x 0 f2)) f1)
+			(incf f2)))
+		    (add-text-properties f2 l (list 'org-cwidth t) x)
+		    (add-text-properties
+		     (if (>= (string-width (substring x (1- f2) f2)) 2) (1- f2)
+		       (- f2 2))
+		     f2
+		     (list 'display org-narrow-column-arrow)
+		     x))))))
+	  ;; Get the maximum width for each column
+	  (push (apply #'max (or fmax 1) 1 (mapcar #'org-string-width column))
+		lengths)
+	  ;; Get the fraction of numbers among non-empty cells to
+	  ;; decide about alignment of the column.
+	  (if falign (push (equal (downcase falign) "r") typenums)
+	    (let ((cnt 0)
+		  (frac 0.0))
+	      (dolist (x column)
+		(unless (equal x "")
+		  (setq frac
+			(/ (+ (* frac cnt)
+			      (if (org-string-match-p org-table-number-regexp x)
+				  1
+				0))
+			   (incf cnt)))))
+	      (push (>= frac org-table-number-fraction) typenums)))))
+      (setq lengths (nreverse lengths))
+      (setq typenums (nreverse typenums))
+      ;; Store alignment of this table, for later editing of single
+      ;; fields.
+      (setq org-table-last-alignment typenums)
+      (setq org-table-last-column-widths lengths)
+      ;; With invisible characters, `format' does not get the field
+      ;; width right So we need to make these fields wide by hand.
+      ;; Invisible characters may be introduced by fontified links,
+      ;; emphasis, macros or sub/superscripts.
+      (when (or (text-property-any beg end 'invisible 'org-link)
+		(text-property-any beg end 'invisible t))
+	(dotimes (i maxfields)
+	  (let ((len (nth i lengths)))
+	    (dotimes (j (length fields))
+	      (let* ((c (nthcdr i (nth j fields)))
+		     (cell (car c)))
+		(when (and
+		       (stringp cell)
+		       (let ((l (length cell)))
+			 (or (text-property-any 0 l 'invisible 'org-link cell)
+			     (text-property-any beg end 'invisible t)))
+		       (< (org-string-width cell) len))
+		  (let ((s (make-string (- len (org-string-width cell)) ?\s)))
+		    (setcar c (if (nth i typenums) (concat s cell)
+				(concat cell s))))))))))
 
-    ;; Store the alignment of this table, for later editing of single fields
-    (setq org-table-last-alignment typenums
-	  org-table-last-column-widths lengths)
-
-    ;; With invisible characters, `format' does not get the field width right
-    ;; So we need to make these fields wide by hand.
-    (when (or links emph raise)
-      (loop for i from 0 upto (1- maxfields) do
-	    (setq len (nth i lengths))
-	    (loop for j from 0 upto (1- (length fields)) do
-		  (setq c (nthcdr i (car (nthcdr j fields))))
-		  (if (and (stringp (car c))
-			   (or (text-property-any 0 (length (car c))
-						  'invisible 'org-link (car c))
-			       (text-property-any 0 (length (car c))
-						  'org-dwidth t (car c)))
-			   (< (org-string-width (car c)) len))
-		      (progn
-			(setq space (make-string (- len (org-string-width (car c))) ?\ ))
-			(setcar c (if (nth i typenums)
-				      (concat space (car c))
-				    (concat (car c) space))))))))
-
-    ;; Compute the formats needed for output of the table
-    (setq rfmt (concat indent "|") hfmt (concat indent "|"))
-    (while (setq l (pop lengths))
-      (setq ty (if (pop typenums) "" "-")) ; number types flushright
-      (setq rfmt (concat rfmt (format rfmt1 ty l))
-	    hfmt (concat hfmt (format hfmt1 (make-string l ?-)))))
-    (setq rfmt (concat rfmt "\n")
-	  hfmt (concat (substring hfmt 0 -1) "|\n"))
-
-    (setq new (mapconcat
-	       (lambda (l)
-		 (if l (apply 'format rfmt
-			      (append (pop fields) emptystrings))
+      ;; Compute the formats needed for output of the table.
+      (let ((hfmt (concat indent "|"))
+	    (rfmt (concat indent "|"))
+	    (rfmt1 " %%%s%ds |")
+	    (hfmt1 "-%s-+"))
+	(dolist (l lengths (setq hfmt (concat (substring hfmt 0 -1) "|")))
+	  (let ((ty (if (pop typenums) "" "-"))) ; Flush numbers right.
+	    (setq rfmt (concat rfmt (format rfmt1 ty l)))
+	    (setq hfmt (concat hfmt (format hfmt1 (make-string l ?-))))))
+	;; Replace modified lines only.  Check not only contents, but
+	;; also columns' width.
+	(dolist (l lines)
+	  (let ((line
+		 (if l (apply #'format rfmt (append (pop fields) emptycells))
 		   hfmt))
-	       lines ""))
-    (move-marker org-table-aligned-begin-marker (point))
-    (insert new)
-    ;; Replace the old one
-    (delete-region (point) end)
-    (move-marker end nil)
-    (move-marker org-table-aligned-end-marker (point))
-    (when (and orgtbl-mode (not (derived-mode-p 'org-mode)))
-      (goto-char org-table-aligned-begin-marker)
-      (while (org-hide-wide-columns org-table-aligned-end-marker)))
-    ;; Try to move to the old location
-    (org-goto-line winstartline)
-    (setq winstart (point-at-bol))
-    (org-goto-line linepos)
-    (when (eq (window-buffer (selected-window)) (current-buffer))
-      (set-window-start (selected-window) winstart 'noforce))
-    (org-table-goto-column colpos)
-    (and org-table-overlay-coordinates (org-table-overlay-coordinates))
-    (setq org-table-may-need-update nil)
-    ))
+		(previous (buffer-substring (point) (line-end-position))))
+	    (if (and (equal previous line)
+		     (let ((a 0)
+			   (b 0))
+		       (while (and (progn
+				     (setq a (next-single-property-change
+					      a 'org-cwidth previous))
+				     (setq b (next-single-property-change
+					      b 'org-cwidth line)))
+				   (eq a b)))
+		       (eq a b)))
+		(forward-line)
+	      (insert line "\n")
+	      (delete-region (point) (line-beginning-position 2))))))
+      (when (and orgtbl-mode (not (derived-mode-p 'org-mode)))
+	(goto-char org-table-aligned-begin-marker)
+	(while (org-hide-wide-columns org-table-aligned-end-marker)))
+      (goto-char linepos)
+      (org-table-goto-column colpos)
+      (set-marker end nil)
+      (set-marker linepos nil)
+      (when org-table-overlay-coordinates (org-table-overlay-coordinates))
+      (setq org-table-may-need-update nil))))
 
 ;;;###autoload
 (defun org-table-begin (&optional table-type)
   "Find the beginning of the table and return its position.
 With argument TABLE-TYPE, go to the beginning of a table.el-type table."
-  (save-excursion
-    (if (not (re-search-backward
-	      (if table-type org-table-any-border-regexp
-		org-table-border-regexp)
-	      nil t))
-	(progn (goto-char (point-min)) (point))
-      (goto-char (match-beginning 0))
-      (beginning-of-line 2)
-      (point))))
+  (let ((table (org-element-lineage (org-element-at-point) '(table) t)))
+    (and table (org-element-property :post-affiliated table))))
 
 ;;;###autoload
 (defun org-table-end (&optional table-type)
   "Find the end of the table and return its position.
 With argument TABLE-TYPE, go to the end of a table.el-type table."
-  (if (save-excursion
-	(re-search-forward
-	 (if table-type org-table-any-border-regexp
-	   org-table-border-regexp)
-	 nil t))
-      (match-beginning 0)
-    (point-max)))
+  (let ((table (org-element-lineage (org-element-at-point) '(table) t)))
+    (and table
+	 (let ((type (org-element-property :type table)))
+	   (if (eq type 'org) (org-element-property :contents-end table)
+	     (save-excursion
+	       (goto-char (org-element-property :end table))
+	       (skip-chars-backward " \t\n")
+	       (line-beginning-position 2)))))))
 
 ;;;###autoload
 (defun org-table-justify-field-maybe (&optional new)
@@ -2790,15 +2759,19 @@ not overwrite the stored one."
 		     (string-match (regexp-quote form) formrpl)))
 	      (setq form (replace-match formrpl t t form))
 	    (user-error "Spreadsheet error: invalid reference \"%s\"" form)))
-	;; Insert simple ranges
-	(while (string-match "\\$\\([0-9]+\\)\\.\\.\\$\\([0-9]+\\)"  form)
+	;; Insert simple ranges, i.e. included in the current row.
+	(while (string-match
+		"\\$\\(\\([-+]\\)?[0-9]+\\)\\.\\.\\$\\(\\([-+]\\)?[0-9]+\\)"
+		form)
 	  (setq form
 		(replace-match
 		 (save-match-data
 		   (org-table-make-reference
-		    (org-sublist
-		     fields (string-to-number (match-string 1 form))
-		     (string-to-number (match-string 2 form)))
+		    (org-sublist fields
+				 (+ (if (match-end 2) n0 0)
+				    (string-to-number (match-string 1 form)))
+				 (+ (if (match-end 4) n0 0)
+				    (string-to-number (match-string 3 form))))
 		    keep-empty numbers lispp))
 		 t t form)))
 	(setq form0 form)
@@ -4556,6 +4529,7 @@ overwritten, and the table is not marked as requiring realignment."
 	      (setq org-self-insert-command-undo-counter
 		    (1+ org-self-insert-command-undo-counter))))))))
 
+;;;###autoload
 (defvar orgtbl-exp-regexp "^\\([-+]?[0-9][0-9.]*\\)[eE]\\([-+]?[0-9]+\\)$"
   "Regular expression matching exponentials as produced by calc.")
 
@@ -4791,7 +4765,8 @@ This may be either a string or a function of two arguments:
     (when (and backend (symbolp backend) (not (org-export-get-backend backend)))
       (user-error "Unknown :backend value"))
     (when (or (not backend) (plist-get params :raw)) (require 'ox-org))
-    (org-trim
+    ;; Remove final newline.
+    (substring
      (org-export-string-as
       ;; Return TABLE as Org syntax.  Tolerate non-string cells.
       (with-output-to-string
@@ -4846,7 +4821,8 @@ This may be either a string or a function of two arguments:
 	 (table-cell . ,(org-table--to-generic-cell params))
 	 ;; Section.  Return contents to avoid garbage around table.
 	 (section . (lambda (s c i) c))))
-      'body-only (org-combine-plists params '(:with-tables t))))))
+      'body-only (org-combine-plists params '(:with-tables t)))
+     0 -1)))
 
 (defun org-table--generic-apply (value name &optional with-cons &rest args)
   (cond ((null value) nil)
