@@ -21,6 +21,14 @@
 
 (abbrev-mode)
 
+(smartparens-mode)
+
+(sp-with-modes '(
+		 LaTeX-mode
+		 )
+  (sp-local-pair "$" "$")
+)
+
 ;; reftex
 
 (turn-on-reftex)
