@@ -21,13 +21,8 @@
 
 (abbrev-mode)
 
+(require 'smartparens-latex)
 (smartparens-mode)
-
-(sp-with-modes '(
-		 LaTeX-mode
-		 )
-  (sp-local-pair "$" "$")
-)
 
 ;; reftex
 
