@@ -9,4 +9,7 @@
 (load-theme 'zenburn t)
 (set-face-attribute 'mode-line nil :height 0.8)
 
+;; new to newer Emacs
+(set-face-attribute 'mode-line-inactive nil :height 0.8)
+
 (display-time)
