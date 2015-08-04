@@ -125,6 +125,7 @@
 			    ("rvf" "rvf0068")
 			    ("sage" "ejemplos-sage")
 			    ("variable" "variable")
+			    ("discretas" "discretas")
 			    ))
 
 (defun form-octopress-project (pair)
