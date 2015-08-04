@@ -4570,8 +4570,8 @@ is nil, return nil unconditionally."
   (save-excursion
     (goto-char (or pos (point)))
     (beginning-of-line)
-    (and (eq (org-element-type (org-element-at-point)) 'table)
-	 (looking-at org-TBLFM-regexp))))
+    (and (let ((case-fold-search t)) (looking-at org-TBLFM-regexp))
+	 (eq (org-element-type (org-element-at-point)) 'table))))
 
 (defvar org-clock-start-time)
 (defvar org-clock-marker (make-marker)
@@ -10603,9 +10603,6 @@ See the docstring of `org-open-file' for details."
   "The window configuration before following a link.
 This is saved in case the need arises to restore it.")
 
-(defvar org-open-link-marker (make-marker)
-  "Marker pointing to the location where `org-open-at-point' was called.")
-
 ;;;###autoload
 (defun org-open-at-point-global ()
   "Follow a link like Org-mode does.
@@ -10670,7 +10667,6 @@ link in a property drawer line."
   ;; On a code block, open block's results.
   (unless (call-interactively 'org-babel-open-src-block-result)
     (org-load-modules-maybe)
-    (move-marker org-open-link-marker (point))
     (setq org-window-config-before-follow-link (current-window-configuration))
     (org-remove-occur-highlights nil nil t)
     (unless (run-hook-with-args-until-success 'org-open-at-point-functions)
@@ -10763,7 +10759,7 @@ link in a property drawer line."
 			(funcall dedicated-function
 				 (concat path
 					 (and option (concat "::" option))))
-		      (apply 'org-open-file
+		      (apply #'org-open-file
 			     path
 			     (cond (arg)
 				   ((equal app "emacs") 'emacs)
@@ -10831,17 +10827,24 @@ link in a property drawer line."
 		  (if (not arg) (org-mark-ring-push)
 		    (switch-to-buffer-other-window
 		     (org-get-buffer-for-internal-link (current-buffer))))
-		  (let ((cmd `(org-link-search
-			       ,(if (member type '("custom-id" "coderef"))
-				    (org-element-property :raw-link link)
-				  path)
-			       ,(cond ((equal arg '(4)) 'occur)
-				      ((equal arg '(16)) 'org-occur))
-			       ,(org-element-property :begin link))))
-		    (condition-case nil
-			(let ((org-link-search-inhibit-query t))
-			  (eval cmd))
-		      (error (progn (widen) (eval cmd)))))))
+		  (let ((destination
+			 (org-with-wide-buffer
+			  (if (equal type "radio")
+			      (org-search-radio-target
+			       (org-element-property :path link))
+			    (org-link-search
+			     (if (member type '("custom-id" "coderef"))
+				 (org-element-property :raw-link link)
+			       path)
+			     ;; Prevent fuzzy links from matching
+			     ;; themselves.
+			     (and (equal type "fuzzy")
+				  (+ 2 (org-element-property :begin link)))))
+			  (point))))
+		    (unless (and (<= (point-min) destination)
+				 (>= (point-max) destination))
+		      (widen))
+		    (goto-char destination))))
 	       (t (browse-url-at-point))))))
 	 ;; On a footnote reference or at a footnote definition's label.
 	 ((or (eq type 'footnote-reference)
@@ -10858,7 +10861,6 @@ link in a property drawer line."
 			    (line-beginning-position)))))))
 	  (org-footnote-action))
 	 (t (user-error "No link found")))))
-    (move-marker org-open-link-marker nil)
     (run-hook-with-args 'org-follow-link-hook)))
 
 (defun org-offer-links-in-entry (buffer marker &optional nth zero)
@@ -10976,170 +10978,204 @@ the window configuration before `org-open-at-point' was called using:
 
     (set-window-configuration org-window-config-before-follow-link)")
 
-(defun org-link-search (s &optional type avoid-pos stealth)
-  "Search for a link search option.
-If S is surrounded by forward slashes, it is interpreted as a
-regular expression.  In org-mode files, this will create an `org-occur'
-sparse tree.  In ordinary files, `occur' will be used to list matches.
-If the current buffer is in `dired-mode', grep will be used to search
-in all files.  If AVOID-POS is given, ignore matches near that position.
+(defun org-search-radio-target (target)
+  "Search a radio target matching TARGET in current buffer.
+White spaces are not significant."
+  (let ((re (format "<<<%s>>>"
+		    (mapconcat #'regexp-quote
+			       (org-split-string target "[ \t\n]+")
+			       "[ \t]+\\(?:\n[ \t]*\\)?")))
+	(origin (point)))
+    (goto-char (point-min))
+    (catch :radio-match
+      (while (re-search-forward re nil t)
+	(backward-char)
+	(let ((object (org-element-context)))
+	  (when (eq (org-element-type object) 'radio-target)
+	    (goto-char (org-element-property :begin object))
+	    (org-show-context 'link-search)
+	    (throw :radio-match nil))))
+      (goto-char origin)
+      (user-error "No match for radio target: %s" target))))
+
+(defun org-link-search (s &optional avoid-pos stealth)
+  "Search for a search string S.
+
+If S starts with \"#\", it triggers a custom ID search.
+
+If S is enclosed within parenthesis, it initiates a coderef
+search.
+
+If S is surrounded by forward slashes, it is interpreted as
+a regular expression.  In Org mode files, this will create an
+`org-occur' sparse tree.  In ordinary files, `occur' will be used
+to list matches.  If the current buffer is in `dired-mode', grep
+will be used to search in all files.
+
+When AVOID-POS is given, ignore matches near that position.
 
 When optional argument STEALTH is non-nil, do not modify
 visibility around point, thus ignoring `org-show-context-detail'
-variable."
-  (let ((case-fold-search t)
-	(s0 (mapconcat 'identity (org-split-string s "[ \t\r\n]+") " "))
-	(markers (concat "\\(?:" (mapconcat (lambda (x) (regexp-quote (car x)))
-					    (append '(("") (" ") ("\t") ("\n"))
-						    org-emphasis-alist)
-					    "\\|") "\\)"))
-	(pos (point))
-	words re0 re2 re4_ re4 re5 re2a re2a_ reall)
+variable.
+
+Search is case-insensitive and ignores white spaces.  Return type
+of matched result, with is either `dedicated' or `fuzzy'."
+  (unless (org-string-nw-p s) (error "Invalid search string \"%s\"" s))
+  (let* ((case-fold-search t)
+	 (origin (point))
+	 (normalized (replace-regexp-in-string "\n[ \t]*" " " s))
+	 (words (org-split-string s "[ \t\n]+"))
+	 (s-multi-re (mapconcat #'regexp-quote words "[ \t]+\\(?:\n[ \t]*\\)?"))
+	 (s-single-re (mapconcat #'regexp-quote words "[ \t]+"))
+	 type)
     (cond
-     ;; First check if there are any special search functions
+     ;; Check if there are any special search functions.
      ((run-hook-with-args-until-success 'org-execute-file-search-functions s))
-     ;; Now try the builtin stuff
-     ((and (eq (aref s0 0) ?#)
-	   (> (length s0) 1)
-	   (let ((match (org-find-property "CUSTOM_ID" (substring s0 1))))
-	     (and match (goto-char match) (setf type 'dedicated)))))
-     ((save-excursion
+     ((eq (string-to-char s) ?#)
+      ;; Look for a custom ID S if S starts with "#".
+      (let* ((id (substring normalized 1))
+	     (match (org-find-property "CUSTOM_ID" id)))
+	(if match (progn (goto-char match) (setf type 'dedicated))
+	  (error "No match for custom ID: %s" id))))
+     ((string-match "\\`(\\(.*\\))\\'" normalized)
+      ;; Look for coderef targets if S is enclosed within parenthesis.
+      (let ((coderef (match-string-no-properties 1 normalized))
+	    (re (substring s-single-re 1 -1)))
 	(goto-char (point-min))
-	(and
-	 (re-search-forward
-	  (concat "<<" (regexp-quote s0) ">>") nil t)
-	 (setq type 'dedicated
-	       pos (match-beginning 0))))
-      ;; There is an exact target for this
-      (goto-char pos))
-     ((save-excursion
-	(goto-char (point-min))
-	(and
-	 (re-search-forward
-	  (format "^[ \t]*#\\+NAME: %s" (regexp-quote s0)) nil t)
-	 (setq type 'dedicated pos (match-beginning 0))))
-      ;; Found an element with a matching #+name affiliated keyword.
-      (goto-char pos))
-     ((and (string-match "^(\\(.*\\))$" s0)
-	   (save-excursion
-	     (goto-char (point-min))
-	     (and
-	      (re-search-forward
-	       (concat "[^[]" (regexp-quote
-			       (format org-coderef-label-format
-				       (match-string 1 s0))))
-	       nil t)
-	      (setq type 'dedicated
-		    pos (1+ (match-beginning 0))))))
-      ;; There is a coderef target for this
-      (goto-char pos))
-     ((string-match "^/\\(.*\\)/$" s)
-      ;; A regular expression
-      (cond
-       ((derived-mode-p 'org-mode)
-	(org-occur (match-string 1 s)))
-       (t (org-do-occur (match-string 1 s)))))
-     ((and (derived-mode-p 'org-mode)
-	   (or (and (equal (string-to-char s) ?*) (setq s (substring s 1)))
-	       org-link-search-must-match-exact-headline))
-      ;; Headline search.
-      (goto-char (point-min))
-      (cond
-       ((let (case-fold-search)
-	  (re-search-forward
-	   (let* ((wspace "[ \t]")
-		  (wspaceopt (concat wspace "*"))
-		  (cookie (concat "\\(?:"
-				  wspaceopt
-				  "\\[[0-9]*\\(?:%\\|/[0-9]*\\)\\]"
-				  wspaceopt
-				  "\\)"))
-		  (sep (concat "\\(?:" wspace "+\\|" cookie "+\\)")))
-	     (concat
-	      org-outline-regexp-bol
-	      "\\(?:" org-todo-regexp "[ \t]+\\)?"
-	      "\\(?:\\[#.\\][ \t]+\\)?"
-	      "\\(?:" org-comment-string "[ \t]+\\)?"
-	      sep "*"
-	      (mapconcat #'identity
-			 (org-split-string (regexp-quote s))
-			 (concat sep "+"))
-	      sep "*"
-	      (org-re "\\(?:[ \t]+:[[:alnum:]_@#%%:]+:\\)?")
-	      "[ \t]*$"))
-	   nil t))
-	;; OK, found a match
-	(setq type 'dedicated)
-	(goto-char (match-beginning 0)))
-       ((and (not org-link-search-inhibit-query)
-	     (eq org-link-search-must-match-exact-headline 'query-to-create)
-	     (y-or-n-p "No match - create this as a new heading? "))
-	(goto-char (point-max))
-	(unless (bolp) (newline))
-	(org-insert-heading nil t t)
-	(insert s "\n")
-	(beginning-of-line 0))
-       (t
-	(goto-char pos)
-	(error "No match"))))
+	(catch :coderef-match
+	  (while (re-search-forward re nil t)
+	    (let ((element (org-element-at-point)))
+	      (when (and (memq (org-element-type element)
+			       '(example-block src-block))
+			 ;; Build proper regexp according to current
+			 ;; block's label format.
+			 (let ((label-fmt
+				(regexp-quote
+				 (or (org-element-property :label-fmt element)
+				     org-coderef-label-format))))
+			   (save-excursion
+			     (beginning-of-line)
+			     (looking-at (format ".*?\\(%s\\)[ \t]*$"
+						 (format label-fmt coderef))))))
+		(setq type 'dedicated)
+		(goto-char (match-beginning 1))
+		(throw :coderef-match nil))))
+	  (goto-char origin)
+	  (error "No match for coderef: %s" coderef))))
+     ((string-match "\\`/\\(.*\\)/\\'" normalized)
+      ;; Look for a regular expression.
+      (funcall (if (derived-mode-p 'org-mode) #'org-occur #'org-do-occur)
+	       (match-string 1 s)))
+     ;; Fuzzy links.
      (t
-      ;; A normal search string
-      (remove-text-properties
-       0 (length s)
-       '(face nil mouse-face nil keymap nil fontified nil) s)
-      ;; Make a series of regular expressions to find a match
-      (setq words (org-split-string s "[ \n\r\t]+")
-
-	    re0 (concat "\\(<<" (regexp-quote s0) ">>\\)")
-	    re2 (concat markers "\\(" (mapconcat 'downcase words "[ \t]+")
-			"\\)" markers)
-	    re2a_ (concat "\\(" (mapconcat 'downcase words
-					   "[ \t\r\n]+") "\\)[ \t\r\n]")
-	    re2a (concat "[ \t\r\n]" re2a_)
-	    re4_ (concat "\\(" (mapconcat 'downcase words
-					  "[^a-zA-Z_\r\n]+") "\\)[^a-zA-Z_]")
-	    re4 (concat "[^a-zA-Z_]" re4_)
-
-	    re5 (concat ".*" re4)
-	    reall (concat "\\(" re0 "\\)\\|\\(" re2 "\\)\\|\\(" re4
-			  "\\)\\|\\(" re5 "\\)"))
-      (cond
-       ((eq type 'org-occur) (org-occur reall))
-       ((eq type 'occur) (org-do-occur (downcase reall) 'cleanup))
-       (t (goto-char (point-min))
-	  (setq type 'fuzzy)
-	  (if (or (and (org-search-not-self 1 re0 nil t)
-		       (setq type 'dedicated))
-		  (org-search-not-self 1 re2 nil t)
-		  (org-search-not-self 1 re2a nil t)
-		  (org-search-not-self 1 re4 nil t)
-		  (org-search-not-self 1 re5 nil t))
-	      (goto-char (match-beginning 1))
-	    (goto-char pos)
-	    (error "No match"))))))
-    (and (derived-mode-p 'org-mode)
-	 (not stealth)
-	 (org-show-context 'link-search))
+      (let* ((starred (eq (string-to-char normalized) ?*))
+	     (headline-search (and (derived-mode-p 'org-mode)
+				   (or org-link-search-must-match-exact-headline
+				       starred))))
+	(cond
+	 ;; Look for targets, only if not in a headline search.
+	 ((and (not starred)
+	       (let ((target (format "<<%s>>" s-multi-re)))
+		 (catch :target-match
+		   (goto-char (point-min))
+		   (while (re-search-forward target nil t)
+		     (backward-char)
+		     (let ((context (org-element-context)))
+		       (when (eq (org-element-type context) 'target)
+			 (setq type 'dedicated)
+			 (goto-char (org-element-property :begin context))
+			 (throw :target-match t))))
+		   nil))))
+	 ;; Look for elements named after S, only if not in a headline
+	 ;; search.
+	 ((and (not starred)
+	       (let ((name (format "^[ \t]*#\\+NAME: +%s[ \t]*$" s-single-re)))
+		 (catch :name-match
+		   (goto-char (point-min))
+		   (while (re-search-forward name nil t)
+		     (let ((element (org-element-at-point)))
+		       (when (equal (org-split-string
+				     (org-element-property :name element)
+				     "[ \t]+")
+				    words)
+			 (setq type 'dedicated)
+			 (beginning-of-line)
+			 (throw :name-match t))))
+		   nil))))
+	 ;; Regular text search.  Prefer headlines in Org mode
+	 ;; buffers.
+	 ((and (derived-mode-p 'org-mode)
+	       (let* ((wspace "[ \t]")
+		      (wspaceopt (concat wspace "*"))
+		      (cookie (concat "\\(?:"
+				      wspaceopt
+				      "\\[[0-9]*\\(?:%\\|/[0-9]*\\)\\]"
+				      wspaceopt
+				      "\\)"))
+		      (sep (concat "\\(?:" wspace "+\\|" cookie "+\\)"))
+		      (re (concat
+			   org-outline-regexp-bol
+			   "\\(?:" org-todo-regexp "[ \t]+\\)?"
+			   "\\(?:\\[#.\\][ \t]+\\)?"
+			   "\\(?:" org-comment-string "[ \t]+\\)?"
+			   sep "*"
+			   (let ((title (mapconcat #'regexp-quote
+						   words
+						   (concat sep "+"))))
+			     (if starred (substring title 1) title))
+			   sep "*"
+			   (org-re "\\(?:[ \t]+:[[:alnum:]_@#%%:]+:\\)?")
+			   "[ \t]*$")))
+		 (goto-char (point-min))
+		 (re-search-forward re nil t)))
+	  (goto-char (match-beginning 0))
+	  (setq type 'dedicated))
+	 ;; Offer to create non-existent headline depending on
+	 ;; `org-link-search-must-match-exact-headline'.
+	 ((and (derived-mode-p 'org-mode)
+	       (not org-link-search-inhibit-query)
+	       (eq org-link-search-must-match-exact-headline 'query-to-create)
+	       (yes-or-no-p "No match - create this as a new heading? "))
+	  (goto-char (point-max))
+	  (unless (bolp) (newline))
+	  (org-insert-heading nil t t)
+	  (insert s "\n")
+	  (beginning-of-line 0))
+	 ;; Only headlines are looked after.  No need to process
+	 ;; further: throw an error.
+	 ((and (derived-mode-p 'org-mode)
+	       (or starred org-link-search-must-match-exact-headline))
+	  (goto-char origin)
+	  (error "No match for fuzzy expression: %s" normalized))
+	 ;; Regular text search.
+	 ((catch :fuzzy-match
+	    (goto-char (point-min))
+	    (while (re-search-forward s-multi-re nil t)
+	      ;; Skip match if it contains AVOID-POS or it is included
+	      ;; in a link with a description but outside the
+	      ;; description.
+	      (unless (or (and avoid-pos
+			       (<= (match-beginning 0) avoid-pos)
+			       (> (match-end 0) avoid-pos))
+			  (and (save-match-data
+				 (org-in-regexp org-bracket-link-regexp))
+			       (match-beginning 3)
+			       (or (> (match-beginning 3) (point))
+				   (<= (match-end 3) (point)))
+			       (org-element-lineage
+				(save-match-data (org-element-context))
+				'(link) t)))
+		(goto-char (match-beginning 0))
+		(setq type 'fuzzy)
+		(throw :fuzzy-match t)))
+	    nil))
+	 ;; All failed.  Throw an error.
+	 (t (goto-char origin)
+	    (error "No match for fuzzy expression: %s" normalized))))))
+    ;; Disclose surroundings of match, if appropriate.
+    (when (and (derived-mode-p 'org-mode) (not stealth))
+      (org-show-context 'link-search))
     type))
-
-(defun org-search-not-self (group &rest args)
-  "Execute `re-search-forward', but only accept matches that do not
-enclose the position of `org-open-link-marker'."
-  (let ((m org-open-link-marker))
-    (catch 'exit
-      (while (apply 're-search-forward args)
-	(unless (get-text-property (match-end group) 'intangible) ; Emacs 21
-	  (goto-char (match-end group))
-	  (if (and (or (not (eq (marker-buffer m) (current-buffer)))
-		       (> (match-beginning 0) (marker-position m))
-		       (< (match-end 0) (marker-position m)))
-		   (save-match-data
-		     (or (not (org-in-regexp
-			       org-bracket-link-analytic-regexp 1))
-			 (not (match-end 4))  ; no description
-			 (and (<= (match-beginning 4) (point))
-			      (>= (match-end 4) (point))))))
-	      (throw 'exit (point))))))))
 
 (defun org-get-buffer-for-internal-link (buffer)
   "Return a buffer to be used for displaying the link target of internal links."
@@ -14907,110 +14943,108 @@ When JUST-ALIGN is non-nil, only align tags."
   (interactive "P")
   (if (and (org-region-active-p) org-loop-over-headlines-in-active-region)
       (let ((cl (if (eq org-loop-over-headlines-in-active-region 'start-level)
-                    'region-start-level 'region))
+                    'region-start-level
+		  'region))
             org-loop-over-headlines-in-active-region)
         (org-map-entries
          ;; We don't use ARG and JUST-ALIGN here because these args
          ;; are not useful when looping over headlines.
-         `(org-set-tags)
+         #'org-set-tags
          org-loop-over-headlines-in-active-region
-         cl (if (outline-invisible-p) (org-end-of-subtree nil t))))
-    (let* ((re org-outline-regexp-bol)
-           (current (unless arg (org-get-tags-string)))
-           (col (current-column))
-           (org-setting-tags t)
-           ;; computed below when needed
-           tags
-           level)
+         cl
+	 '(when (outline-invisible-p) (org-end-of-subtree nil t))))
+    (let ((org-setting-tags t))
       (if arg
           (save-excursion
             (goto-char (point-min))
             (let ((buffer-invisibility-spec (org-inhibit-invisibility)))
-              (while (re-search-forward re nil t)
+              (while (re-search-forward org-outline-regexp-bol nil t)
                 (org-set-tags nil t)
-                (end-of-line 1)))
+                (end-of-line)))
             (message "All tags realigned to column %d" org-tags-column))
-        (if just-align
-            (setq tags current)
-          ;; Get a new set of tags from the user
-          (save-excursion
-            (let* ((table (setq org-last-tags-completion-table
-                                (append org-tag-persistent-alist
-                                        (or org-tag-alist (org-get-buffer-tags))
-                                        (and
-                                         org-complete-tags-always-offer-all-agenda-tags
-                                         (org-global-tags-completion-table
-                                          (org-agenda-files))))))
-                   (current-tags (org-split-string current ":"))
-                   (inherited-tags (nreverse
-                                    (nthcdr (length current-tags)
-                                            (nreverse (org-get-tags-at))))))
-              (setq tags
-                    (if (or (eq t org-use-fast-tag-selection)
-                            (and org-use-fast-tag-selection
-                                 (delq nil (mapcar 'cdr table))))
-                        (org-fast-tag-selection
-                         current-tags inherited-tags table
-                         (if org-fast-tag-selection-include-todo
-                             org-todo-key-alist))
-                      (let ((org-add-colon-after-tag-completion (< 1 (length table))))
-                        (org-trim
-                         (org-icompleting-read "Tags: "
-                                               'org-tags-completion-function
-                                               nil nil current 'org-tags-history)))))))
-          (while (string-match "[-+&]+" tags)
-            ;; No boolean logic, just a list
-            (setq tags (replace-match ":" t t tags))))
+	(let* ((current (org-get-tags-string))
+	       (col (current-column))
+	       (tags
+		(if just-align current
+		  ;; Get a new set of tags from the user.
+		  (save-excursion
+		    (let* ((table
+			    (setq
+			     org-last-tags-completion-table
+			     (append
+			      org-tag-persistent-alist
+			      (or org-tag-alist (org-get-buffer-tags))
+			      (and
+			       org-complete-tags-always-offer-all-agenda-tags
+			       (org-global-tags-completion-table
+				(org-agenda-files))))))
+			   (current-tags (org-split-string current ":"))
+			   (inherited-tags
+			    (nreverse (nthcdr (length current-tags)
+					      (nreverse (org-get-tags-at))))))
+		      (replace-regexp-in-string
+		       "\\([-+&]+\\|,\\)"
+		       ":"
+		       (if (or (eq t org-use-fast-tag-selection)
+			       (and org-use-fast-tag-selection
+				    (delq nil (mapcar #'cdr table))))
+			   (org-fast-tag-selection
+			    current-tags inherited-tags table
+			    (and org-fast-tag-selection-include-todo
+				 org-todo-key-alist))
+			 (let ((org-add-colon-after-tag-completion
+				(< 1 (length table))))
+			   (org-trim
+			    (completing-read
+			     "Tags: "
+			     #'org-tags-completion-function
+			     nil nil current 'org-tags-history))))))))))
 
-        (setq tags (replace-regexp-in-string "[,]" ":" tags))
+	  (when org-tags-sort-function
+	    (setq tags
+		  (mapconcat
+		   #'identity
+		   (sort (org-split-string tags (org-re "[^[:alnum:]_@#%]+"))
+			 org-tags-sort-function)
+		   ":")))
 
-        (if org-tags-sort-function
-            (setq tags (mapconcat 'identity
-                                  (sort (org-split-string
-                                         tags (org-re "[^[:alnum:]_@#%]+"))
-                                        org-tags-sort-function) ":")))
+	  (if (not (org-string-nw-p tags)) (setq tags "")
+	    (unless (string-match ":\\'" tags) (setq tags (concat tags ":")))
+	    (unless (string-match "\\`:" tags) (setq tags (concat ":" tags))))
 
-        (if (string-match "\\`[\t ]*\\'" tags)
-            (setq tags "")
-          (unless (string-match ":$" tags) (setq tags (concat tags ":")))
-          (unless (string-match "^:" tags) (setq tags (concat ":" tags))))
-
-        ;; Insert new tags at the correct column
-        (beginning-of-line 1)
-        (setq level (or (and (looking-at org-outline-regexp)
-                             (- (match-end 0) (point) 1))
-                        1))
-        (cond
-          ((and (equal current "") (equal tags "")))
-          ((re-search-forward
-            (concat "\\([ \t]*" (regexp-quote current) "\\)[ \t]*$")
-            (point-at-eol) t)
-           (if (equal tags "")
-               (replace-match "" t t)
-             (goto-char (match-beginning 0))
-             (let* ((c0 (current-column))
-                    ;; compute offset for the case of org-indent-mode active
-                    (di (if (org-bound-and-true-p org-indent-mode)
-                            (* (1- org-indent-indentation-per-level) (1- level))
-                          0))
-                    (p0 (if (equal (char-before) ?*)
-                            (1+ (point))
-                          (point)))
-                    (tc (+ org-tags-column
-                           (if (> org-tags-column 0)
-                               (- di)
-                             di)))
-                    (c1 (max (1+ c0) (if (> tc 0)
-                                         tc
-                                       (- (- tc) (string-width tags)))))
-                    (rpl (concat (make-string (max 0 (- c1 c0)) ?\ ) tags)))
-               (replace-match rpl t t)
-               (when (and (not (featurep 'xemacs)) indent-tabs-mode)
-                 (tabify p0 (point))))))
-          (t (error "Tags alignment failed")))
-        (org-move-to-column col)
-        (unless just-align
-          (run-hooks 'org-after-tags-change-hook))))))
+	  ;; Insert new tags at the correct column
+	  (beginning-of-line)
+	  (let ((level (if (looking-at org-outline-regexp)
+			   (- (match-end 0) (point) 1)
+			 1)))
+	    (cond
+	     ((and (equal current "") (equal tags "")))
+	     ((re-search-forward
+	       (concat "\\([ \t]*" (regexp-quote current) "\\)[ \t]*$")
+	       (line-end-position)
+	       t)
+	      (if (equal tags "") (replace-match "" t t)
+		(goto-char (match-beginning 0))
+		(let* ((c0 (current-column))
+		       ;; Compute offset for the case of org-indent-mode
+		       ;; active.
+		       (di (if (org-bound-and-true-p org-indent-mode)
+			       (* (1- org-indent-indentation-per-level)
+				  (1- level))
+			     0))
+		       (p0 (if (eq (char-before) ?*) (1+ (point)) (point)))
+		       (tc (+ org-tags-column
+			      (if (> org-tags-column 0) (- di) di)))
+		       (c1 (max (1+ c0)
+				(if (> tc 0) tc
+				  (- (- tc) (string-width tags)))))
+		       (rpl (concat (make-string (max 0 (- c1 c0)) ?\s) tags)))
+		  (replace-match rpl t t)
+		  (when (and (not (featurep 'xemacs)) indent-tabs-mode)
+		    (tabify p0 (point))))))
+	     (t (error "Tags alignment failed"))))
+	  (org-move-to-column col))
+        (unless just-align (run-hooks 'org-after-tags-change-hook))))))
 
 (defun org-change-tag-in-region (beg end tag off)
   "Add or remove TAG for each entry in the region.

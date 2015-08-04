@@ -478,11 +478,15 @@ AUTO will automatically be replaced with a coding system derived
 from `buffer-file-coding-system'.  See also the variable
 `org-latex-inputenc-alist' for a way to influence this mechanism.
 
-Likewise, if your header contains \"\\usepackage[AUTO]{babel}\",
-AUTO will be replaced with the language related to the language
-code specified by `org-export-default-language', which see.  Note
-that constructions such as \"\\usepackage[french,AUTO,english]{babel}\"
-are permitted.
+Likewise, if your header contains \"\\usepackage[AUTO]{babel}\"
+or \"\\usepackage[AUTO]{polyglossia}\", AUTO will be replaced
+with the language related to the language code specified by
+`org-export-default-language'.  Note that constructions such as
+\"\\usepackage[french,AUTO,english]{babel}\" are permitted.  For
+Polyglossia the language will be set via the macros
+\"\\setmainlanguage\" and \"\\setotherlanguage\".  See also
+`org-latex-guess-babel-language' and
+`org-latex-guess-polyglossia-language'.
 
 The sectioning structure
 ------------------------
@@ -1298,40 +1302,42 @@ replaced with the language of the document or
 using \setdefaultlanguage and not as an option to the package.
 
 Return the new header."
-  (let ((language (plist-get info :language))
-	result)
+  (let ((language (plist-get info :language)))
     ;; If no language is set or Polyglossia is not loaded, return
     ;; HEADER as-is.
-    (if (or (not (org-string-nw-p language))
+    (if (or (not (stringp language))
 	    (not (string-match
-		  "\\\\usepackage\\(?:\\[\\([^]]+?\\)\\]\\){polyglossia}\n" header)))
+		  "\\\\usepackage\\(?:\\[\\([^]]+?\\)\\]\\){polyglossia}\n"
+		  header)))
 	header
       (let* ((options (org-string-nw-p (match-string 1 header)))
-	     (languages (when options
-			  (save-match-data
-			    ;; Reverse as the last loaded language is
-			    ;; the main language.
-			    (reverse
-			     (delete-dups
-			      (org-split-string
-			       (replace-regexp-in-string
-				"AUTO" language options t)
-			       ",[ \t]*"))))))
-	     (main-language-set-p
+	     (languages (and options
+			     ;; Reverse as the last loaded language is
+			     ;; the main language.
+			     (nreverse
+			      (delete-dups
+			       (save-match-data
+				 (org-split-string
+				  (replace-regexp-in-string
+				   "AUTO" language options t)
+				  ",[ \t]*"))))))
+	     (main-language-set
 	      (string-match-p "\\\\setmainlanguage{.*?}" header)))
 	(replace-match
 	 (concat "\\usepackage{polyglossia}\n"
-		 (loop for l in languages concat
-		       (let ((lang (or (assoc l org-latex-polyglossia-language-alist)
-				       l)))
-			 (format (if main-language-set-p
-				     "\\setotherlanguage%s{%s}\n"
-				   (progn (setq main-language-set-p t)
-					  "\\setmainlanguage%s{%s}\n"))
-				 (if (and (listp lang) (eq 3 (length lang)))
-				     (format "[variant=%s]" (nth 2 lang))
-				   "")
-				 (nth 1 lang)))))
+		 (mapconcat
+		  (lambda (l)
+		    (let ((l (or (assoc l org-latex-polyglossia-language-alist)
+				 l)))
+		      (format (if main-language-set "\\setotherlanguage%s{%s}\n"
+				(setq main-language-set t)
+				"\\setmainlanguage%s{%s}\n")
+			      (if (and (consp l) (= (length l) 3))
+				  (format "[variant=%s]" (nth 2 l))
+				"")
+			      (nth 1 l))))
+		  languages
+		  ""))
 	 t t header 0)))))
 
 (defun org-latex--find-verb-separator (s)
@@ -1463,21 +1469,10 @@ INFO is a plist used as a communication channel."
       (?L . ,(capitalize language))
       (?D . ,(org-export-get-date info)))))
 
-
-;;; Template
-
-(defun org-latex-template (contents info)
-  "Return complete document string after LaTeX conversion.
-CONTENTS is the transcoded contents string.  INFO is a plist
-holding export options."
-  (let ((title (org-export-data (plist-get info :title) info))
-	(spec (org-latex--format-spec info)))
-    (concat
-     ;; Time-stamp.
-     (and (plist-get info :time-stamp-file)
-	  (format-time-string "%% Created %Y-%m-%d %a %H:%M\n"))
-     ;; Document class and packages.
-     (let* ((class (plist-get info :latex-class))
+(defun org-latex--make-header (info)
+  "Return a formatted LaTeX header.
+INFO is a plist used as a communication channel."
+  (let* ((class (plist-get info :latex-class))
 	    (class-options (plist-get info :latex-class-options))
 	    (header (nth 1 (assoc class (plist-get info :latex-classes))))
 	    (document-class-string
@@ -1500,7 +1495,23 @@ holding export options."
 		       (plist-get info :latex-header))
 		      (plist-get info :latex-header-extra)))))
 	   info)
-	  info)))
+	  info))))
+
+
+;;; Template
+
+(defun org-latex-template (contents info)
+  "Return complete document string after LaTeX conversion.
+CONTENTS is the transcoded contents string.  INFO is a plist
+holding export options."
+  (let ((title (org-export-data (plist-get info :title) info))
+	(spec (org-latex--format-spec info)))
+    (concat
+     ;; Time-stamp.
+     (and (plist-get info :time-stamp-file)
+	  (format-time-string "%% Created %Y-%m-%d %a %H:%M\n"))
+     ;; Document class and packages.
+     (org-latex--make-header info)
      ;; Possibly limit depth for headline numbering.
      (let ((sec-num (plist-get info :section-numbers)))
        (when (integerp sec-num)
