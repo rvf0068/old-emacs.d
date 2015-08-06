@@ -66,9 +66,17 @@ channel."
 		  "!\\[img\\](\\(.*\\)\.\\(png\\|jpg\\|jpeg\\))"
 		  "{% img center /images/\\1.\\2 %}"
 		  body))
+	 (corollaries (replace-regexp-in-string
+		       ":B<sub>corollary</sub>:"
+		       "Corolario"
+		       images))
+	 (theorems (replace-regexp-in-string
+		       ":B<sub>theorem</sub>:"
+		       "Teorema"
+		       corollaries))
 	 (frontmatter
 	  "---\nlayout: %s\ntitle: %s\ndate: %s %s\ncomments: true\npublished: %s\ncategories: %s\n---\n\n"))
-    (concat (format frontmatter layout title date time published keywords) images)
+    (concat (format frontmatter layout title date time published keywords) theorems)
     ))
 
 (defun org-kramdown-export-as-kramdown
