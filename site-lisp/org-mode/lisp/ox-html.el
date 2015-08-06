@@ -627,7 +627,7 @@ The function must accept two parameters:
 The function should return the string to be exported.
 
 For example, the variable could be set to the following function
-in order to mimic default behaviour:
+in order to mimic default behavior:
 
 The default value simply returns the value of CONTENTS."
   :group 'org-export-html
@@ -761,7 +761,7 @@ t              Synonym for `mathjax'."
 When `org-mode' is exporting an `org-mode' file to HTML, links to
 non-html files are directly put into a href tag in HTML.
 However, links to other Org-mode files (recognized by the
-extension `.org.) should become links to the corresponding html
+extension `.org') should become links to the corresponding html
 file, assuming that the linked `org-mode' file will also be
 converted to HTML.
 When nil, the links still point to the plain `.org' file."
@@ -1809,7 +1809,7 @@ used in the preamble or postamble."
     (?C . ,(let ((file (plist-get info :input-file)))
 	     (format-time-string
 	      (plist-get info :html-metadata-timestamp-format)
-	      (if file (nth 5 (file-attributes file)) (current-time)))))
+	      (when file (nth 5 (file-attributes file))))))
     (?v . ,(or (plist-get info :html-validation-link) ""))))
 
 (defun org-html--build-pre/postamble (type info)
@@ -2041,25 +2041,30 @@ is the language used for CODE, as a string, or nil."
 	 ;; Case 2: Default.  Fontify code.
 	 (t
 	  ;; htmlize
-	  (setq code (with-temp-buffer
-		       ;; Switch to language-specific mode.
-		       (funcall lang-mode)
-		       (insert code)
-		       ;; Fontify buffer.
-		       (font-lock-ensure)
-		       ;; Remove formatting on newline characters.
-		       (save-excursion
-			 (let ((beg (point-min))
-			       (end (point-max)))
-			   (goto-char beg)
-			   (while (progn (end-of-line) (< (point) end))
-			     (put-text-property (point) (1+ (point)) 'face nil)
-			     (forward-char 1))))
-		       (org-src-mode)
-		       (set-buffer-modified-p nil)
-		       ;; Htmlize region.
-		       (org-html-htmlize-region-for-paste
-			(point-min) (point-max))))
+	  (setq code
+		(let ((output-type org-html-htmlize-output-type)
+		      (font-prefix org-html-htmlize-font-prefix))
+		  (with-temp-buffer
+		    ;; Switch to language-specific mode.
+		    (funcall lang-mode)
+		    (insert code)
+		    ;; Fontify buffer.
+		    (font-lock-ensure)
+		    ;; Remove formatting on newline characters.
+		    (save-excursion
+		      (let ((beg (point-min))
+			    (end (point-max)))
+			(goto-char beg)
+			(while (progn (end-of-line) (< (point) end))
+			  (put-text-property (point) (1+ (point)) 'face nil)
+			  (forward-char 1))))
+		    (org-src-mode)
+		    (set-buffer-modified-p nil)
+		    ;; Htmlize region.
+		    (let ((org-html-htmlize-output-type output-type)
+			  (org-html-htmlize-font-prefix font-prefix))
+		      (org-html-htmlize-region-for-paste
+		       (point-min) (point-max))))))
 	  ;; Strip any enclosing <pre></pre> tags.
 	  (let* ((beg (and (string-match "\\`<pre[^>]*>\n*" code) (match-end 0)))
 		 (end (and beg (string-match "</pre>\\'" code))))
