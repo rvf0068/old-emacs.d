@@ -167,7 +167,7 @@
 (global-set-key
  (kbd "<f12> d")
  (lambda nil (interactive)
-   (find-file "~/Dropbox/emacs/dotemacs/dotemacs.org")
+   (dired "~/Dropbox/paginas/discretas/source/org/")
    ))
 (global-set-key
  (kbd "<f12> g")
