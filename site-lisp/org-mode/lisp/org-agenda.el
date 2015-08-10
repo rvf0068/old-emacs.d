@@ -3857,35 +3857,35 @@ dimming them."
   (interactive "P")
   (when (org-called-interactively-p 'interactive)
     (message "Dim or hide blocked tasks..."))
-  (mapc (lambda (o) (if (eq (overlay-get o 'org-type) 'org-blocked-todo)
-			(delete-overlay o)))
-	(overlays-in (point-min) (point-max)))
+  (dolist (o (overlays-in (point-min) (point-max)))
+    (when (eq (overlay-get o 'org-type) 'org-blocked-todo)
+      (delete-overlay o)))
   (save-excursion
     (let ((inhibit-read-only t)
 	  (org-depend-tag-blocked nil)
-	  (invis (or (not (null invisible))
-		     (eq org-agenda-dim-blocked-tasks 'invisible)))
-	  org-blocked-by-checkboxes
-	  invis1 b e p ov h l)
+	  org-blocked-by-checkboxes)
       (goto-char (point-min))
-      (while (let ((pos (next-single-property-change (point) 'todo-state)))
-	       (and pos (goto-char (1+ pos))))
-	(setq org-blocked-by-checkboxes nil invis1 invis)
+      (while (let ((pos (text-property-not-all
+			 (point) (point-max) 'todo-state nil)))
+	       (when pos (goto-char (1+ pos))))
+	(setq org-blocked-by-checkboxes nil)
 	(let ((marker (org-get-at-bol 'org-hd-marker)))
-	  (when (and marker
+	  (when (and (markerp marker)
 		     (with-current-buffer (marker-buffer marker)
 		       (save-excursion (goto-char marker)
 				       (org-entry-blocked-p))))
-	    (if org-blocked-by-checkboxes (setq invis1 nil))
-	    (setq b (if invis1
-			(max (point-min) (1- (point-at-bol)))
-		      (point-at-bol))
-		  e (point-at-eol)
-		  ov (make-overlay b e))
-	    (if invis1
-		(overlay-put ov 'invisible t)
-	      (overlay-put ov 'face 'org-agenda-dimmed-todo-face))
-	    (overlay-put ov 'org-type 'org-blocked-todo))))))
+	    ;; Entries blocked by checkboxes cannot be made invisible.
+	    ;; See `org-agenda-dim-blocked-tasks' for details.
+	    (let* ((really-invisible
+		    (and (not org-blocked-by-checkboxes)
+			 (or invisible (eq org-agenda-dim-blocked-tasks
+					   'invisible))))
+		   (ov (make-overlay (if really-invisible (line-end-position 0)
+				       (line-beginning-position))
+				     (line-end-position))))
+	      (if really-invisible (overlay-put ov 'invisible t)
+		(overlay-put ov 'face 'org-agenda-dimmed-todo-face))
+	      (overlay-put ov 'org-type 'org-blocked-todo)))))))
   (when (org-called-interactively-p 'interactive)
     (message "Dim or hide blocked tasks...done")))
 
@@ -8593,7 +8593,9 @@ It also looks at the text of the entry itself."
 			   (symbol-value var))))))
 
 (defun org-agenda-switch-to (&optional delete-other-windows)
-  "Go to the Org-mode file which contains the item at point."
+  "Go to the Org mode file which contains the item at point.
+When optional argument DELETE-OTHER-WINDOWS is non-nil, the
+displayed Org file fills the frame."
   (interactive)
   (if (and org-return-follows-link
 	   (not (org-get-at-bol 'org-marker))
@@ -8605,17 +8607,11 @@ It also looks at the text of the entry itself."
 	   (pos (marker-position marker)))
       (unless buffer (user-error "Trying to switch to non-existent buffer"))
       (org-pop-to-buffer-same-window buffer)
-      (and delete-other-windows (delete-other-windows))
+      (when delete-other-windows (delete-other-windows))
       (widen)
       (goto-char pos)
-      (org-back-to-heading t)
       (when (derived-mode-p 'org-mode)
 	(org-show-context 'agenda)
-	(save-excursion
-	  (and (outline-next-heading)
-	       (org-flag-heading nil))) ; show the next heading
-	(when (outline-invisible-p)
-	  (show-entry))                 ; display invisible text
 	(run-hooks 'org-agenda-after-show-hook)))))
 
 (defun org-agenda-goto-mouse (ev)
