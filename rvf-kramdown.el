@@ -74,9 +74,23 @@ channel."
 		       ":B<sub>theorem</sub>:"
 		       "Teorema"
 		       corollaries))
+	 (columns (replace-regexp-in-string
+		   ":BMCOL:"
+		   ""
+		   theorems))
+	 (blocks (replace-regexp-in-string
+		   ":B<sub>block</sub>"
+		   ""
+		   columns))	 
+	 (lists (replace-regexp-in-string
+		 "\n\n    -"
+		 "
+    -"
+		 blocks
+		 ))
 	 (frontmatter
 	  "---\nlayout: %s\ntitle: %s\ndate: %s %s\ncomments: true\npublished: %s\ncategories: %s\n---\n\n"))
-    (concat (format frontmatter layout title date time published keywords) theorems)
+    (concat (format frontmatter layout title date time published keywords) lists)
     ))
 
 (defun org-kramdown-export-as-kramdown
