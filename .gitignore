@@ -13,3 +13,4 @@ elpa
 /request/curl-cookie-jar
 /.org-id-locations
 /bookmarks
+/smex-items
