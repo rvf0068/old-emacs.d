@@ -1,0 +1,10 @@
+# -*- mode: snippet -*-
+# name: align
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: align
+# --
+#+markdown: $$
+\begin{align*}
+$0
+\end{align*}
+#+markdown: $$
