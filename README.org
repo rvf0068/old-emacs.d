@@ -1,8 +1,21 @@
-To use this configuration one must:
+* Introduction
 
-- run ~git clone git@github.com:rvf0068/emacs.d.git .emacs.d~
-- create a blank file called ~diary~ in the home directory, and another
-  called ~custom.el~ in the directory ~.emacs.d~.
-- create a directory =~/backups= in the home directory
-- go to =~/.emacs.d/site-lisp/org-mode= and run =make= (In ubuntu, one has
-  to install the package =texinfo=).
+  To use this configuration one must:
+
+  - run ~git clone git@github.com:rvf0068/emacs.d.git .emacs.d~
+  - create a blank file called ~diary~ in the home directory, and
+    another called ~custom.el~ in the directory ~.emacs.d~.
+  - create a directory =~/backups= in the home directory
+  - go to =~/.emacs.d/site-lisp/org-mode= and run =make= (In ubuntu, one
+    has to install the package =texinfo=).
+
+* Useful commands
+
+** From Emacs
+
+   |C-x C-f|open a file|
+
+** From this configuration
+
+   |F2 F2|indent according to mode|
+
