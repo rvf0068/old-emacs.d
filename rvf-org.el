@@ -246,7 +246,8 @@ When called twice, replace the previously inserted \\(\\) by one $."
   (add-to-list 'ispell-skip-region-alist '(org-property-drawer-re))
   (add-to-list 'ispell-skip-region-alist '("~" "~"))
   (add-to-list 'ispell-skip-region-alist '("=" "="))
-;  (add-to-list 'ispell-skip-region-alist '("^#\\+BEGIN_SRC" . "^#\\+END_SRC")))
+;  (add-to-list 'ispell-skip-region-alist '("^#\\+BEGIN_SRC" . "^#\\+END_SRC"))
+  )
 (add-hook 'org-mode-hook #'endless/org-ispell)
 
 ;; see http://stackoverflow.com/a/19818134/577007
