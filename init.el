@@ -67,6 +67,13 @@
 	)
       )
 
+(setq cdlatex-command-alist
+      '(
+	("bin"         "Insert \\binom{}{}"
+	 "\\binom{?}{}"           cdlatex-position-cursor nil nil t)
+	)
+      )
+
 (setq cdlatex-simplify-sub-super-scripts nil)
 
 ;; yasnippet: https://github.com/capitaomorte/yasnippet

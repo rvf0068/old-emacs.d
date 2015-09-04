@@ -239,5 +239,15 @@ When called twice, replace the previously inserted \\(\\) by one $."
 ;; see http://orgmode.org/w/?p=worg.git;a=commitdiff;h=022e5ecafdda4c2a89322251795a437a0918d4c5
 (add-to-list 'ispell-skip-region-alist '("#\\+begin_src". "#\\+end_src"))
 
+;; see http://endlessparentheses.com/ispell-and-org-mode.html
+(defun endless/org-ispell ()
+  "Configure `ispell-skip-region-alist' for `org-mode'."
+  (make-local-variable 'ispell-skip-region-alist)
+  (add-to-list 'ispell-skip-region-alist '(org-property-drawer-re))
+  (add-to-list 'ispell-skip-region-alist '("~" "~"))
+  (add-to-list 'ispell-skip-region-alist '("=" "="))
+;  (add-to-list 'ispell-skip-region-alist '("^#\\+BEGIN_SRC" . "^#\\+END_SRC")))
+(add-hook 'org-mode-hook #'endless/org-ispell)
+
 ;; see http://stackoverflow.com/a/19818134/577007
 (put 'org-beamer-verbatim-elements 'safe-local-variable (lambda (xx) t))
