@@ -701,7 +701,7 @@ Using header arguments
 Specific header arguments
 
 * var::                         Pass arguments to code blocks
-* Results::                     Specify the type of results and how they will
+* results::                     Specify the type of results and how they will
                                 be collected and handled
 * file::                        Specify a path for file output
 * file-desc::                   Specify a description for file results
@@ -2074,6 +2074,10 @@ It will output a list containing the buffer's content represented as an
 abstract structure.  The export engine relies on the information stored in
 this list.  Most interactive commands (e.g., for structure editing) also
 rely on the syntactic meaning of the surrounding context.
+
+@cindex syntax checker
+@cindex linter
+You can check syntax in your documents using @code{org-lint} command.
 
 @node Tables
 @chapter Tables
@@ -6512,7 +6516,7 @@ reset of the task @footnote{as recorded by the @code{LAST_REPEAT} property}
 will be shown.  More control over what time is shown can be exercised with
 the @code{CLOCK_MODELINE_TOTAL} property.  It may have the values
 @code{current} to show only the current clocking instance, @code{today} to
-show all time clocked on this tasks today (see also the variable
+show all time clocked on this task today (see also the variable
 @code{org-extend-today-until}), @code{all} to include all time, or
 @code{auto} which is the default@footnote{See also the variable
 @code{org-clock-modeline-total}.}.@* Clicking with @kbd{mouse-1} onto the
@@ -10216,16 +10220,20 @@ export.
 
 @item @{@{@{date@}@}@}
 @itemx @{@{@{date(@var{FORMAT})@}@}@}
-@itemx @{@{@{time(@var{FORMAT})@}@}@}
-@itemx @{@{@{modification-time(@var{FORMAT})@}@}@}
 @cindex date, macro
+This macro refers to the @code{#+DATE} keyword. @var{FORMAT} is an optional
+argument to the @code{@{@{@{date@}@}@}} macro that will be used only if
+@code{#+DATE} is a single timestamp.  @var{FORMAT} should be a format string
+understood by @code{format-time-string}.
+
+@item @{@{@{time(@var{FORMAT})@}@}@}
+@itemx @{@{@{modification-time(@var{FORMAT})@}@}@}
 @cindex time, macro
 @cindex modification time, macro
-These macros refer to the @code{#+DATE} keyword, the current date, and the
-modification time of the file being exported, respectively.  @var{FORMAT}
-should be a format string understood by @code{format-time-string}.  Note that
-@var{FORMAT} is an optional argument to the @code{@{@{@{date@}@}@}} macro,
-and that it will only be used if @code{#+DATE} is a single timestamp.
+These macros refer to the date and time when the document is exported and to
+the modification date and time of the file being exported, respectively.
+@var{FORMAT} should be a format string understood by
+@code{format-time-string}.
 
 @item @{@{@{input-file@}@}@}
 @cindex input file, macro
@@ -14361,7 +14369,6 @@ however, override everything.
 @item @code{:html-todo-kwd-class-prefix}      @tab @code{org-html-todo-kwd-class-prefix}
 @item @code{:html-toplevel-hlevel}            @tab @code{org-html-toplevel-hlevel}
 @item @code{:html-use-infojs}                 @tab @code{org-html-use-infojs}
-@item @code{:html-use-unicode-chars}          @tab @code{org-html-use-unicode-chars}
 @item @code{:html-validation-link}            @tab @code{org-html-validation-link}
 @item @code{:html-viewport}                   @tab @code{org-html-viewport}
 @item @code{:html-xml-declaration}            @tab @code{org-html-xml-declaration}
@@ -14943,7 +14950,7 @@ The @code{org-babel-tangle-jump-to-org} function provides this jumping from
 code to Org-mode functionality.  Two header arguments are required for
 jumping to work, first the @code{padline} (@ref{padline}) option must be set
 to true (the default setting), second the @code{comments} (@ref{comments})
-header argument must be set to @code{links}, which will insert comments into
+header argument must be set to @code{link}, which will insert comments into
 the source code buffer which point back to the original Org-mode file.
 
 @node Evaluating code blocks
@@ -15336,7 +15343,7 @@ argument in lowercase letters.  The following header arguments are defined:
 
 @menu
 * var::                         Pass arguments to code blocks
-* Results::                     Specify the type of results and how they will
+* results::                     Specify the type of results and how they will
                                 be collected and handled
 * file::                        Specify a path for file output
 * file-desc::                   Specify a description for file results
@@ -15630,7 +15637,7 @@ Emacs Lisp, as shown in the following example.
 : (a b c)
 @end example
 
-@node Results
+@node results
 @subsubsection @code{:results}
 @cindex @code{:results}, src header argument
 
@@ -16467,7 +16474,7 @@ block body before execution.  Also see @ref{prologue}.
 The way in which results are handled depends on whether a session is invoked,
 as well as on whether @code{:results value} or @code{:results output} is
 used.  The following table shows the table possibilities.  For a full listing
-of the possible results header arguments see @ref{Results}.
+of the possible results header arguments see @ref{results}.
 
 @multitable @columnfractions 0.26 0.33 0.41
 @item @tab @b{Non-session} @tab @b{Session}

@@ -3867,7 +3867,7 @@ dimming them."
       (goto-char (point-min))
       (while (let ((pos (text-property-not-all
 			 (point) (point-max) 'todo-state nil)))
-	       (when pos (goto-char (1+ pos))))
+	       (when pos (goto-char pos)))
 	(setq org-blocked-by-checkboxes nil)
 	(let ((marker (org-get-at-bol 'org-hd-marker)))
 	  (when (and (markerp marker)
@@ -3885,7 +3885,8 @@ dimming them."
 				     (line-end-position))))
 	      (if really-invisible (overlay-put ov 'invisible t)
 		(overlay-put ov 'face 'org-agenda-dimmed-todo-face))
-	      (overlay-put ov 'org-type 'org-blocked-todo)))))))
+	      (overlay-put ov 'org-type 'org-blocked-todo))))
+	(forward-line))))
   (when (org-called-interactively-p 'interactive)
     (message "Dim or hide blocked tasks...done")))
 
@@ -7168,7 +7169,9 @@ in the file.  Otherwise, restriction will be to the current subtree."
 
 (defun org-agenda-maybe-redo ()
   "If there is any window showing the agenda view, update it."
-  (let ((w (get-buffer-window org-agenda-buffer-name t))
+  (let ((w (get-buffer-window (or org-agenda-this-buffer-name
+				  org-agenda-buffer-name)
+			      t))
 	(w0 (selected-window)))
     (when w
       (select-window w)
@@ -8388,13 +8391,13 @@ When called with a prefix argument, include all archive files as well."
       (org-show-context 'agenda)
       (save-excursion
 	(and (outline-next-heading)
-	     (org-flag-heading nil))))	; show the next heading
-    (when (outline-invisible-p)
-      (show-entry))			; display invisible text
-    (recenter (/ (window-height) 2))
-    (org-back-to-heading t)
-    (if (re-search-forward org-complex-heading-regexp nil t)
-	(goto-char (match-beginning 4)))
+	     (org-flag-heading nil)))	; show the next heading
+      (when (outline-invisible-p)
+	(show-entry))			; display invisible text
+      (recenter (/ (window-height) 2))
+      (org-back-to-heading t)
+      (if (re-search-forward org-complex-heading-regexp nil t)
+	  (goto-char (match-beginning 4))))
     (run-hooks 'org-agenda-after-show-hook)
     (and highlight (org-highlight (point-at-bol) (point-at-eol)))))
 
@@ -8686,7 +8689,7 @@ if it was hidden in the outline."
       (message "Remote: show with default settings"))
      ((= more 2)
       (show-entry)
-      (show-children)
+      (org-show-children)
       (save-excursion
 	(org-back-to-heading)
 	(run-hook-with-args 'org-cycle-hook 'children))
@@ -9414,11 +9417,13 @@ buffer, display it in another window."
   "Where in `org-agenda-diary-file' should new entries be added?
 Valid values:
 
-date-tree    in the date tree, as child of the date
-top-level    as top-level entries at the end of the file."
+date-tree         in the date tree, as first child of the date
+date-tree-last    in the date tree, as last child of the date
+top-level         as top-level entries at the end of the file."
   :group 'org-agenda
   :type '(choice
-	  (const :tag "in a date tree" date-tree)
+	  (const :tag "first in a date tree" date-tree)
+	  (const :tag "last in a date tree" date-tree-last)
 	  (const :tag "as top level at end of file" top-level)))
 
 (defcustom org-agenda-insert-diary-extract-time nil
@@ -9522,14 +9527,20 @@ a timestamp can be added there."
   (when org-adapt-indentation (org-indent-to-column 2)))
 
 (defun org-agenda-insert-diary-make-new-entry (text)
-  "Make a new entry with TEXT as the first child of the current subtree.
+  "Make a new entry with TEXT as a child of the current subtree.
 Position the point in the heading's first body line so that
 a timestamp can be added there."
-  (outline-next-heading)
-  (org-back-over-empty-lines)
-  (unless (looking-at "[ \t]*$") (save-excursion (insert "\n")))
-  (org-insert-heading nil t)
-  (org-do-demote)
+  (cond
+   ((eq org-agenda-insert-diary-strategy 'date-tree-last)
+    (end-of-line)
+    (org-insert-heading '(4) t)
+    (org-do-demote))
+   (t
+    (outline-next-heading)
+    (org-back-over-empty-lines)
+    (unless (looking-at "[ \t]*$") (save-excursion (insert "\n")))
+    (org-insert-heading nil t)
+    (org-do-demote)))
   (let ((col (current-column)))
     (insert text)
     (org-end-of-meta-data)

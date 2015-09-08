@@ -1,4 +1,4 @@
-;;; test-ox.el --- Tests for ox.el
+;;; test-ox.el --- Tests for ox.el                   -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2012-2015  Nicolas Goaziou
 
@@ -28,18 +28,14 @@
   "Return a default export back-end.
 This back-end simply returns parsed data as Org syntax."
   (org-export-create-backend
-   :transcoders (let (transcode-table)
-		  (dolist (type (append org-element-all-elements
-					org-element-all-objects)
-				transcode-table)
-		    (push
-		     (cons type
-			   (lambda (obj contents info)
-			     (funcall
-			      (intern (format "org-element-%s-interpreter"
-					      type))
-			      obj contents)))
-		     transcode-table)))))
+   :transcoders
+   (mapcar (lambda (type)
+	     (cons type
+		   (lambda (o c _)
+		     (funcall
+		      (intern (format "org-element-%s-interpreter" type))
+		      o c))))
+	   (append org-element-all-elements org-element-all-objects))))
 
 (defmacro org-test-with-parsed-data (data &rest body)
   "Execute body with parsed data available.
@@ -762,6 +758,29 @@ Paragraph <2012-03-29 Thu>[2012-03-29 Thu]"
 				      (plist-get i :title) i)))
 		(section . (lambda (s c i) c))))
 	     nil nil nil '(:with-sub-superscript nil)))))
+  ;; Handle uninterpreted objects in captions.
+  (should
+   (equal "adummy\n"
+	  (org-test-with-temp-text "#+CAPTION: a_b\nParagraph"
+	    (org-export-as
+	     (org-export-create-backend
+	      :transcoders
+	      '((subscript . (lambda (s c i) "dummy"))
+		(paragraph . (lambda (p c i)
+			       (org-export-data (org-export-get-caption p) i)))
+		(section . (lambda (s c i) c))))
+	     nil nil nil '(:with-sub-superscript t)))))
+  (should
+   (equal "a_b\n"
+	  (org-test-with-temp-text "#+CAPTION: a_b\nParagraph"
+	    (org-export-as
+	     (org-export-create-backend
+	      :transcoders
+	      '((subscript . (lambda (s c i) "dummy"))
+		(paragraph . (lambda (p c i)
+			       (org-export-data (org-export-get-caption p) i)))
+		(section . (lambda (s c i) c))))
+	     nil nil nil '(:with-sub-superscript nil)))))
   ;; Special case: multiples uninterpreted objects in a row.
   (should
    (equal "a_b_c_d\n"
@@ -951,7 +970,7 @@ text
       (length
        (delete-dups
 	(let ((contents "
-Footnotes[fn:1], [fn:test] and [fn:inline:anonymous footnote].
+Footnotes[fn:1], [fn:test], [fn:test] and [fn:inline:anonymous footnote].
 \[fn:1] Footnote 1
 \[fn:test] Footnote \"test\""))
 	  (org-test-with-temp-text-in-file contents
@@ -964,8 +983,7 @@ Footnotes[fn:1], [fn:test] and [fn:inline:anonymous footnote].
 		    (org-export-expand-include-keyword)
 		    (org-element-map (org-element-parse-buffer)
 			'footnote-reference
-		      (lambda (ref)
-			(org-element-property :label ref)))))))))))))
+		      (lambda (r) (org-element-property :label r)))))))))))))
   ;; Footnotes labels are not local to each include keyword.
   (should
    (= 4
@@ -1541,18 +1559,20 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
 	  (let ((test-back-end
 		 (org-export-create-backend
 		  :transcoders
-		  '((headline . (lambda (headline contents info)
-				  (org-export-data
-				   (org-element-property :title headline)
-				   info)))
-		    (plain-text . (lambda (text info) "Success"))))))
+		  (list (cons 'headline
+			      (lambda (headline contents info)
+				(org-export-data
+				 (org-element-property :title headline)
+				 info)))
+			(cons 'plain-text (lambda (text info) "Success"))))))
 	    (org-export-string-as
 	     "* Test"
 	     (org-export-create-backend
 	      :transcoders
-	      '((headline . (lambda (headline contents info)
-			      (org-export-with-backend
-			       test-back-end headline contents info))))))))))
+	      (list (cons 'headline
+			  (lambda (headline contents info)
+			    (org-export-with-backend
+			     test-back-end headline contents info))))))))))
 
 (ert-deftest test-org-export/data-with-backend ()
   "Test `org-export-data-with-backend' specifications."
@@ -1618,7 +1638,7 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
 	  :transcoders
 	  `(,(cons 'footnote-reference
 		   (lambda (f c i)
-		     (push (org-export-footnote-first-reference-p f info)
+		     (push (org-export-footnote-first-reference-p f i)
 			   result)
 		     ""))
 	    (section . (lambda (s c i) c))
@@ -1664,7 +1684,7 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
 	  `(,(cons 'footnote-reference
 		   (lambda (f c i)
 		     (when (org-element-lineage f '(drawer))
-		       (push (org-export-footnote-first-reference-p f info nil)
+		       (push (org-export-footnote-first-reference-p f i nil)
 			     result))
 		     ""))
 	    (drawer . (lambda (d c i) c))
@@ -1685,7 +1705,7 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
 	  `(,(cons 'footnote-reference
 		   (lambda (f c i)
 		     (when (org-element-lineage f '(drawer))
-		       (push (org-export-footnote-first-reference-p f info nil t)
+		       (push (org-export-footnote-first-reference-p f i nil t)
 			     result))
 		     ""))
 	    (drawer . (lambda (d c i) c))
@@ -2795,6 +2815,21 @@ Another text. (ref:text)
    (equal '("« outer « inner » outer »")
 	  (let ((org-export-default-language "fr"))
 	    (org-test-with-parsed-data "\"outer 'inner' outer\""
+	      (org-element-map tree 'plain-text
+		(lambda (s) (org-export-activate-smart-quotes s :utf-8 info))
+		info)))))
+  ;; Inner quotes: close to special symbols.
+  (should
+   (equal '("« outer (« inner ») outer »")
+	  (let ((org-export-default-language "fr"))
+	    (org-test-with-parsed-data "\"outer ('inner') outer\""
+	      (org-element-map tree 'plain-text
+		(lambda (s) (org-export-activate-smart-quotes s :utf-8 info))
+		info)))))
+  (should
+   (equal '("« « inner » »")
+	  (let ((org-export-default-language "fr"))
+	    (org-test-with-parsed-data "\"'inner'\""
 	      (org-element-map tree 'plain-text
 		(lambda (s) (org-export-activate-smart-quotes s :utf-8 info))
 		info)))))

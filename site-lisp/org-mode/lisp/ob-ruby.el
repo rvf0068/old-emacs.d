@@ -1,6 +1,6 @@
 ;;; ob-ruby.el --- org-babel functions for ruby evaluation
 
-;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
 
 ;; Author: Eric Schulte
 ;; Keywords: literate programming, reproducible research
@@ -201,11 +201,7 @@ return the value of the last statement in BODY, as elisp."
 			      org-babel-ruby-pp-wrapper-method
 			    org-babel-ruby-wrapper-method)
 			  body (org-babel-process-file-name tmp-file 'noquote)))
-		 (let ((raw (org-babel-eval-read-file tmp-file)))
-                   (if (or (member "code" result-params)
-                           (member "pp" result-params))
-                       raw
-                     (org-babel-ruby-table-or-string raw))))))
+		 (org-babel-eval-read-file tmp-file))))
     ;; comint session evaluation
     (case result-type
       (output

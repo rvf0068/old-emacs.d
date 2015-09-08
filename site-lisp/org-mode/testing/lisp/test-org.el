@@ -893,6 +893,12 @@
    (org-test-with-temp-text "Link [[target<point>]] <<target>>"
      (let ((org-return-follows-link nil)) (org-return))
      (org-looking-at-p "<<target>>")))
+  ;; Link in heading should also be opened when
+  ;; `org-return-follows-link` is non-nil.
+  (should
+   (org-test-with-temp-text "* [[b][a<point>]]\n* b"
+     (let ((org-return-follows-link t)) (org-return))
+     (org-looking-at-p "* b")))
   ;; However, do not open link when point is in a table.
   (should
    (org-test-with-temp-text "| [[target<point>]] |\n| between |\n| <<target>> |"
@@ -939,6 +945,12 @@
   (should
    (equal "\n* h"
 	  (org-test-with-temp-text "<point>* h"
+	    (org-return)
+	    (buffer-string))))
+  ;; Refuse to leave invalid headline in buffer.
+  (should
+   (equal "* h\n"
+	  (org-test-with-temp-text "*<point> h"
 	    (org-return)
 	    (buffer-string)))))
 
@@ -3050,12 +3062,34 @@ Paragraph<point>"
 	    (replace-regexp-in-string
 	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
 	     nil nil 1))))
+  (should
+   (equal "* H\n  Paragraph"
+	  (org-test-with-temp-text "\
+* H
+  CLOSED: [2015-06-25 Thu]
+  Paragraph<point>"
+	    (let ((org-adapt-indentation t))
+	      (org-add-planning-info nil nil 'closed))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
   ;; Remove closed when `org-adapt-indentation' is nil.
   (should
    (equal "* H\nDEADLINE: <2015-06-25>\nParagraph"
 	  (org-test-with-temp-text "\
 * H
 CLOSED: [2015-06-25 Thu] DEADLINE: <2015-06-25 Thu>
+Paragraph<point>"
+	    (let ((org-adapt-indentation nil))
+	      (org-add-planning-info nil nil 'closed))
+	    (replace-regexp-in-string
+	     "\\( [.A-Za-z]+\\)>" "" (buffer-string)
+	     nil nil 1))))
+  (should
+   (equal "* H\nParagraph"
+	  (org-test-with-temp-text "\
+* H
+  CLOSED: [2015-06-25 Thu]
 Paragraph<point>"
 	    (let ((org-adapt-indentation nil))
 	      (org-add-planning-info nil nil 'closed))
@@ -3320,7 +3354,7 @@ Paragraph<point>"
    (equal "* H"
 	  (org-test-with-temp-text "* TODO H"
 	    (cdr (assoc "ITEM" (org-entry-properties))))))
-  ;; Get "TODO" property.
+  ;; Get "TODO" property.  TODO keywords are case sensitive.
   (should
    (equal "TODO"
 	  (org-test-with-temp-text "* TODO H"
@@ -3332,6 +3366,9 @@ Paragraph<point>"
   (should-not
    (org-test-with-temp-text "* H"
      (assoc "TODO" (org-entry-properties nil "TODO"))))
+  (should-not
+   (org-test-with-temp-text "* todo H"
+     (assoc "TODO" (org-entry-properties nil "TODO"))))
   ;; Get "PRIORITY" property.
   (should
    (equal "A"
@@ -3341,9 +3378,10 @@ Paragraph<point>"
    (equal "A"
 	  (org-test-with-temp-text "* [#A] H"
 	    (cdr (assoc "PRIORITY" (org-entry-properties))))))
-  (should-not
-   (org-test-with-temp-text "* H"
-     (assoc "PRIORITY" (org-entry-properties nil "PRIORITY"))))
+  (should
+   (equal (char-to-string org-default-priority)
+	  (org-test-with-temp-text "* H"
+	    (cdr (assoc "PRIORITY" (org-entry-properties nil "PRIORITY"))))))
   ;; Get "FILE" property.
   (should
    (org-test-with-temp-text-in-file "* H\nParagraph"
