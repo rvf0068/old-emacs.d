@@ -39,6 +39,7 @@
 		 "\\documentclass{beamer}
 \\usepackage[AUTO]{inputenc}
 \\usepackage{tikz}
+\\usepackage{arev}
 \\usepackage{enumitem}
 \\setitemize{label=\\usebeamerfont*{itemize item}%
   \\usebeamercolor\[fg]{itemize item}
@@ -49,6 +50,7 @@
         \\protect\\usebeamercolor\[fg]{enumerate item}%
         \\insertenumlabel.}
 \\setbeamertemplate{navigation symbols}{}
+\\setbeamertemplate{items}[circle]
 \\usefonttheme{professionalfonts}
 \[NO-DEFAULT-PACKAGES]"
 		 ("\\section{%s}" . "\\section*{%s}")
