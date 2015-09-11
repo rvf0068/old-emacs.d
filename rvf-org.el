@@ -198,8 +198,13 @@ When called twice, replace the previously inserted \\(\\) by one $."
 
 ;; for exporting images according to backend
 ;; see https://lists.gnu.org/archive/html/emacs-orgmode/2014-02/msg00296.html
+;; (defmacro by-backend (&rest body)
+;;   `(case (if (boundp 'backend) (org-export-backend-name backend) nil) ,@body))
+;; see https://lists.gnu.org/archive/html/emacs-orgmode/2015-09/msg00118.html
 (defmacro by-backend (&rest body)
-  `(case (if (boundp 'backend) (org-export-backend-name backend) nil) ,@body))
+  `(case org-export-current-backend ,@body))
+
+
 
 ;; (defun my-space-replacement (contents backend info)
 ;;   (when (eq backend 'md)
