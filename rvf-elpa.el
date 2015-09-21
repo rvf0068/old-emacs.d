@@ -33,6 +33,7 @@
     helm-bibtex
     magit
     markdown-mode
+    move-text
     org-journal
     org2blog
     orgbox
