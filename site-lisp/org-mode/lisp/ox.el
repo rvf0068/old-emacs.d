@@ -1339,21 +1339,24 @@ inferior to file-local settings."
 Optional argument BACKEND is an export back-end, as returned by,
 e.g., `org-export-create-backend'.  It specifies which back-end
 specific items to read, if any."
-  (let ((all
-	 (mapcar
-	  (lambda (o) (cons (nth 2 o) (car o)))
-	  ;; Priority is given to back-end specific options.
-	  (append (and backend (org-export-get-all-options backend))
-		  org-export-options-alist)))
-	(start)
-	plist)
-    (while (string-match "\\(.+?\\):\\((.*?)\\|\\S-*\\)[ \t\n]*" options start)
-      (setq start (match-end 0))
-      (let ((property (cdr (assoc-string (match-string 1 options) all t))))
-	(when property
-	  (setq plist
-		(plist-put plist property (read (match-string 2 options)))))))
-    plist))
+  (let ((line
+	 (let ((s 0) alist)
+	   (while (string-match "\\(.+?\\):\\((.*?)\\|\\S-*\\)[ \t]*" options s)
+	     (setq s (match-end 0))
+	     (push (cons (match-string 1 options)
+			 (read (match-string 2 options)))
+		   alist))
+	   alist))
+	;; Priority is given to back-end specific options.
+	(all (append (and backend (org-export-get-all-options backend))
+		     org-export-options-alist))
+	(plist))
+    (when line
+      (dolist (entry all plist)
+	(let ((item (nth 2 entry)))
+	  (when item
+	    (let ((v (assoc-string item line t)))
+	      (when v (setq plist (plist-put plist (car entry) (cdr v)))))))))))
 
 (defun org-export--get-subtree-options (&optional backend)
   "Get export options in subtree at point.
@@ -2625,15 +2628,12 @@ from tree."
 			;; If headline is archived but tree below has
 			;; to be skipped, remove contents.
 			(org-element-set-contents data)
-		      ;; Move into secondary string, if any.
-		      (let ((sec-prop
-			     (cdr (assq type
-					org-element-secondary-value-alist))))
-			(when sec-prop
-			  (mapc walk-data
-				(org-element-property sec-prop data))))
 		      ;; Move into recursive objects/elements.
-		      (mapc walk-data (org-element-contents data)))))))))
+		      (mapc walk-data (org-element-contents data)))
+		    ;; Move into secondary string, if any.
+		    (dolist (p (cdr (assq type
+					  org-element-secondary-value-alist)))
+		      (mapc walk-data (org-element-property p data)))))))))
     ;; If a select tag is active, also ignore the section before the
     ;; first headline, if any.
     (when selected

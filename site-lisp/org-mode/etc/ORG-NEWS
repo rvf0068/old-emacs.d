@@ -15,6 +15,10 @@ Please send Org bug reports to emacs-orgmode@gnu.org.
 *** New option ~date-tree-last~ for ~org-agenda-insert-diary-strategy~
 When ~org-agenda-insert-diary-strategy~ is set to ~date-tree-last~, diary
 entries are added to last in the date tree.
+*** New ~vbar~ entity
+~\vbar~ or ~\vbar{}~ will be exported unconditionnally as a =|=,
+unlike to existing ~\vert~, which is expanded as ~&vert;~ when using
+a HTML derived export back-end.
 *** Babel: support for Stan language
 New ob-stan.el library.
 
@@ -41,6 +45,8 @@ http://orgmode.org/worg/org-contrib/babel/languages/ob-doc-stan.html
 *** Remove ~org-list-empty-line-terminates-plain-lists~
 Two consecutive blank lines always terminate all levels of current
 plain list.
+*** ~fixltx2e~ is removed from ~org-latex-default-packages-alist~
+fixltx2e is obsolete, see LaTeX News 22.
 * Version 8.3
 
 ** Incompatible changes
