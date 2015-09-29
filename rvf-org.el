@@ -65,6 +65,9 @@
 	       ("lemma"     "l" "\\begin{lemma}%a%U"     "\\end{lemma}")
 	       )))
 
+;; GAP suport is included in the listings package
+(add-to-list 'org-src-lang-modes '("GAP" . gap))
+
 ;; from the info documentation
 (defun yas/org-very-safe-expand ()
   (let ((yas/fallback-behavior 'return-nil)) (yas/expand)))
@@ -162,12 +165,11 @@ When called twice, replace the previously inserted \\(\\) by one $."
 
 (setq org-latex-listings-options
       '(("basicstyle" "\\ttfamily")
-	("commentstyle" "\\itshape\\ttfamily")
-	("keywordstyle" "\\bfseries")
-	("showspaces" "false")
+	("commentstyle" "\\itshape\\ttfamily\\color{green!50!black}")
+	("keywordstyle" "\\bfseries\\color{blue}")
+	("stringstyle" "\\color{purple}")
 	("showstringspaces" "false")
-	("breaklines" "true")
-	("breakautoindent" "true")))
+	))
 
 ;; remove strike-through emphasis, see
 ;; http://stackoverflow.com/a/22498697/577007
