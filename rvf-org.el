@@ -164,10 +164,11 @@ When called twice, replace the previously inserted \\(\\) by one $."
 	))
 
 (setq org-latex-listings-options
-      '(("basicstyle" "\\ttfamily")
+      '(("basicstyle" "\\scriptsize\\ttfamily")
 	("commentstyle" "\\itshape\\ttfamily\\color{green!50!black}")
 	("keywordstyle" "\\bfseries\\color{blue}")
 	("stringstyle" "\\color{purple}")
+	("breaklines" "true")
 	("showstringspaces" "false")
 	))
 
