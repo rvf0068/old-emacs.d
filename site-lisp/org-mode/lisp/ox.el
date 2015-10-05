@@ -802,7 +802,7 @@ is nil.  You can also allow them through local buffer variables."
 
 This variable allows to provide shortcuts for export snippets.
 
-For example, with a value of '\(\(\"h\" . \"html\"\)\), the
+For example, with a value of \\='((\"h\" . \"html\")), the
 HTML back-end will recognize the contents of \"@@h:<b>@@\" as
 HTML code while every other back-end will ignore it."
   :group 'org-export-general
@@ -883,7 +883,7 @@ output is restricted to body only, \"s\" when it is restricted to
 the current subtree, \"v\" when only visible elements are
 considered for export, \"f\" when publishing functions should be
 passed the FORCE argument and \"a\" when the export should be
-asynchronous).  Also, \[?] allows to switch back to standard
+asynchronous).  Also, [?] allows to switch back to standard
 mode."
   :group 'org-export-general
   :version "24.4"
@@ -1094,7 +1094,7 @@ keywords are understood:
     Menu entry for the export dispatcher.  It should be a list
     like:
 
-      '(KEY DESCRIPTION-OR-ORDINAL ACTION-OR-MENU)
+      \\='(KEY DESCRIPTION-OR-ORDINAL ACTION-OR-MENU)
 
     where :
 
@@ -1118,30 +1118,30 @@ keywords are understood:
       If it is an alist, associations should follow the
       pattern:
 
-        '(KEY DESCRIPTION ACTION)
+        \\='(KEY DESCRIPTION ACTION)
 
       where KEY, DESCRIPTION and ACTION are described above.
 
     Valid values include:
 
-      '(?m \"My Special Back-end\" my-special-export-function)
+      \\='(?m \"My Special Back-end\" my-special-export-function)
 
       or
 
-      '(?l \"Export to LaTeX\"
-           \(?p \"As PDF file\" org-latex-export-to-pdf)
-           \(?o \"As PDF file and open\"
-               \(lambda (a s v b)
-                 \(if a (org-latex-export-to-pdf t s v b)
-                   \(org-open-file
-                    \(org-latex-export-to-pdf nil s v b)))))))
+      \\='(?l \"Export to LaTeX\"
+           (?p \"As PDF file\" org-latex-export-to-pdf)
+           (?o \"As PDF file and open\"
+               (lambda (a s v b)
+                 (if a (org-latex-export-to-pdf t s v b)
+                   (org-open-file
+                    (org-latex-export-to-pdf nil s v b)))))))
 
       or the following, which will be added to the previous
       sub-menu,
 
-      '(?l 1
-          \((?B \"As TEX buffer (Beamer)\" org-beamer-export-as-latex)
-           \(?P \"As PDF file (Beamer)\" org-beamer-export-to-pdf)))
+      \\='(?l 1
+          ((?B \"As TEX buffer (Beamer)\" org-beamer-export-as-latex)
+           (?P \"As PDF file (Beamer)\" org-beamer-export-to-pdf)))
 
   :options-alist
 
@@ -1215,12 +1215,12 @@ keywords are understood:
 As an example, here is how one could define \"my-latex\" back-end
 as a variant of `latex' back-end with a custom template function:
 
-  \(org-export-define-derived-backend 'my-latex 'latex
-     :translate-alist '((template . my-latex-template-fun)))
+  (org-export-define-derived-backend \\='my-latex \\='latex
+     :translate-alist \\='((template . my-latex-template-fun)))
 
 The back-end could then be called with, for example:
 
-  \(org-export-to-buffer 'my-latex \"*Test my-latex*\")"
+  (org-export-to-buffer \\='my-latex \"*Test my-latex*\")"
   (declare (indent 2))
   (let (blocks filters menu-entry options transcoders)
     (while (keywordp (car body))
@@ -1454,6 +1454,8 @@ Assume buffer is in Org mode.  Narrowing, if any, is ignored."
 			     ;; Avoid circular dependencies.
 			     (unless (member file files)
 			       (with-temp-buffer
+				 (setq default-directory
+				   (file-name-directory file))
 				 (insert (org-file-contents file 'noerror))
 				 (let ((org-inhibit-startup t)) (org-mode))
 				 (funcall get-options (cons file files))))))
@@ -1584,6 +1586,8 @@ an alist where associations are (VARIABLE-NAME VALUE)."
 					  (org-remove-double-quotes val))))
 			       (unless (member file files)
 				 (with-temp-buffer
+				   (setq default-directory
+					 (file-name-directory file))
 				   (let ((org-inhibit-startup t)) (org-mode))
 				   (insert (org-file-contents file 'noerror))
 				   (setq alist
@@ -1677,7 +1681,7 @@ DATA is the parse tree.  OPTIONS is the plist holding export
 options.
 
 Return an alist whose key is a headline and value is its
-associated numbering \(in the shape of a list of numbers\) or nil
+associated numbering \(in the shape of a list of numbers) or nil
 for a footnotes section."
   (let ((numbering (make-vector org-export-max-depth 0)))
     (org-element-map data 'headline
@@ -4035,7 +4039,7 @@ PATH is the link path.  DESC is its description."
 Optional argument is a set of RULES defining inline images.  It
 is an alist where associations have the following shape:
 
-  \(TYPE . REGEXP)
+  (TYPE . REGEXP)
 
 Applying a rule means apply REGEXP against LINK's path when its
 type is TYPE.  The function will return a non-nil value if any of
@@ -4091,7 +4095,7 @@ Return value can be an object or an element:
 - If LINK path matches a target object (i.e. <<path>>) return it.
 
 - If LINK path exactly matches the name affiliated keyword
-  \(i.e. #+NAME: path) of an element, return that element.
+  (i.e. #+NAME: path) of an element, return that element.
 
 - If LINK path exactly matches any headline name, return that
   element.
@@ -4191,12 +4195,10 @@ has type \"radio\"."
 
 (defun org-export-file-uri (filename)
   "Return file URI associated to FILENAME."
-  (if (not (file-name-absolute-p filename)) filename
-    (concat "file:/"
-	    (and (not (org-file-remote-p filename)) "/")
-	    (if (org-string-match-p "\\`~" filename)
-		(expand-file-name filename)
-	      filename))))
+  (cond ((org-string-match-p "\\`//" filename) (concat "file:" filename))
+	((not (file-name-absolute-p filename)) filename)
+	((org-file-remote-p filename) (concat "file:/" filename))
+	(t (concat "file://" (expand-file-name filename)))))
 
 
 ;;;; For References
@@ -5041,105 +5043,115 @@ Return a list of src-block elements with a caption."
      ;; one may use: »...«, "...", ›...‹, or '...'.
      ;; http://sproget.dk/raad-og-regler/retskrivningsregler/retskrivningsregler/a7-40-60/a7-58-anforselstegn/
      ;; LaTeX quotes require Babel!
-     (opening-double-quote :utf-8 "»" :html "&raquo;" :latex ">>"
-			   :texinfo "@guillemetright{}")
-     (closing-double-quote :utf-8 "«" :html "&laquo;" :latex "<<"
-			   :texinfo "@guillemetleft{}")
-     (opening-single-quote :utf-8 "›" :html "&rsaquo;" :latex "\\frq{}"
-			   :texinfo "@guilsinglright{}")
-     (closing-single-quote :utf-8 "‹" :html "&lsaquo;" :latex "\\flq{}"
-			   :texinfo "@guilsingleft{}")
+     (primary-opening
+      :utf-8 "»" :html "&raquo;" :latex ">>" :texinfo "@guillemetright{}")
+     (primary-closing
+      :utf-8 "«" :html "&laquo;" :latex "<<" :texinfo "@guillemetleft{}")
+     (secondary-opening
+      :utf-8 "›" :html "&rsaquo;" :latex "\\frq{}" :texinfo "@guilsinglright{}")
+     (secondary-closing
+      :utf-8 "‹" :html "&lsaquo;" :latex "\\flq{}" :texinfo "@guilsingleft{}")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("de"
-     (opening-double-quote :utf-8 "„" :html "&bdquo;" :latex "\"`"
-			   :texinfo "@quotedblbase{}")
-     (closing-double-quote :utf-8 "“" :html "&ldquo;" :latex "\"'"
-			   :texinfo "@quotedblleft{}")
-     (opening-single-quote :utf-8 "‚" :html "&sbquo;" :latex "\\glq{}"
-			   :texinfo "@quotesinglbase{}")
-     (closing-single-quote :utf-8 "‘" :html "&lsquo;" :latex "\\grq{}"
-			   :texinfo "@quoteleft{}")
+     (primary-opening
+      :utf-8 "„" :html "&bdquo;" :latex "\"`" :texinfo "@quotedblbase{}")
+     (primary-closing
+      :utf-8 "“" :html "&ldquo;" :latex "\"'" :texinfo "@quotedblleft{}")
+     (secondary-opening
+      :utf-8 "‚" :html "&sbquo;" :latex "\\glq{}" :texinfo "@quotesinglbase{}")
+     (secondary-closing
+      :utf-8 "‘" :html "&lsquo;" :latex "\\grq{}" :texinfo "@quoteleft{}")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("en"
-     (opening-double-quote :utf-8 "“" :html "&ldquo;" :latex "``" :texinfo "``")
-     (closing-double-quote :utf-8 "”" :html "&rdquo;" :latex "''" :texinfo "''")
-     (opening-single-quote :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
-     (closing-single-quote :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
+     (primary-opening :utf-8 "“" :html "&ldquo;" :latex "``" :texinfo "``")
+     (primary-closing :utf-8 "”" :html "&rdquo;" :latex "''" :texinfo "''")
+     (secondary-opening :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
+     (secondary-closing :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("es"
-     (opening-double-quote :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
-			   :texinfo "@guillemetleft{}")
-     (closing-double-quote :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
-			   :texinfo "@guillemetright{}")
-     (opening-single-quote :utf-8 "“" :html "&ldquo;" :latex "``" :texinfo "``")
-     (closing-single-quote :utf-8 "”" :html "&rdquo;" :latex "''" :texinfo "''")
+     (primary-opening
+      :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
+      :texinfo "@guillemetleft{}")
+     (primary-closing
+      :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
+      :texinfo "@guillemetright{}")
+     (secondary-opening :utf-8 "“" :html "&ldquo;" :latex "``" :texinfo "``")
+     (secondary-closing :utf-8 "”" :html "&rdquo;" :latex "''" :texinfo "''")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("fr"
-     (opening-double-quote :utf-8 "« " :html "&laquo;&nbsp;" :latex "\\og "
-			   :texinfo "@guillemetleft{}@tie{}")
-     (closing-double-quote :utf-8 " »" :html "&nbsp;&raquo;" :latex "\\fg{}"
-			   :texinfo "@tie{}@guillemetright{}")
-     (opening-single-quote :utf-8 "« " :html "&laquo;&nbsp;" :latex "\\og "
-			   :texinfo "@guillemetleft{}@tie{}")
-     (closing-single-quote :utf-8 " »" :html "&nbsp;&raquo;" :latex "\\fg{}"
-			   :texinfo "@tie{}@guillemetright{}")
+     (primary-opening
+      :utf-8 "« " :html "&laquo;&nbsp;" :latex "\\og "
+      :texinfo "@guillemetleft{}@tie{}")
+     (primary-closing
+      :utf-8 " »" :html "&nbsp;&raquo;" :latex "\\fg{}"
+      :texinfo "@tie{}@guillemetright{}")
+     (secondary-opening
+      :utf-8 "« " :html "&laquo;&nbsp;" :latex "\\og "
+      :texinfo "@guillemetleft{}@tie{}")
+     (secondary-closing :utf-8 " »" :html "&nbsp;&raquo;" :latex "\\fg{}"
+			:texinfo "@tie{}@guillemetright{}")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("no"
      ;; https://nn.wikipedia.org/wiki/Sitatteikn
-     (opening-double-quote :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
-			   :texinfo "@guillemetleft{}")
-     (closing-double-quote :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
-			   :texinfo "@guillemetright{}")
-     (opening-single-quote :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
-     (closing-single-quote :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
+     (primary-opening
+      :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
+      :texinfo "@guillemetleft{}")
+     (primary-closing
+      :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
+      :texinfo "@guillemetright{}")
+     (secondary-opening :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
+     (secondary-closing :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("nb"
      ;; https://nn.wikipedia.org/wiki/Sitatteikn
-     (opening-double-quote :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
-			   :texinfo "@guillemetleft{}")
-     (closing-double-quote :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
-			   :texinfo "@guillemetright{}")
-     (opening-single-quote :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
-     (closing-single-quote :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
+     (primary-opening
+      :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
+      :texinfo "@guillemetleft{}")
+     (primary-closing
+      :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
+      :texinfo "@guillemetright{}")
+     (secondary-opening :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
+     (secondary-closing :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("nn"
      ;; https://nn.wikipedia.org/wiki/Sitatteikn
-     (opening-double-quote :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
-			   :texinfo "@guillemetleft{}")
-     (closing-double-quote :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
-			   :texinfo "@guillemetright{}")
-     (opening-single-quote :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
-     (closing-single-quote :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
+     (primary-opening
+      :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
+      :texinfo "@guillemetleft{}")
+     (primary-closing
+      :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
+      :texinfo "@guillemetright{}")
+     (secondary-opening :utf-8 "‘" :html "&lsquo;" :latex "`" :texinfo "`")
+     (secondary-closing :utf-8 "’" :html "&rsquo;" :latex "'" :texinfo "'")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("ru"
      ;; http://ru.wikipedia.org/wiki/%D0%9A%D0%B0%D0%B2%D1%8B%D1%87%D0%BA%D0%B8#.D0.9A.D0.B0.D0.B2.D1.8B.D1.87.D0.BA.D0.B8.2C_.D0.B8.D1.81.D0.BF.D0.BE.D0.BB.D1.8C.D0.B7.D1.83.D0.B5.D0.BC.D1.8B.D0.B5_.D0.B2_.D1.80.D1.83.D1.81.D1.81.D0.BA.D0.BE.D0.BC_.D1.8F.D0.B7.D1.8B.D0.BA.D0.B5
      ;; http://www.artlebedev.ru/kovodstvo/sections/104/
-     (opening-double-quote :utf-8 "«" :html "&laquo;" :latex "{}<<"
-			   :texinfo "@guillemetleft{}")
-     (closing-double-quote :utf-8 "»" :html "&raquo;" :latex ">>{}"
-			   :texinfo "@guillemetright{}")
-     (opening-single-quote :utf-8 "„" :html "&bdquo;" :latex "\\glqq{}"
-			   :texinfo "@quotedblbase{}")
-     (closing-single-quote :utf-8 "“" :html "&ldquo;" :latex "\\grqq{}"
-			   :texinfo "@quotedblleft{}")
+     (primary-opening :utf-8 "«" :html "&laquo;" :latex "{}<<"
+		      :texinfo "@guillemetleft{}")
+     (primary-closing :utf-8 "»" :html "&raquo;" :latex ">>{}"
+		      :texinfo "@guillemetright{}")
+     (secondary-opening
+      :utf-8 "„" :html "&bdquo;" :latex "\\glqq{}" :texinfo "@quotedblbase{}")
+     (secondary-closing
+      :utf-8 "“" :html "&ldquo;" :latex "\\grqq{}" :texinfo "@quotedblleft{}")
      (apostrophe :utf-8 "’" :html: "&#39;"))
     ("sv"
      ;; based on https://sv.wikipedia.org/wiki/Citattecken
-     (opening-double-quote :utf-8 "”" :html "&rdquo;" :latex "’’" :texinfo "’’")
-     (closing-double-quote :utf-8 "”" :html "&rdquo;" :latex "’’" :texinfo "’’")
-     (opening-single-quote :utf-8 "’" :html "&rsquo;" :latex "’" :texinfo "`")
-     (closing-single-quote :utf-8 "’" :html "&rsquo;" :latex "’" :texinfo "'")
-     (apostrophe :utf-8 "’" :html "&rsquo;"))
-    )
+     (primary-opening :utf-8 "”" :html "&rdquo;" :latex "’’" :texinfo "’’")
+     (primary-closing :utf-8 "”" :html "&rdquo;" :latex "’’" :texinfo "’’")
+     (secondary-opening :utf-8 "’" :html "&rsquo;" :latex "’" :texinfo "`")
+     (secondary-closing :utf-8 "’" :html "&rsquo;" :latex "’" :texinfo "'")
+     (apostrophe :utf-8 "’" :html "&rsquo;")))
   "Smart quotes translations.
 
 Alist whose CAR is a language string and CDR is an alist with
 quote type as key and a plist associating various encodings to
 their translation as value.
 
-A quote type can be any symbol among `opening-double-quote',
-`closing-double-quote', `opening-single-quote',
-`closing-single-quote' and `apostrophe'.
+A quote type can be any symbol among `primary-opening',
+`primary-closing', `secondary-opening', `secondary-closing' and
+`apostrophe'.
 
 Valid encodings include `:utf-8', `:html', `:latex' and
 `:texinfo'.
@@ -5165,7 +5177,7 @@ INFO is the current export state, as a plist."
 		 (cond
 		  ((equal (match-string 0 text) "\"")
 		   (setf level1-open (not level1-open))
-		   (if level1-open 'opening-double-quote 'closing-double-quote))
+		   (if level1-open 'primary-opening 'primary-closing))
 		  ;; Not already in a level 1 quote: this is an
 		  ;; apostrophe.
 		  ((not level1-open) 'apostrophe)
@@ -5210,8 +5222,8 @@ INFO is the current export state, as a plist."
 				  (memq next '(blank nil))))))
 		     (cond
 		      ((and allow-open allow-close) (error "Should not happen"))
-		      (allow-open 'opening-single-quote)
-		      (allow-close 'closing-single-quote)
+		      (allow-open 'secondary-opening)
+		      (allow-close 'secondary-closing)
 		      (t 'apostrophe)))))
 		 current-status)
 		(cl-incf start))
@@ -5746,7 +5758,7 @@ and `org-export-to-file' for more specialized functions."
                                       (kill-buffer proc-buffer))))
                            (org-export-add-to-stack proc-buffer nil p)
                            (ding)
-                           (message "Process '%s' exited abnormally" p))
+                           (message "Process `%s' exited abnormally" p))
                        (unless org-export-async-debug
                          (delete-file ,,temp-file)))))))))))))
 
@@ -5779,10 +5791,10 @@ no argument.  It is always called within the current process,
 from BUFFER, with point at its beginning.  Export back-ends can
 use it to set a major mode there, e.g,
 
-  \(defun org-latex-export-as-latex
-    \(&optional async subtreep visible-only body-only ext-plist)
-    \(interactive)
-    \(org-export-to-buffer 'latex \"*Org LATEX Export*\"
+  (defun org-latex-export-as-latex
+    (&optional async subtreep visible-only body-only ext-plist)
+    (interactive)
+    (org-export-to-buffer \\='latex \"*Org LATEX Export*\"
       async subtreep visible-only body-only ext-plist (lambda () (LaTeX-mode))))
 
 This function returns BUFFER."
@@ -5839,13 +5851,13 @@ argument and happens asynchronously when ASYNC is non-nil.  It
 has to return a file name, or nil.  Export back-ends can use this
 to send the output file through additional processing, e.g,
 
-  \(defun org-latex-export-to-latex
-    \(&optional async subtreep visible-only body-only ext-plist)
-    \(interactive)
-    \(let ((outfile (org-export-output-file-name \".tex\" subtreep)))
-      \(org-export-to-file 'latex outfile
+  (defun org-latex-export-to-latex
+    (&optional async subtreep visible-only body-only ext-plist)
+    (interactive)
+    (let ((outfile (org-export-output-file-name \".tex\" subtreep)))
+      (org-export-to-file \\='latex outfile
         async subtreep visible-only body-only ext-plist
-        \(lambda (file) (org-latex-compile file)))
+        (lambda (file) (org-latex-compile file)))
 
 The function returns either a file name returned by POST-PROCESS,
 or FILE."
@@ -6174,7 +6186,7 @@ is nil when this menu hasn't been selected yet.
 
 EXPERTP, when non-nil, triggers expert UI.  In that case, no help
 buffer is provided, but indications about currently active
-options are given in the prompt.  Moreover, \[?] allows to switch
+options are given in the prompt.  Moreover, [?] allows to switch
 back to standard interface."
   (let* ((fontify-key
 	  (lambda (key &optional access-key)

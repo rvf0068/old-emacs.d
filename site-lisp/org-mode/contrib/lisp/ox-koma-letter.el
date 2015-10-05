@@ -616,8 +616,10 @@ holding export options."
    ;; Time-stamp.
    (and (plist-get info :time-stamp-file)
         (format-time-string "%% Created %Y-%m-%d %a %H:%M\n"))
+   ;; LaTeX compiler
+   (org-latex--insert-compiler info)
    ;; Document class and packages.
-   (org-latex--make-header info)
+   (org-latex--make-preamble info)
    ;; Settings.  They can come from three locations, in increasing
    ;; order of precedence: global variables, LCO files and in-buffer
    ;; settings.  Thus, we first insert settings coming from global
