@@ -92,9 +92,9 @@
        #',func-name)))
 
 ;; inside math mode, pressing C once gives \mathbb{C}. Twice gives C.
-(field-org "complex" "C")
-(field-org "real" "R")
-(field-org "rational" "Q")
+;; (field-org "complex" "C")
+;; (field-org "real" "R")
+;; (field-org "rational" "Q")
 
 ;; from Nicolas Richard <theonewiththeevillook@yahoo.fr>
 ;; Date: Fri, 8 Mar 2013 16:23:02 +0100
