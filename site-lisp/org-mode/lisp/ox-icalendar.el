@@ -77,7 +77,7 @@ for timed events.  If non-zero, alarms are created.
 (defcustom org-icalendar-exclude-tags nil
   "Tags that exclude a tree from export.
 This variable allows to specify different exclude tags from other
-back-ends.  It can also be set with the ICAL_EXCLUDE_TAGS
+back-ends.  It can also be set with the ICALENDAR_EXCLUDE_TAGS
 keyword."
   :group 'org-export-icalendar
   :type '(repeat (string :tag "Tag")))
@@ -450,7 +450,7 @@ or subject for the event."
     ;; characters with literal \n.
     (replace-regexp-in-string
      "[ \t]*\n" "\\n"
-     (replace-regexp-in-string "[\\,;]" "\\\&" s)
+     (replace-regexp-in-string "[\\,;]" "\\\\\\&" s)
      nil t)))
 
 (defun org-icalendar-fold-string (s)

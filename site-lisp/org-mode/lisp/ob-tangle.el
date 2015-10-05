@@ -179,12 +179,14 @@ Return a list whose CAR is the tangled file name."
 	(save-window-excursion
 	  (find-file file)
 	  (setq to-be-removed (current-buffer))
-	  (org-babel-tangle nil target-file lang))
+	  (mapcar #'expand-file-name (org-babel-tangle nil target-file lang)))
       (unless visited-p
 	(kill-buffer to-be-removed)))))
 
 (defun org-babel-tangle-publish (_ filename pub-dir)
   "Tangle FILENAME and place the results in PUB-DIR."
+  (unless (file-exists-p pub-dir)
+    (make-directory pub-dir t))
   (mapc (lambda (el) (copy-file el pub-dir t)) (org-babel-tangle-file filename)))
 
 ;;;###autoload
@@ -332,7 +334,7 @@ Insert the source-code specified by SPEC into the current source
 code file.  This function uses `comment-region' which assumes
 that the appropriate major-mode is set.  SPEC has the form:
 
-  \(start-line file link source-name params body comment)"
+  (start-line file link source-name params body comment)"
   (let* ((start-line (nth 0 spec))
 	 (file (if org-babel-tangle-use-relative-file-links
 		   (file-relative-name (nth 1 spec))
