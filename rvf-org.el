@@ -228,6 +228,25 @@ When called twice, replace the previously inserted \\(\\) by one $."
 (add-to-list 'org-export-filter-final-output-functions
 	     'my-beamer-replacement)
 
+;; see http://ergoemacs.org/emacs/elisp_idioms.html
+(defun my-gaps-code (contents backend info)
+  (message "Contents is %s" contents)
+  (when (and (eq backend 'beamer) (string-match "semiverbatim" contents))
+    ;; (setq count 0)
+    ;; (with-temp-buffer
+    ;;   (insert contents)
+    ;;   (goto-char (point-min))
+    ;;   (while (not (eobp))
+    ;; 	(setq count (+ count 1))
+    ;; )
+    (replace-regexp-in-string "^[^\\ ]" (concat (match-string 0) "\\\\pause ") contents)
+    )
+    )
+
+(add-to-list 'org-export-filter-src-block-functions
+	     'my-gaps-code)
+
+
 ;; from http://mbork.pl/2013-09-23_Automatic_insertion_of_habit_templates_%28en%29
 (defun org-insert-habit ()
   "Insert a new TODO subheading and set its properties so that it becomes a habit."
