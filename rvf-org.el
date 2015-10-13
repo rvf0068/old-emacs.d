@@ -230,11 +230,10 @@ When called twice, replace the previously inserted \\(\\) by one $."
 
 ;; see http://ergoemacs.org/emacs/elisp_idioms.html
 (defun my-gaps-code (contents backend info)
-  (message "Contents is %s" contents)
   (when (and (eq backend 'beamer) (string-match "semiverbatim" contents))
     (setq contents (replace-regexp-in-string "^[^\\ ]" (lambda (x) (concat "\\\\pause{}" x)) contents))
     (replace-regexp-in-string "gap>"
-			      (lambda (x) (concat "{\\\\color{blue}\\\\textbf{" x "}}")) contents)
+			      (lambda (x) (concat "{\\\\color{magenta}\\\\textbf{" x "}}")) contents)
     ))
 
 (add-to-list 'org-export-filter-src-block-functions
