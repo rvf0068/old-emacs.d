@@ -38,7 +38,7 @@
 
 ;; emacs-lisp
 
-(define-key emacs-lisp-mode-map [(tab)] 'lisp-complete-symbol)
+(define-key emacs-lisp-mode-map [(tab)] 'completion-at-point)
 (add-hook 'emacs-lisp-mode-hook 'smartparens-mode)
 
 ;; bibretrieve
