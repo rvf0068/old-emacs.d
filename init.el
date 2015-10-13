@@ -38,7 +38,7 @@
 
 ;; emacs-lisp
 
-(define-key emacs-lisp-mode-map [(tab)] 'lisp-complete-symbol)
+(define-key emacs-lisp-mode-map [(tab)] 'completion-at-point)
 (add-hook 'emacs-lisp-mode-hook 'smartparens-mode)
 
 ;; bibretrieve
@@ -151,6 +151,12 @@
 (if (or (equal system-name "lahp") (equal system-name "dell"))
     (load "~/.emacs.d/rvf-personal.el")
   )
+
+;; stuff for gap-mode
+(add-hook 'gap-mode-hook
+	  (lambda()
+	    (yas/minor-mode-on)
+	  ))
 
 (require 'chess)
 (setq chess-images-directory (concat "~/.emacs.d/elpa/chess-" chess-version "/pieces/xboard"))
