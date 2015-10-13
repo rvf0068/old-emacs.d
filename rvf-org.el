@@ -232,16 +232,8 @@ When called twice, replace the previously inserted \\(\\) by one $."
 (defun my-gaps-code (contents backend info)
   (message "Contents is %s" contents)
   (when (and (eq backend 'beamer) (string-match "semiverbatim" contents))
-    ;; (setq count 0)
-    ;; (with-temp-buffer
-    ;;   (insert contents)
-    ;;   (goto-char (point-min))
-    ;;   (while (not (eobp))
-    ;; 	(setq count (+ count 1))
-    ;; )
-    (replace-regexp-in-string "^[^\\ ]" (concat (match-string 0) "\\\\pause ") contents)
-    )
-    )
+    (replace-regexp-in-string "^[^\\ ]" (lambda (x) (concat "\\\\pause " x)) contents)    
+    ))
 
 (add-to-list 'org-export-filter-src-block-functions
 	     'my-gaps-code)
