@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name : <chapter>
+# key: cha
+# --
+<Chapter Label="$1">
+  $0
+</Chapter>

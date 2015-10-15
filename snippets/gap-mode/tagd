@@ -1,0 +1,7 @@
+#contributor : Anders Bach Nielsen <abachn@abachn.net>, modified by rvf
+#name : <tag>...</tag>
+#key: td
+# --
+<${1:tag}>
+  $2
+</$1>$0
