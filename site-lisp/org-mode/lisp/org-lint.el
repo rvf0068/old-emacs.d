@@ -771,7 +771,7 @@ Use :header-args: instead"
     (lambda (h)
       (and (org-element-property :footnote-section-p h)
 	   (org-element-map (org-element-contents h)
-	       (org-remove-if
+	       (cl-remove-if
 		(lambda (e)
 		  (memq e '(comment comment-block footnote-definition
 				    property-drawer section)))
@@ -883,36 +883,35 @@ Use :header-args: instead"
 			       (and (boundp v) (symbol-value v))))
 			org-babel-common-header-args-w-values))
 	       (datum-header-values
-		(org-babel-process-params
-		 (apply
-		  #'org-babel-merge-params
-		  org-babel-default-header-args
-		  (and language
-		       (let ((v (intern (concat "org-babel-default-header-args:"
-						language))))
-			 (and (boundp v) (symbol-value v))))
-		  (append
-		   (list (and (memq type '(babel-call inline-babel-call))
-			      org-babel-default-lob-header-args))
-		   (progn (goto-char (org-element-property :begin datum))
-			  (org-babel-params-from-properties language))
-		   (list
-		    (org-babel-parse-header-arguments
-		     (org-trim
-		      (pcase type
-			(`src-block
-			 (mapconcat
-			  #'identity
-			  (cons (org-element-property :parameters datum)
-				(org-element-property :header datum))
-			  " "))
-			(`inline-src-block
-			 (or (org-element-property :parameters datum) ""))
-			(_
-			 (concat
-			  (org-element-property :inside-header datum)
-			  " "
-			  (org-element-property :end-header datum))))))))))))
+		(apply
+		 #'org-babel-merge-params
+		 org-babel-default-header-args
+		 (and language
+		      (let ((v (intern (concat "org-babel-default-header-args:"
+					       language))))
+			(and (boundp v) (symbol-value v))))
+		 (append
+		  (list (and (memq type '(babel-call inline-babel-call))
+			     org-babel-default-lob-header-args))
+		  (progn (goto-char (org-element-property :begin datum))
+			 (org-babel-params-from-properties language))
+		  (list
+		   (org-babel-parse-header-arguments
+		    (org-trim
+		     (pcase type
+		       (`src-block
+			(mapconcat
+			 #'identity
+			 (cons (org-element-property :parameters datum)
+			       (org-element-property :header datum))
+			 " "))
+		       (`inline-src-block
+			(or (org-element-property :parameters datum) ""))
+		       (_
+			(concat
+			 (org-element-property :inside-header datum)
+			 " "
+			 (org-element-property :end-header datum)))))))))))
 	  (dolist (header datum-header-values)
 	    (let ((allowed-values
 		   (cdr (assoc-string (substring (symbol-name (car header)) 1)
@@ -981,7 +980,7 @@ Use :header-args: instead"
 		(string-to-number (aref (cadr b) 0))))
 	   :right-align t)
 	  ("Trust" 5 t)
-	  ("Warning" 0 nil)])
+	  ("Warning" 0 t)])
   (tabulated-list-init-header))
 
 (defun org-lint--generate-reports (buffer checkers)
@@ -1085,7 +1084,7 @@ CHECKERS is the list of checkers used."
   (interactive)
   (let ((c (org-lint--current-checker)))
     (setf tabulated-list-entries
-	  (org-remove-if (lambda (e) (equal c (org-lint--current-checker e)))
+	  (cl-remove-if (lambda (e) (equal c (org-lint--current-checker e)))
 			 tabulated-list-entries))
     (tabulated-list-print)))
 
@@ -1124,7 +1123,7 @@ ARG can also be a list of checker names, as symbols, to run."
 		    "Checker category: "
 		    (mapcar #'org-lint-checker-categories org-lint--checkers)
 		    nil t)))
-	      (org-remove-if-not
+	      (cl-remove-if-not
 	       (lambda (c)
 		 (assoc-string (org-lint-checker-categories c) category))
 	       org-lint--checkers)))
@@ -1139,7 +1138,7 @@ ARG can also be a list of checker names, as symbols, to run."
 		   (when (string= (org-lint-checker-name c) name)
 		     (throw 'exit c)))))))
 	   ((pred consp)
-	    (org-remove-if-not (lambda (c) (memq (org-lint-checker-name c) arg))
+	    (cl-remove-if-not (lambda (c) (memq (org-lint-checker-name c) arg))
 			       org-lint--checkers))
 	   (_ (user-error "Invalid argument `%S' for `org-lint'" arg)))))
     (if (not (org-called-interactively-p))

@@ -6,15 +6,19 @@ ORG NEWS -- history of user-visible changes.           -*- org -*-
 Copyright (C) 2012-2015 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
-Please send Org bug reports to emacs-orgmode@gnu.org.
+Please send Org bug reports to mailto:emacs-orgmode@gnu.org.
 
-* Version 8.4
+* Version 9.0
+
 ** New features
 *** Org linter
 ~org-lint~ can check syntax and report common issues in Org documents.
 *** New option ~date-tree-last~ for ~org-agenda-insert-diary-strategy~
 When ~org-agenda-insert-diary-strategy~ is set to ~date-tree-last~, diary
 entries are added to last in the date tree.
+*** New option ~org-export-with-broken-links~
+This option tells the export process how to behave when encountering
+a broken internal link.  See its docstring for more information.
 *** New ~vbar~ entity
 ~\vbar~ or ~\vbar{}~ will be exported unconditionnally as a =|=,
 unlike to existing ~\vert~, which is expanded as ~&vert;~ when using
@@ -40,11 +44,54 @@ http://orgmode.org/worg/org-contrib/babel/languages/ob-doc-stan.html
 *** New =#+latex_compiler= keyword to set LaTeX compiler.
 PDFLaTeX, XeLaTeX, and LuaLaTeX are supported.  See the manual for
 details.
+*** org-bbdb-anniversaries-future
+Used like org-bbdb-anniversaries, it provides a few days warning
+for upcoming anniversaries (default: 7 days).
 ** New functions
-~org-show-children~ is a faster implementation of
-~outline-show-children~.
+*** ~org-show-children~ 
+It is a faster implementation of ~outline-show-children~.
+
+*** ~org-next-line-empty-p~
+It replaces the deprecated ~next~ argument to ~org-previous-line-empty-p~.
 ** Removed functions
-*** ~org-element-remove-indentation~ in an obsolete alias for ~org-remove-indentation~
+*** ~org-agenda-todayp~ is deprecated.
+Use ~org-agenda-today-p~ instead.
+*** ~org-element-remove-indentation~ is deprecated.
+Use ~org-remove-indentation~ instead.
+*** ~org-babel-get-header~ is removed.
+Use ~org-babel--get-vars~ or ~assq~ instead.
+
+*** ~org-image-file-name-regexp~ is deprecated
+Use ~image-file-name-regexp~ instead.
+The never-used-in-core ~extensions~ argument has been dropped.
+
+*** ~org-on-heading-p~ is deprecated
+A comment to this effect was in the source code since 7.8.03, but
+now a byte-compiler warning will be generated as well.
+
+*** Various reimplementations of cl-lib functions are deprecated
+The affected functions are:
+- ~org-count~
+- ~org-remove-if~
+- ~org-remove-if-not~
+- ~org-reduce~
+- ~org-every~
+- ~org-some~
+
+Additionally, ~org-sublist~ is deprecated in favor of ~cl-subseq~.  Note
+the differences in indexing conventions: ~org-sublist~ is 1-based and
+end-inclusive; ~cl-subseq~ is 0-based and end-exclusive.
+
+*** ~org-table-recognize-table.el~ is deprecated
+It was not called by any org code since 2010.
+
+*** ~org-table-p~ is deprecated
+Use ~org-at-table-p~ instead.
+
+*** ~org-babel-get-header~ is removed
+
+Use ~assq~ or ~org-babel--get-vars~ instead, as applicable.
+
 ** Removed options
 *** Remove ~org-list-empty-line-terminates-plain-lists~
 Two consecutive blank lines always terminate all levels of current
@@ -52,9 +99,18 @@ plain list.
 *** ~fixltx2e~ is removed from ~org-latex-default-packages-alist~
 fixltx2e is obsolete, see LaTeX News 22.
 ** Miscellaneous
+*** Beamer export back-ends uses ~org-latex-prefer-user-labels~
+*** ~:preparation-function~ called earlier during publishing
+Functions in this list are called before any file is associated to the
+current projet.  Thus, they can be used to generate to be published
+Org files.
 *** Function ~org-remove-indentation~ changes.
 The new algorithm doesn't remove TAB characters not used for
 indentation.
+
+*** ~org-babel-check-confirm-evaluate~ is now a function instead of a macro
+The calling convention has changed.
+
 * Version 8.3
 
 ** Incompatible changes

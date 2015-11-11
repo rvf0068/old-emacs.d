@@ -1,4 +1,4 @@
-;;; org-footnote.el --- Footnote support in Org and elsewhere
+;;; org-footnote.el --- Footnote support in Org      -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
 ;;
@@ -70,6 +70,7 @@
 (defvar org-element-all-elements)	; defined in org-element.el
 (defvar org-element-all-objects)	; defined in org-element.el
 (defvar org-odd-levels-only)		; defined in org.el
+(defvar org-outline-regexp)		; defined in org.el
 (defvar org-outline-regexp-bol)		; defined in org.el
 
 (defconst org-footnote-re
@@ -566,6 +567,7 @@ or new, let the user edit the definition of the footnote."
 	       (org-footnote-auto-adjust-maybe)
 	       (org-edit-footnote-reference)))))))
 
+(defvar electric-indent-mode)
 (defvar org-blank-before-new-entry) ; Silence byte-compiler.
 (defun org-footnote-create-definition (label)
   "Start the definition of a footnote with label LABEL.

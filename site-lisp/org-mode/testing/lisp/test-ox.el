@@ -21,6 +21,8 @@
 
 ;;; Code:
 
+(require 'cl-lib)
+
 (unless (featurep 'ox)
   (signal 'missing-test-dependency "org-export"))
 
@@ -46,11 +48,13 @@ variable, and communication channel under `info'."
   `(org-test-with-temp-text ,data
      (org-export--delete-comments)
      (let* ((tree (org-element-parse-buffer))
-	    (info (org-export-get-environment)))
+	    (info (org-combine-plists
+		   (org-export--get-export-attributes)
+		   (org-export-get-environment))))
        (org-export--prune-tree tree info)
        (org-export--remove-uninterpreted-data tree info)
        (let ((info (org-combine-plists
-		    info (org-export-collect-tree-properties tree info))))
+		    info (org-export--collect-tree-properties tree info))))
 	 ,@body))))
 
 
@@ -402,27 +406,39 @@ Paragraph"
 	    (org-test-with-temp-text "* Head1 :noexp:"
 	      (org-export-as (org-test-default-backend)
 			     nil nil nil '(:exclude-tags ("noexp")))))))
+  (should
+   (equal "#+FILETAGS: noexp\n"
+	  (let (org-export-filter-body-functions
+		org-export-filter-final-output-functions)
+	    (org-test-with-temp-text "#+FILETAGS: noexp\n* Head1"
+	      (org-export-as (org-test-default-backend)
+			     nil nil nil '(:exclude-tags ("noexp")))))))
   ;; Test include tags for headlines and inlinetasks.
   (should
-   (equal "* H2\n** Sub :exp:\n*** Sub Sub\n"
-	  (org-test-with-temp-text "* H1\n* H2\n** Sub :exp:\n*** Sub Sub\n* H3"
+   (equal (org-test-with-temp-text "* H1\n* H2\n** Sub :exp:\n*** Sub Sub\n* H3"
 	    (let ((org-tags-column 0))
 	      (org-export-as (org-test-default-backend)
-			     nil nil nil '(:select-tags ("exp")))))))
+			     nil nil nil '(:select-tags ("exp")))))
+	  "* H2\n** Sub :exp:\n*** Sub Sub\n"))
   ;; If there is an include tag, ignore the section before the first
   ;; headline, if any.
   (should
-   (equal "* H1 :exp:\nBody\n"
-	  (org-test-with-temp-text "First section\n* H1 :exp:\nBody"
+   (equal (org-test-with-temp-text "First section\n* H1 :exp:\nBody"
 	    (let ((org-tags-column 0))
 	      (org-export-as (org-test-default-backend)
-			     nil nil nil '(:select-tags ("exp")))))))
+			     nil nil nil '(:select-tags ("exp")))))
+	  "* H1 :exp:\nBody\n"))
+  (should
+   (equal (org-test-with-temp-text "#+FILETAGS: exp\nFirst section\n* H1\nBody"
+	    (org-export-as (org-test-default-backend)
+			   nil nil nil '(:select-tags ("exp"))))
+	  "* H1\nBody\n"))
   (should-not
-   (equal "* H1 :exp:\n"
-	  (org-test-with-temp-text "* H1 :exp:\nBody"
+   (equal (org-test-with-temp-text "* H1 :exp:\nBody"
 	    (let ((org-tags-column 0))
 	      (org-export-as (org-test-default-backend)
-			     nil nil nil '(:select-tags ("exp")))))))
+			     nil nil nil '(:select-tags ("exp")))))
+	  "* H1 :exp:\n"))
   ;; Test mixing include tags and exclude tags.
   (should
    (string-match
@@ -473,6 +489,36 @@ Paragraph"
       (let ((org-archive-tag "archive"))
 	(org-export-as (org-test-default-backend)
 		       nil nil nil '(:with-archived-trees t))))))
+  ;; Broken links.  Depending on `org-export-with-broken-links', raise
+  ;; an error, ignore link or mark is as broken in output.
+  (should-error
+   (org-test-with-temp-text "[[#broken][link]]"
+     (let ((backend
+	    (org-export-create-backend
+	     :transcoders
+	     '((section . (lambda (_e c _i) c))
+	       (paragraph . (lambda (_e c _i) c))
+	       (link . (lambda (l c i) (org-export-resolve-id-link l i)))))))
+       (org-export-as backend nil nil nil '(:with-broken-links nil)))))
+  (should
+   (org-test-with-temp-text "[[#broken][link]]"
+     (let ((backend
+	    (org-export-create-backend
+	     :transcoders
+	     '((section . (lambda (_e c _i) c))
+	       (paragraph . (lambda (_e c _i) c))
+	       (link . (lambda (l c i) (org-export-resolve-id-link l i)))))))
+       (org-export-as backend nil nil nil '(:with-broken-links t)))))
+  (should
+   (org-test-with-temp-text "[[#broken][link]]"
+     (let ((backend
+	    (org-export-create-backend
+	     :transcoders
+	     '((section . (lambda (_e c _i) c))
+	       (paragraph . (lambda (_e c _i) c))
+	       (link . (lambda (l c i) (org-export-resolve-id-link l i)))))))
+       (org-string-nw-p
+	(org-export-as backend nil nil nil '(:with-broken-links mark))))))
   ;; Clocks.
   (should
    (string-match "CLOCK: \\[2012-04-29 .* 10:45\\]"
@@ -1116,7 +1162,7 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
       (buffer-string))))
   ;; Adjacent INCLUDE-keywords should have the same :minlevel if unspecified.
   (should
-   (org-every (lambda (level) (zerop (1- level)))
+   (cl-every (lambda (level) (zerop (1- level)))
 	      (org-test-with-temp-text
 		  (concat
 		   (format "#+INCLUDE: \"%s/examples/include.org::#ah\"\n" org-test-dir)
@@ -2034,7 +2080,7 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
 :UNNUMBERED: nil
 :END:
 *** H3"
-     (org-every
+     (cl-every
       (lambda (h) (not (org-export-numbered-headline-p h info)))
       (org-element-map tree 'headline #'identity info)))))
 
@@ -2065,49 +2111,31 @@ Footnotes[fn:2], foot[fn:test], digit only[3], and [fn:inline:anonymous footnote
 
 (ert-deftest test-org-export/get-tags ()
   "Test `org-export-get-tags' specifications."
-  (let ((org-export-exclude-tags '("noexport"))
-	(org-export-select-tags '("export")))
-    ;; Standard test: tags which are not a select tag, an exclude tag,
-    ;; or specified as optional argument shouldn't be ignored.
-    (should
-     (org-test-with-parsed-data "* Headline :tag:"
-       (org-export-get-tags (org-element-map tree 'headline 'identity info t)
-			    info)))
-    ;; Exclude tags are removed.
-    (should-not
-     (org-test-with-parsed-data "* Headline :noexport:"
-       (org-export-get-tags (org-element-map tree 'headline 'identity info t)
-			    info)))
-    ;; Select tags are removed.
-    (should-not
-     (org-test-with-parsed-data "* Headline :export:"
-       (org-export-get-tags (org-element-map tree 'headline 'identity info t)
-			    info)))
-    (should
-     (equal
-      '("tag")
-      (org-test-with-parsed-data "* Headline :tag:export:"
-	(org-export-get-tags (org-element-map tree 'headline 'identity info t)
-			     info))))
-    ;; Tags provided in the optional argument are also ignored.
-    (should-not
-     (org-test-with-parsed-data "* Headline :ignore:"
-       (org-export-get-tags (org-element-map tree 'headline 'identity info t)
-			    info '("ignore"))))
-    ;; Allow tag inheritance.
-    (should
-     (equal
-      '(("tag") ("tag"))
-      (org-test-with-parsed-data "* Headline :tag:\n** Sub-heading"
-	(org-element-map tree 'headline
-	  (lambda (hl) (org-export-get-tags hl info nil t)) info))))
-    ;; Tag inheritance checks FILETAGS keywords.
-    (should
-     (equal
-      '(("a" "b" "tag"))
-      (org-test-with-parsed-data "#+FILETAGS: :a:b:\n* Headline :tag:"
-	(org-element-map tree 'headline
-	  (lambda (hl) (org-export-get-tags hl info nil t)) info))))))
+  ;; Standard test: tags which are not a select tag, an exclude tag,
+  ;; or specified as optional argument shouldn't be ignored.
+  (should
+   (org-test-with-parsed-data "* Headline :tag:"
+     (org-export-get-tags (org-element-map tree 'headline 'identity info t)
+			  info)))
+  ;; Tags provided in the optional argument are ignored.
+  (should-not
+   (org-test-with-parsed-data "* Headline :ignore:"
+     (org-export-get-tags (org-element-map tree 'headline 'identity info t)
+			  info '("ignore"))))
+  ;; Allow tag inheritance.
+  (should
+   (equal
+    '(("tag") ("tag"))
+    (org-test-with-parsed-data "* Headline :tag:\n** Sub-heading"
+      (org-element-map tree 'headline
+	(lambda (hl) (org-export-get-tags hl info nil t)) info))))
+  ;; Tag inheritance checks FILETAGS keywords.
+  (should
+   (equal
+    '(("a" "b" "tag"))
+    (org-test-with-parsed-data "#+FILETAGS: :a:b:\n* Headline :tag:"
+      (org-element-map tree 'headline
+	(lambda (hl) (org-export-get-tags hl info nil t)) info)))))
 
 (ert-deftest test-org-export/get-node-property ()
   "Test`org-export-get-node-property' specifications."
@@ -2532,14 +2560,17 @@ Another text. (ref:text)
 		    (org-export-resolve-coderef "text" info)))))
     ;; Recognize coderef with user-specified syntax.
     (should
-     (equal "text"
-	    (org-test-with-parsed-data
-		"#+BEGIN_EXAMPLE -l \"[ref:%s]\"\nText. [ref:text]\n#+END_EXAMPLE"
-	      (org-export-resolve-coderef "text" info))))
-    ;; Unresolved coderefs throw an error.
-    (should-error
-     (org-test-with-parsed-data "#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC"
-       (org-export-resolve-coderef "unknown" info)))))
+     (equal
+      "text"
+      (org-test-with-parsed-data
+	  "#+BEGIN_EXAMPLE -l \"[ref:%s]\"\nText. [ref:text]\n#+END_EXAMPLE"
+	(org-export-resolve-coderef "text" info))))
+    ;; Unresolved coderefs raise a `org-link-broken' signal.
+    (should
+     (condition-case nil
+	 (org-test-with-parsed-data "#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n#+END_SRC"
+	   (org-export-resolve-coderef "unknown" info))
+       (org-link-broken t)))))
 
 (ert-deftest test-org-export/resolve-fuzzy-link ()
   "Test `org-export-resolve-fuzzy-link' specifications."
@@ -2584,11 +2615,13 @@ Another text. (ref:text)
 	 (org-element-type
 	  (org-export-resolve-fuzzy-link
 	   (org-element-map tree 'link 'identity info t) info)))))
-  ;; Error if no match.
-  (should-error
+  ;; Raise a `org-link-broken' signal if no match.
+  (should
    (org-test-with-parsed-data "[[target]]"
-     (org-export-resolve-fuzzy-link
-      (org-element-map tree 'link 'identity info t) info)))
+     (condition-case nil
+	 (org-export-resolve-fuzzy-link
+	  (org-element-map tree 'link #'identity info t) info)
+       (org-link-broken t))))
   ;; Match fuzzy link even when before first headline.
   (should
    (eq 'headline
@@ -2617,16 +2650,18 @@ Another text. (ref:text)
 	     :title
 	     (org-export-resolve-id-link
 	      (org-element-map tree 'link 'identity info t) info)))))
-  ;; Throw an error on failing searches.
-  (should-error
+  ;; Raise a `org-link-broken' signal on failing searches.
+  (should
    (org-test-with-parsed-data "* Headline1
 :PROPERTIES:
 :CUSTOM_ID: test
 :END:
 * Headline 2
 \[[#no-match]]"
-     (org-export-resolve-id-link
-      (org-element-map tree 'link 'identity info t) info)))
+     (condition-case nil
+	 (org-export-resolve-id-link
+	  (org-element-map tree 'link #'identity info t) info)
+       (org-link-broken t))))
   ;; Test for internal id target.
   (should
    (equal '("Headline1")

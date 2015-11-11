@@ -1,4 +1,4 @@
-;;; ob-latex.el --- org-babel functions for latex "evaluation"
+;;; ob-latex.el --- Babel Functions for LaTeX        -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
 
@@ -58,7 +58,10 @@
     (packages     . :any)
     (pdfheight    . :any)
     (pdfpng       . :any)
-    (pdfwidth     . :any))
+    (pdfwidth     . :any)
+    (headers      . :any)
+    (packages     . :any)
+    (buffer       . ((yes no))))
   "LaTeX-specific header arguments.")
 
 (defcustom org-babel-latex-htlatex "htlatex"
@@ -80,7 +83,7 @@
                  (regexp-quote (format "%S" (car pair)))
                  (if (stringp (cdr pair))
                      (cdr pair) (format "%S" (cdr pair)))
-                 body))) (mapcar #'cdr (org-babel-get-header params :var)))
+                 body))) (org-babel--get-vars params))
   (org-babel-trim body))
 
 (defun org-babel-execute:latex (body params)
@@ -94,7 +97,6 @@ This function is called by `org-babel-execute-src-block'."
 	     (imagemagick (cdr (assoc :imagemagick params)))
 	     (im-in-options (cdr (assoc :iminoptions params)))
 	     (im-out-options (cdr (assoc :imoutoptions params)))
-	     (pdfpng (cdr (assoc :pdfpng params)))
 	     (fit (or (cdr (assoc :fit params)) border))
 	     (height (and fit (cdr (assoc :pdfheight params))))
 	     (width (and fit (cdr (assoc :pdfwidth params))))
@@ -213,7 +215,7 @@ This function is called by `org-babel-execute-src-block'."
   (require 'ox-latex)
   (org-latex-compile file))
 
-(defun org-babel-prep-session:latex (session params)
+(defun org-babel-prep-session:latex (_session _params)
   "Return an error because LaTeX doesn't support sessions."
   (error "LaTeX does not support sessions"))
 
