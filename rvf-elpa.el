@@ -5,7 +5,7 @@
 (require 'cl)
 
 (add-to-list 'package-archives
-             '("melpa" . "http://melpa.milkbox.net/packages/") t)
+             '("melpa" . "https://melpa.org/packages/") t)
 ;; set package-user-dir to be relative to Prelude install path
 
 (package-initialize)

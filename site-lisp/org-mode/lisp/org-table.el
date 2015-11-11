@@ -1,4 +1,4 @@
-;;; org-table.el --- The table editor for Org mode
+;;; org-table.el --- The Table Editor for Org        -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2004-2015 Free Software Foundation, Inc.
 
@@ -36,6 +36,7 @@
 
 (eval-when-compile
   (require 'cl))
+(require 'cl-lib)
 (require 'org)
 
 (declare-function org-element-at-point "org-element" ())
@@ -66,6 +67,7 @@
 (defvar orgtbl-mode-menu) ; defined when orgtbl mode get initialized
 (defvar constants-unit-system)
 (defvar org-table-follow-field-mode)
+(defvar sort-fold-case)
 
 (defvar orgtbl-after-send-table-hook nil
   "Hook for functions attaching to `C-c C-c', if the table is sent.
@@ -544,7 +546,7 @@ SIZE is a string Columns x Rows like for example \"3x2\"."
 	(beginning-of-line 1)
       (newline))
     ;; (mapcar (lambda (x) (insert line)) (make-list rows t))
-    (dotimes (i rows) (insert line))
+    (dotimes (_ rows) (insert line))
     (goto-char pos)
     (if (> rows 1)
 	;; Insert a hline after the first row.
@@ -723,13 +725,11 @@ This is being used to correctly align a single field after TAB or RET.")
 (defvar org-table-last-column-widths nil
   "List of max width of fields in each column.
 This is being used to correctly align a single field after TAB or RET.")
-(defvar org-table-formula-debug nil
+(defvar-local org-table-formula-debug nil
   "Non-nil means debug table formulas.
 When nil, simply write \"#ERROR\" in corrupted fields.")
-(make-variable-buffer-local 'org-table-formula-debug)
-(defvar org-table-overlay-coordinates nil
+(defvar-local org-table-overlay-coordinates nil
   "Overlay coordinates after each align of a table.")
-(make-variable-buffer-local 'org-table-overlay-coordinates)
 
 (defvar org-last-recalc-line nil)
 (defvar org-table-do-narrow t)   ; for dynamic scoping
@@ -1264,7 +1264,7 @@ is always the old value."
     (forward-char 1) ""))
 
 ;;;###autoload
-(defun org-table-field-info (arg)
+(defun org-table-field-info (_arg)
   "Show info about the current field, and highlight any reference at point."
   (interactive "P")
   (unless (org-at-table-p) (user-error "Not at a table"))
@@ -1891,10 +1891,10 @@ Note that horizontal lines disappear."
   (let* ((table (delete 'hline (org-table-to-lisp)))
 	 (dline_old (org-table-current-line))
 	 (col_old (org-table-current-column))
-	 (contents (mapcar (lambda (p)
+	 (contents (mapcar (lambda (_)
 			     (let ((tp table))
 			       (mapcar
-				(lambda (rown)
+				(lambda (_)
 				  (prog1
 				      (pop (car tp))
 				    (setq tp (cdr tp))))
@@ -2024,9 +2024,9 @@ it can be edited in place."
 			      '(invisible t org-cwidth t display t
 					  intangible t))
       (goto-char p)
-      (org-set-local 'org-finish-function 'org-table-finish-edit-field)
-      (org-set-local 'org-window-configuration cw)
-      (org-set-local 'org-field-marker pos)
+      (setq-local org-finish-function 'org-table-finish-edit-field)
+      (setq-local org-window-configuration cw)
+      (setq-local org-field-marker pos)
       (message "Edit and finish with C-c C-c")))))
 
 (defun org-table-finish-edit-field ()
@@ -2193,16 +2193,11 @@ When NAMED is non-nil, look for a named equation."
 			    org-table-named-field-locations)))
 	 (ref (format "@%d$%d" (org-table-current-dline)
 		      (org-table-current-column)))
-	 (refass (assoc ref stored-list))
-	 (nameass (assoc name stored-list))
 	 (scol (if named
 		   (if (and name (not (string-match "^LR[0-9]+$" name)))
 		       name
 		     ref)
 		 (int-to-string (org-table-current-column))))
-	 (dummy (and (or nameass refass) (not named)
-		     (not (y-or-n-p "Replace existing field formula with column formula? " ))
-		     (message "Formula not replaced")))
 	 (name (or name ref))
 	 (org-table-may-need-update nil)
 	 (stored (cdr (assoc scol stored-list)))
@@ -2534,24 +2529,27 @@ This function sets up the following dynamically scoped variables:
 	(push 'hline types) ; Add an imaginary extra hline to the end.
 	(setq org-table-current-line-types (apply #'vector (nreverse types)))
 	(setq org-table-dlines (apply #'vector (cons nil (nreverse dlines))))
-	(setq org-table-hlines (apply #'vector (cons nil (nreverse hlines))))
-	(forward-line -1)
-	(let* ((last-dline (car dlines))
-	       (fields (org-split-string
-			(buffer-substring (line-beginning-position)
-					  (line-end-position))
-			"[ \t]*|[ \t]*"))
-	       (nfields (length fields))
-	       al al2)
-	  (setq org-table-current-ncol nfields)
+	(setq org-table-hlines (apply #'vector (cons nil (nreverse hlines)))))
+      ;; Get the number of columns from the first data line in table.
+      (goto-char beg)
+      (forward-line (aref org-table-dlines 1))
+      (let* ((fields
+	      (org-split-string
+	       (buffer-substring (line-beginning-position) (line-end-position))
+	       "[ \t]*|[ \t]*"))
+	     (nfields (length fields))
+	     al al2)
+	(setq org-table-current-ncol nfields)
+	(let ((last-dline
+	       (aref org-table-dlines (1- (length org-table-dlines)))))
 	  (dotimes (i nfields)
 	    (let ((column (1+ i)))
 	      (push (list (format "LR%d" column) last-dline column) al)
-	      (push (cons (format "LR%d" column) (nth i fields)) al2)))
-	  (setq org-table-named-field-locations
-		(append org-table-named-field-locations al))
-	  (setq org-table-local-parameters
-		(append org-table-local-parameters al2)))))))
+	      (push (cons (format "LR%d" column) (nth i fields)) al2))))
+	(setq org-table-named-field-locations
+	      (append org-table-named-field-locations al))
+	(setq org-table-local-parameters
+	      (append org-table-local-parameters al2))))))
 
 (defun org-table-goto-field (ref &optional create-column-p)
   "Move point to a specific field in the current table.
@@ -2796,11 +2794,12 @@ not overwrite the stored one."
 		(replace-match
 		 (save-match-data
 		   (org-table-make-reference
-		    (org-sublist fields
-				 (+ (if (match-end 2) n0 0)
-				    (string-to-number (match-string 1 form)))
-				 (+ (if (match-end 4) n0 0)
-				    (string-to-number (match-string 3 form))))
+		    (cl-subseq fields
+			       (+ (if (match-end 2) n0 0)
+				  (string-to-number (match-string 1 form))
+				  -1)
+			       (+ (if (match-end 4) n0 0)
+				  (string-to-number (match-string 3 form))))
 		    keep-empty numbers lispp))
 		 t t form)))
 	(setq form0 form)
@@ -3530,10 +3529,10 @@ Parameters get priority."
     ;; Keep global-font-lock-mode from turning on font-lock-mode
     (let ((font-lock-global-modes '(not fundamental-mode)))
       (fundamental-mode))
-    (org-set-local 'font-lock-global-modes (list 'not major-mode))
-    (org-set-local 'org-pos pos)
-    (org-set-local 'org-window-configuration wc)
-    (org-set-local 'org-selected-window sel-win)
+    (setq-local font-lock-global-modes (list 'not major-mode))
+    (setq-local org-pos pos)
+    (setq-local org-window-configuration wc)
+    (setq-local org-selected-window sel-win)
     (use-local-map org-table-fedit-map)
     (org-add-hook 'post-command-hook #'org-table-fedit-post-command t t)
     (easy-menu-add org-table-fedit-menu)
@@ -3708,7 +3707,7 @@ minutes or seconds."
 (defun org-table-fedit-toggle-ref-type ()
   "Convert all references in the buffer from B3 to @3$2 and back."
   (interactive)
-  (org-set-local 'org-table-buffer-is-an (not org-table-buffer-is-an))
+  (setq-local org-table-buffer-is-an (not org-table-buffer-is-an))
   (org-table-fedit-convert-buffer
    (if org-table-buffer-is-an
        'org-table-convert-refs-to-an 'org-table-convert-refs-to-rc))
@@ -4107,16 +4106,15 @@ FACE, when non-nil, for the highlight."
     (goto-char (car start-coordinates)))
   (add-hook 'before-change-functions #'org-table-remove-rectangle-highlight))
 
-(defun org-table-remove-rectangle-highlight (&rest ignore)
+(defun org-table-remove-rectangle-highlight (&rest _ignore)
   "Remove the rectangle overlays."
   (unless org-inhibit-highlight-removal
     (remove-hook 'before-change-functions 'org-table-remove-rectangle-highlight)
     (mapc 'delete-overlay org-table-rectangle-overlays)
     (setq org-table-rectangle-overlays nil)))
 
-(defvar org-table-coordinate-overlays nil
+(defvar-local org-table-coordinate-overlays nil
   "Collects the coordinate grid overlays, so that they can be removed.")
-(make-variable-buffer-local 'org-table-coordinate-overlays)
 
 (defun org-table-overlay-coordinates ()
   "Add overlays to the table at point, to show row/column coordinates."
@@ -4233,12 +4231,12 @@ FACE, when non-nil, for the highlight."
       ;; FIXME: maybe it should use emulation-mode-map-alists?
       (and c (setq minor-mode-map-alist
                    (cons c (delq c minor-mode-map-alist)))))
-    (org-set-local (quote org-table-may-need-update) t)
+    (setq-local org-table-may-need-update t)
     (org-add-hook 'before-change-functions 'org-before-change-function
                   nil 'local)
-    (org-set-local 'org-old-auto-fill-inhibit-regexp
+    (setq-local org-old-auto-fill-inhibit-regexp
                    auto-fill-inhibit-regexp)
-    (org-set-local 'auto-fill-inhibit-regexp
+    (setq-local auto-fill-inhibit-regexp
                    (if auto-fill-inhibit-regexp
                        (concat orgtbl-line-start-regexp "\\|"
                                auto-fill-inhibit-regexp)
@@ -4481,7 +4479,7 @@ With prefix arg, also recompute table."
      (t (let (orgtbl-mode)
 	  (call-interactively (key-binding "\C-c\C-c")))))))
 
-(defun orgtbl-create-or-convert-from-region (arg)
+(defun orgtbl-create-or-convert-from-region (_arg)
   "Create table or convert region to table, if no conflicting binding.
 This installs the table binding `C-c |', but only if there is no
 conflicting binding to this key outside orgtbl-mode."
@@ -5417,16 +5415,13 @@ This function is generated by a call to the macro `org-define-lookup-function'."
 			      (sl s-list)
 			      (rl (or r-list s-list))
 			      (ret nil))))
-		 (if first-p (add-to-list 'lvars '(match-p nil)))
-		 lvars)
+		 (if first-p (cons '(match-p nil) lvars) lvars))
 	   (while ,(if first-p '(and (not match-p) sl) 'sl)
-	     (progn
-	       (if (funcall p val (car sl))
-		   (progn
-		     ,(if first-p '(setq match-p t))
-		     (let ((rval (car rl)))
-		       (setq ret ,(if all-p '(append ret (list rval)) 'rval)))))
-	       (setq sl (cdr sl) rl (cdr rl))))
+	     (when (funcall p val (car sl))
+	       ,(when first-p '(setq match-p t))
+	       (let ((rval (car rl)))
+		 (setq ret ,(if all-p '(append ret (list rval)) 'rval))))
+	     (setq sl (cdr sl) rl (cdr rl)))
 	   ret)))))
 
 (org-define-lookup-function first)

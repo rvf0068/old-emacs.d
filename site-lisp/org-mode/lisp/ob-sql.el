@@ -1,4 +1,4 @@
-;;; ob-sql.el --- org-babel functions for sql evaluation
+;;; ob-sql.el --- Babel Functions for SQL            -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
 
@@ -78,7 +78,7 @@
 (defun org-babel-expand-body:sql (body params)
   "Expand BODY according to the values of PARAMS."
   (org-babel-sql-expand-vars
-   body (mapcar #'cdr (org-babel-get-header params :var))))
+   body (org-babel--get-vars params)))
 
 (defun org-babel-sql-dbstring-mysql (host port user password database)
   "Make MySQL cmd line args for database connection.  Pass nil to omit that arg."
@@ -217,7 +217,7 @@ This function is called by `org-babel-execute-src-block'."
    vars)
   body)
 
-(defun org-babel-prep-session:sql (session params)
+(defun org-babel-prep-session:sql (_session _params)
   "Raise an error because Sql sessions aren't implemented."
   (error "SQL sessions not yet implemented"))
 

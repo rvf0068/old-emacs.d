@@ -286,6 +286,84 @@
   (should (equal (org-parse-time-string "<2012-03-29>" t)
 		 '(0 nil nil 29 3 2012 nil nil nil))))
 
+(ert-deftest test-org/closest-date ()
+  "Test `org-closest-date' specifications."
+  (require 'calendar)
+  ;; Time stamps without a repeater are returned unchanged.
+  (should
+   (equal
+    '(3 29 2012)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-29>" "<2014-03-04>" nil))))
+  ;; Time stamps with a null repeater are returned unchanged.
+  (should
+   (equal
+    '(3 29 2012)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-29 +0d>" "<2014-03-04>" nil))))
+  ;; if PREFER is set to `past' always return a date before, or equal
+  ;; to CURRENT.
+  (should
+   (equal
+    '(3 1 2014)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-29 +1m>" "<2014-03-04>" 'past))))
+  (should
+   (equal
+    '(3 4 2014)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-04 +1m>" "<2014-03-04>" 'past))))
+  ;; if PREFER is set to `future' always return a date before, or equal
+  ;; to CURRENT.
+  (should
+   (equal
+    '(3 29 2014)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-29 +1m>" "<2014-03-04>" 'future))))
+  (should
+   (equal
+    '(3 4 2014)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-04 +1m>" "<2014-03-04>" 'future))))
+  ;; If PREFER is neither `past' nor `future', select closest date.
+  (should
+   (equal
+    '(3 1 2014)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-29 +1m>" "<2014-03-04>" nil))))
+  (should
+   (equal
+    '(5 4 2014)
+    (calendar-gregorian-from-absolute
+     (org-closest-date "<2012-03-04 +1m>" "<2014-04-28>" nil))))
+  ;; Test "day" repeater.
+  (should
+   (equal '(3 8 2014)
+	  (calendar-gregorian-from-absolute
+	   (org-closest-date "<2014-03-04 +2d>" "<2014-03-09>" 'past))))
+  (should
+   (equal '(3 10 2014)
+	  (calendar-gregorian-from-absolute
+	   (org-closest-date "<2014-03-04 +2d>" "<2014-03-09>" 'future))))
+  ;; Test "month" repeater.
+  (should
+   (equal '(1 5 2015)
+	  (calendar-gregorian-from-absolute
+	   (org-closest-date "<2014-03-05 +2m>" "<2015-02-04>" 'past))))
+  (should
+   (equal '(3 29 2014)
+	  (calendar-gregorian-from-absolute
+	   (org-closest-date "<2012-03-29 +2m>" "<2014-03-04>" 'future))))
+  ;; Test "year" repeater.
+  (should
+   (equal '(3 5 2014)
+	  (calendar-gregorian-from-absolute
+	   (org-closest-date "<2014-03-05 +2y>" "<2015-02-04>" 'past))))
+  (should
+   (equal '(3 29 2014)
+	  (calendar-gregorian-from-absolute
+	   (org-closest-date "<2012-03-29 +2y>" "<2014-03-04>" 'future)))))
+
 
 ;;; Drawers
 
@@ -887,18 +965,47 @@
   (should
    (org-test-with-temp-text "Link [[target<point>]] <<target>>"
      (let ((org-return-follows-link t)
-	   (org-link-search-must-match-exact-headline nil)) (org-return))
+	   (org-link-search-must-match-exact-headline nil))
+       (org-return))
      (org-looking-at-p "<<target>>")))
   (should-not
    (org-test-with-temp-text "Link [[target<point>]] <<target>>"
      (let ((org-return-follows-link nil)) (org-return))
      (org-looking-at-p "<<target>>")))
-  ;; Link in heading should also be opened when
-  ;; `org-return-follows-link` is non-nil.
   (should
    (org-test-with-temp-text "* [[b][a<point>]]\n* b"
      (let ((org-return-follows-link t)) (org-return))
      (org-looking-at-p "* b")))
+  (should
+   (org-test-with-temp-text "Link [[target][/descipt<point>ion/]] <<target>>"
+     (let ((org-return-follows-link t)
+	   (org-link-search-must-match-exact-headline nil))
+       (org-return))
+     (org-looking-at-p "<<target>>")))
+  (should-not
+   (org-test-with-temp-text "Link [[target]]<point> <<target>>"
+     (let ((org-return-follows-link t)
+	   (org-link-search-must-match-exact-headline nil))
+       (org-return))
+     (org-looking-at-p "<<target>>")))
+  ;; When `org-return-follows-link' is non-nil, tolerate links and
+  ;; timestamps in comments, node properties, etc.
+  (should
+   (org-test-with-temp-text "# Comment [[target<point>]]\n <<target>>"
+     (let ((org-return-follows-link t)
+	   (org-link-search-must-match-exact-headline nil))
+       (org-return))
+     (org-looking-at-p "<<target>>")))
+  (should-not
+   (org-test-with-temp-text "# Comment [[target<point>]]\n <<target>>"
+     (let ((org-return-follows-link nil)) (org-return))
+     (org-looking-at-p "<<target>>")))
+  (should-not
+   (org-test-with-temp-text "# Comment [[target]]<point>\n <<target>>"
+     (let ((org-return-follows-link t)
+	   (org-link-search-must-match-exact-headline nil))
+       (org-return))
+     (org-looking-at-p "<<target>>")))
   ;; However, do not open link when point is in a table.
   (should
    (org-test-with-temp-text "| [[target<point>]] |\n| between |\n| <<target>> |"
@@ -1298,6 +1405,43 @@
 	    '(org-block-todo-from-children-or-siblings-or-parent)))
        (org-entry-blocked-p)))))
 
+(ert-deftest test-org/format-outline-path ()
+  (should
+   (string= (org-format-outline-path (list "one" "two" "three"))
+	    "one/two/three"))
+  ;; Empty path.
+  (should
+   (string= (org-format-outline-path '())
+	    ""))
+  (should
+   (string= (org-format-outline-path '(nil))
+	    ""))
+  ;; Empty path and prefix.
+  (should
+   (string= (org-format-outline-path '() nil ">>")
+	    ">>"))
+  ;; Trailing whitespace in headings.
+  (should
+   (string= (org-format-outline-path (list "one\t" "tw o " "three  "))
+	    "one/tw o/three"))
+  ;; Non-default prefix and separators.
+  (should
+   (string= (org-format-outline-path (list "one" "two" "three") nil ">>" "|")
+	    ">>|one|two|three"))
+  ;; Truncate.
+  (should
+   (string= (org-format-outline-path (list "one" "two" "three" "four") 10)
+	    "one/two/.."))
+  ;; Give a very narrow width.
+  (should
+   (string= (org-format-outline-path (list "one" "two" "three" "four") 2)
+	    "on"))
+  ;; Give a prefix that extends beyond the width.
+  (should
+   (string= (org-format-outline-path (list "one" "two" "three" "four") 10
+				     ">>>>>>>>>>")
+	    ">>>>>>>>..")))
+
 
 ;;; Keywords
 
@@ -1478,7 +1622,7 @@
 #+BEGIN_SRC emacs-lisp
 \(+ 1 1)                  (ref:sc)
 #+END_SRC
-\[[(sc)]]<point>"
+\[[(sc)<point>]]"
      (org-open-at-point)
      (looking-at "(ref:sc)")))
   ;; Find coderef even with alternate label format.
@@ -1487,7 +1631,7 @@
 #+BEGIN_SRC emacs-lisp -l \"{ref:%s}\"
 \(+ 1 1)                  {ref:sc}
 #+END_SRC
-\[[(sc)]]<point>"
+\[[(sc)<point>]]"
      (org-open-at-point)
      (looking-at "{ref:sc}"))))
 
@@ -1497,13 +1641,13 @@
   "Test custom ID links specifications."
   (should
    (org-test-with-temp-text
-       "* H1\n:PROPERTIES:\n:CUSTOM_ID: custom\n:END:\n* H2\n[[#custom]]<point>"
+       "* H1\n:PROPERTIES:\n:CUSTOM_ID: custom\n:END:\n* H2\n[[#custom<point>]]"
      (org-open-at-point)
      (org-looking-at-p "\\* H1")))
   ;; Throw an error on false positives.
   (should-error
    (org-test-with-temp-text
-       "* H1\n:DRAWER:\n:CUSTOM_ID: custom\n:END:\n* H2\n[[#custom]]<point>"
+       "* H1\n:DRAWER:\n:CUSTOM_ID: custom\n:END:\n* H2\n[[#custom<point>]]"
      (org-open-at-point)
      (org-looking-at-p "\\* H1"))))
 
@@ -1577,8 +1721,7 @@
      (looking-at "\\* COMMENT Test")))
   ;; Correctly un-hexify fuzzy links.
   (should
-   (org-test-with-temp-text "* With space\n[[*With%20space][With space]]"
-     (goto-char (point-max))
+   (org-test-with-temp-text "* With space\n[[*With%20space][With space<point>]]"
      (org-open-at-point)
      (bobp))))
 
@@ -1820,6 +1963,42 @@ drops support for Emacs 24.1 and 24.2."
 
 
  
+;;; Miscellaneous
+
+(ert-deftest test-org/in-regexp ()
+  "Test `org-in-regexp' specifications."
+  ;; Standard tests.
+  (should
+   (org-test-with-temp-text "xx ab<point>c xx"
+     (org-in-regexp "abc")))
+  (should-not
+   (org-test-with-temp-text "xx abc <point>xx"
+     (org-in-regexp "abc")))
+  ;; Return non-nil even with multiple matching regexps in the same
+  ;; line.
+  (should
+   (org-test-with-temp-text "abc xx ab<point>c xx"
+     (org-in-regexp "abc")))
+  ;; With optional argument NLINES, check extra lines around point.
+  (should-not
+   (org-test-with-temp-text "A\nB<point>\nC"
+     (org-in-regexp "A\nB\nC")))
+  (should
+   (org-test-with-temp-text "A\nB<point>\nC"
+     (org-in-regexp "A\nB\nC" 1)))
+  (should-not
+   (org-test-with-temp-text "A\nB\nC<point>"
+     (org-in-regexp "A\nB\nC" 1)))
+  ;; When optional argument VISUALLY is non-nil, return nil if at
+  ;; regexp boundaries.
+  (should
+   (org-test-with-temp-text "xx abc<point> xx"
+     (org-in-regexp "abc")))
+  (should-not
+   (org-test-with-temp-text "xx abc<point> xx"
+     (org-in-regexp "abc" nil t))))
+
+
 ;;; Navigation
 
 (ert-deftest test-org/end-of-meta-data ()

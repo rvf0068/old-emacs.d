@@ -137,6 +137,9 @@ When called twice, replace the previously inserted \\(\\) by one $."
 ;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
 (add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
 
+;; see http://endlessparentheses.com/changing-the-org-mode-ellipsis.html
+(setq org-ellipsis " ⤵")
+
 (setq org-export-copy-to-kill-ring nil)
 (setq org-export-with-tags nil)
 (setq org-hide-emphasis-markers t)

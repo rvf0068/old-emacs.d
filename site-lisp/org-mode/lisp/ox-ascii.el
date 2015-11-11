@@ -1,4 +1,4 @@
-;;; ox-ascii.el --- ASCII Back-End for Org Export Engine
+;;; ox-ascii.el --- ASCII Back-End for Org Export Engine -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
 
@@ -370,7 +370,7 @@ Otherwise, place it right after it."
   :type 'string)
 
 (defcustom org-ascii-format-drawer-function
-  (lambda (name contents width) contents)
+  (lambda (_name contents _width) contents)
   "Function called to format a drawer in ASCII.
 
 The function must accept three parameters:
@@ -712,7 +712,7 @@ possible.  It doesn't apply to `inlinetask' elements."
 				      (char-width under-char))
 				   under-char))))))))
 
-(defun org-ascii--has-caption-p (element info)
+(defun org-ascii--has-caption-p (element _info)
   "Non-nil when ELEMENT has a caption affiliated keyword.
 INFO is a plist used as a communication channel.  This function
 is meant to be used as a predicate for `org-export-get-ordinal'."
@@ -921,14 +921,17 @@ channel."
 	     (format
 	      "[%s] %s"
 	      anchor
-	      (if (not dest) (org-ascii--translate "Unknown reference" info)
+	      (if (stringp dest)	; External file.
+		  dest
 		(format
 		 (org-ascii--translate "See section %s" info)
 		 (if (org-export-numbered-headline-p dest info)
 		     (mapconcat #'number-to-string
-				(org-export-get-headline-number dest info) ".")
+				(org-export-get-headline-number dest info)
+				".")
 		   (org-export-data (org-element-property :title dest) info)))))
-	     width info) "\n\n")))
+	     width info)
+	    "\n\n")))
 	;; Do not add a link that cannot be resolved and doesn't have
 	;; any description: destination is already visible in the
 	;; paragraph.
@@ -1078,7 +1081,8 @@ holding export options."
 		   ;; full-fledged definitions.
 		   (org-trim
 		    (let ((def (nth 2 ref)))
-		      (if (eq (org-element-type def) 'org-data)
+		      (if (org-element-map def org-element-all-elements
+			    #'identity info 'first-match)
 			  ;; Full-fledged definition: footnote ID is
 			  ;; inserted inside the first parsed
 			  ;; paragraph (FIRST), if any, to be sure
@@ -1138,7 +1142,7 @@ INFO is a plist used as a communication channel."
 
 ;;;; Bold
 
-(defun org-ascii-bold (bold contents info)
+(defun org-ascii-bold (_bold contents _info)
   "Transcode BOLD from Org to ASCII.
 CONTENTS is the text with bold markup.  INFO is a plist holding
 contextual information."
@@ -1147,7 +1151,7 @@ contextual information."
 
 ;;;; Center Block
 
-(defun org-ascii-center-block (center-block contents info)
+(defun org-ascii-center-block (_center-block contents _info)
   "Transcode a CENTER-BLOCK element from Org to ASCII.
 CONTENTS holds the contents of the block.  INFO is a plist
 holding contextual information."
@@ -1158,7 +1162,7 @@ holding contextual information."
 
 ;;;; Clock
 
-(defun org-ascii-clock (clock contents info)
+(defun org-ascii-clock (clock _contents info)
   "Transcode a CLOCK object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
@@ -1176,7 +1180,7 @@ information."
 
 ;;;; Code
 
-(defun org-ascii-code (code contents info)
+(defun org-ascii-code (code _contents info)
   "Return a CODE object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
@@ -1198,7 +1202,7 @@ holding contextual information."
 
 ;;;; Dynamic Block
 
-(defun org-ascii-dynamic-block (dynamic-block contents info)
+(defun org-ascii-dynamic-block (_dynamic-block contents _info)
   "Transcode a DYNAMIC-BLOCK element from Org to ASCII.
 CONTENTS holds the contents of the block.  INFO is a plist
 holding contextual information."
@@ -1207,7 +1211,7 @@ holding contextual information."
 
 ;;;; Entity
 
-(defun org-ascii-entity (entity contents info)
+(defun org-ascii-entity (entity _contents info)
   "Transcode an ENTITY object from Org to ASCII.
 CONTENTS are the definition itself.  INFO is a plist holding
 contextual information."
@@ -1218,7 +1222,7 @@ contextual information."
 
 ;;;; Example Block
 
-(defun org-ascii-example-block (example-block contents info)
+(defun org-ascii-example-block (example-block _contents info)
   "Transcode a EXAMPLE-BLOCK element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (org-ascii--justify-element
@@ -1229,7 +1233,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 
 ;;;; Export Snippet
 
-(defun org-ascii-export-snippet (export-snippet contents info)
+(defun org-ascii-export-snippet (export-snippet _contents _info)
   "Transcode a EXPORT-SNIPPET object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (when (eq (org-export-snippet-backend export-snippet) 'ascii)
@@ -1238,7 +1242,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 
 ;;;; Export Block
 
-(defun org-ascii-export-block (export-block contents info)
+(defun org-ascii-export-block (export-block _contents info)
   "Transcode a EXPORT-BLOCK element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (when (string= (org-element-property :type export-block) "ASCII")
@@ -1248,7 +1252,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 
 ;;;; Fixed Width
 
-(defun org-ascii-fixed-width (fixed-width contents info)
+(defun org-ascii-fixed-width (fixed-width _contents info)
   "Transcode a FIXED-WIDTH element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (org-ascii--justify-element
@@ -1266,7 +1270,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 
 ;;;; Footnote Reference
 
-(defun org-ascii-footnote-reference (footnote-reference contents info)
+(defun org-ascii-footnote-reference (footnote-reference _contents info)
   "Transcode a FOOTNOTE-REFERENCE element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (format "[%s]" (org-export-get-footnote-number footnote-reference info)))
@@ -1325,7 +1329,7 @@ holding contextual information."
 
 ;;;; Horizontal Rule
 
-(defun org-ascii-horizontal-rule (horizontal-rule contents info)
+(defun org-ascii-horizontal-rule (horizontal-rule _contents info)
   "Transcode an HORIZONTAL-RULE object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
@@ -1342,7 +1346,7 @@ information."
 
 ;;;; Inline Src Block
 
-(defun org-ascii-inline-src-block (inline-src-block contents info)
+(defun org-ascii-inline-src-block (inline-src-block _contents info)
   "Transcode an INLINE-SRC-BLOCK element from Org to ASCII.
 CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
@@ -1353,7 +1357,7 @@ contextual information."
 ;;;; Inlinetask
 
 (defun org-ascii-format-inlinetask-default
-  (todo type priority name tags contents width inlinetask info)
+  (_todo _type _priority _name _tags contents width inlinetask info)
   "Format an inline task element for ASCII export.
 See `org-ascii-format-inlinetask-function' for a description
 of the parameters."
@@ -1408,7 +1412,7 @@ holding contextual information."
 
 ;;;; Italic
 
-(defun org-ascii-italic (italic contents info)
+(defun org-ascii-italic (_italic contents _info)
   "Transcode italic from Org to ASCII.
 CONTENTS is the text with italic markup.  INFO is a plist holding
 contextual information."
@@ -1467,7 +1471,7 @@ contextual information."
 
 ;;;; Keyword
 
-(defun org-ascii-keyword (keyword contents info)
+(defun org-ascii-keyword (keyword _contents info)
   "Transcode a KEYWORD element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
@@ -1493,7 +1497,7 @@ information."
 
 ;;;; Latex Environment
 
-(defun org-ascii-latex-environment (latex-environment contents info)
+(defun org-ascii-latex-environment (latex-environment _contents info)
   "Transcode a LATEX-ENVIRONMENT element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
@@ -1505,7 +1509,7 @@ information."
 
 ;;;; Latex Fragment
 
-(defun org-ascii-latex-fragment (latex-fragment contents info)
+(defun org-ascii-latex-fragment (latex-fragment _contents info)
   "Transcode a LATEX-FRAGMENT object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
@@ -1515,7 +1519,7 @@ information."
 
 ;;;; Line Break
 
-(defun org-ascii-line-break (line-break contents info)
+(defun org-ascii-line-break (_line-break _contents _info)
   "Transcode a LINE-BREAK object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
   information."  hard-newline)
@@ -1566,7 +1570,7 @@ INFO is a plist holding contextual information."
 
 ;;;; Node Properties
 
-(defun org-ascii-node-property (node-property contents info)
+(defun org-ascii-node-property (node-property _contents _info)
   "Transcode a NODE-PROPERTY element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual
 information."
@@ -1629,7 +1633,7 @@ INFO is a plist used as a communication channel."
 
 ;;;; Planning
 
-(defun org-ascii-planning (planning contents info)
+(defun org-ascii-planning (planning _contents info)
   "Transcode a PLANNING element from Org to ASCII.
 CONTENTS is nil.  INFO is a plist used as a communication
 channel."
@@ -1665,7 +1669,7 @@ holding contextual information."
 
 ;;;; Quote Block
 
-(defun org-ascii-quote-block (quote-block contents info)
+(defun org-ascii-quote-block (_quote-block contents info)
   "Transcode a QUOTE-BLOCK element from Org to ASCII.
 CONTENTS holds the contents of the block.  INFO is a plist
 holding contextual information."
@@ -1674,7 +1678,7 @@ holding contextual information."
 
 ;;;; Radio Target
 
-(defun org-ascii-radio-target (radio-target contents info)
+(defun org-ascii-radio-target (_radio-target contents _info)
   "Transcode a RADIO-TARGET object from Org to ASCII.
 CONTENTS is the contents of the target.  INFO is a plist holding
 contextual information."
@@ -1705,7 +1709,7 @@ contextual information."
 
 ;;;; Special Block
 
-(defun org-ascii-special-block (special-block contents info)
+(defun org-ascii-special-block (_special-block contents _info)
   "Transcode a SPECIAL-BLOCK element from Org to ASCII.
 CONTENTS holds the contents of the block.  INFO is a plist
 holding contextual information."
@@ -1717,7 +1721,7 @@ holding contextual information."
 
 ;;;; Src Block
 
-(defun org-ascii-src-block (src-block contents info)
+(defun org-ascii-src-block (src-block _contents info)
   "Transcode a SRC-BLOCK element from Org to ASCII.
 CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
@@ -1735,7 +1739,7 @@ contextual information."
 
 ;;;; Statistics Cookie
 
-(defun org-ascii-statistics-cookie (statistics-cookie contents info)
+(defun org-ascii-statistics-cookie (statistics-cookie _contents _info)
   "Transcode a STATISTICS-COOKIE object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (org-element-property :value statistics-cookie))
@@ -1743,7 +1747,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 
 ;;;; Subscript
 
-(defun org-ascii-subscript (subscript contents info)
+(defun org-ascii-subscript (subscript contents _info)
   "Transcode a SUBSCRIPT object from Org to ASCII.
 CONTENTS is the contents of the object.  INFO is a plist holding
 contextual information."
@@ -1754,7 +1758,7 @@ contextual information."
 
 ;;;; Superscript
 
-(defun org-ascii-superscript (superscript contents info)
+(defun org-ascii-superscript (superscript contents _info)
   "Transcode a SUPERSCRIPT object from Org to ASCII.
 CONTENTS is the contents of the object.  INFO is a plist holding
 contextual information."
@@ -1765,7 +1769,7 @@ contextual information."
 
 ;;;; Strike-through
 
-(defun org-ascii-strike-through (strike-through contents info)
+(defun org-ascii-strike-through (_strike-through contents _info)
   "Transcode STRIKE-THROUGH from Org to ASCII.
 CONTENTS is text with strike-through markup.  INFO is a plist
 holding contextual information."
@@ -1935,7 +1939,7 @@ a communication channel."
 
 ;;;; Timestamp
 
-(defun org-ascii-timestamp (timestamp contents info)
+(defun org-ascii-timestamp (timestamp _contents info)
   "Transcode a TIMESTAMP object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (org-ascii-plain-text (org-timestamp-translate timestamp) info))
@@ -1943,7 +1947,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 
 ;;;; Underline
 
-(defun org-ascii-underline (underline contents info)
+(defun org-ascii-underline (_underline contents _info)
   "Transcode UNDERLINE from Org to ASCII.
 CONTENTS is the text with underline markup.  INFO is a plist
 holding contextual information."
@@ -1952,7 +1956,7 @@ holding contextual information."
 
 ;;;; Verbatim
 
-(defun org-ascii-verbatim (verbatim contents info)
+(defun org-ascii-verbatim (verbatim _contents info)
   "Return a VERBATIM object from Org to ASCII.
 CONTENTS is nil.  INFO is a plist holding contextual information."
   (format (plist-get info :ascii-verbatim-format)
@@ -1965,21 +1969,20 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
   "Transcode a VERSE-BLOCK element from Org to ASCII.
 CONTENTS is verse block contents.  INFO is a plist holding
 contextual information."
-  (let ((verse-width (org-ascii--current-text-width verse-block info)))
-    (org-ascii--indent-string
-     (org-ascii--justify-element contents verse-block info)
-     (plist-get info :ascii-quote-margin))))
+  (org-ascii--indent-string
+   (org-ascii--justify-element contents verse-block info)
+   (plist-get info :ascii-quote-margin)))
 
 
 
 ;;; Filters
 
-(defun org-ascii-filter-headline-blank-lines (headline back-end info)
+(defun org-ascii-filter-headline-blank-lines (headline _backend info)
   "Filter controlling number of blank lines after a headline.
 
-HEADLINE is a string representing a transcoded headline.
-BACK-END is symbol specifying back-end used for export.  INFO is
-plist containing the communication channel.
+HEADLINE is a string representing a transcoded headline.  BACKEND
+is symbol specifying back-end used for export.  INFO is plist
+containing the communication channel.
 
 This function only applies to `ascii' back-end.  See
 `org-ascii-headline-spacing' for information."
@@ -1988,10 +1991,10 @@ This function only applies to `ascii' back-end.  See
       (let ((blanks (make-string (1+ (cdr headline-spacing)) ?\n)))
 	(replace-regexp-in-string "\n\\(?:\n[ \t]*\\)*\\'" blanks headline)))))
 
-(defun org-ascii-filter-paragraph-spacing (tree back-end info)
+(defun org-ascii-filter-paragraph-spacing (tree _backend info)
   "Filter controlling number of blank lines between paragraphs.
 
-TREE is the parse tree.  BACK-END is the symbol specifying
+TREE is the parse tree.  BACKEND is the symbol specifying
 back-end used for export.  INFO is a plist used as
 a communication channel.
 
@@ -2005,9 +2008,9 @@ See `org-ascii-paragraph-spacing' for information."
 	    (org-element-put-property p :post-blank paragraph-spacing))))))
   tree)
 
-(defun org-ascii-filter-comment-spacing (tree backend info)
+(defun org-ascii-filter-comment-spacing (tree _backend info)
   "Filter removing blank lines between comments.
-TREE is the parse tree.  BACK-END is the symbol specifying
+TREE is the parse tree.  BACKEND is the symbol specifying
 back-end used for export.  INFO is a plist used as
 a communication channel."
   (org-element-map tree '(comment comment-block)

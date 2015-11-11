@@ -1,4 +1,4 @@
-;;; org-indent.el --- Dynamic indentation for  Org-mode
+;;; org-indent.el --- Dynamic indentation for Org    -*- lexical-binding: t; -*-
 ;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
@@ -41,6 +41,7 @@
 
 (eval-when-compile
   (require 'cl))
+(require 'cl-lib)
 
 (declare-function org-inlinetask-get-task-level "org-inlinetask" ())
 (declare-function org-inlinetask-in-task-p "org-inlinetask" ())
@@ -138,14 +139,14 @@ during idle time."
     (setq org-indent-mode nil))
    (org-indent-mode
     ;; mode was turned on.
-    (org-set-local 'indent-tabs-mode nil)
-    (org-set-local 'org-indent-initial-marker (copy-marker 1))
+    (setq-local indent-tabs-mode nil)
+    (setq-local org-indent-initial-marker (copy-marker 1))
     (when org-indent-mode-turns-off-org-adapt-indentation
-      (org-set-local 'org-adapt-indentation nil))
+      (setq-local org-adapt-indentation nil))
     (when org-indent-mode-turns-on-hiding-stars
-      (org-set-local 'org-hide-leading-stars-before-indent-mode
-		     org-hide-leading-stars)
-      (org-set-local 'org-hide-leading-stars t))
+      (setq-local org-hide-leading-stars-before-indent-mode
+		  org-hide-leading-stars)
+      (setq-local org-hide-leading-stars t))
     (org-add-hook 'filter-buffer-substring-functions
 		  (lambda (fun start end delete)
 		    (org-indent-remove-properties-from-string
@@ -172,8 +173,8 @@ during idle time."
     (when (markerp org-indent-initial-marker)
       (set-marker org-indent-initial-marker nil))
     (when (boundp 'org-hide-leading-stars-before-indent-mode)
-      (org-set-local 'org-hide-leading-stars
-		     org-hide-leading-stars-before-indent-mode))
+      (setq-local org-hide-leading-stars
+		  org-hide-leading-stars-before-indent-mode))
     (remove-hook 'filter-buffer-substring-functions
 		 (lambda (fun start end delete)
 		   (org-indent-remove-properties-from-string
@@ -209,7 +210,7 @@ When no more buffer is being watched, the agent suppress itself."
   (when org-indent-agent-resume-timer
     (cancel-timer org-indent-agent-resume-timer))
   (setq org-indent-agentized-buffers
-	(org-remove-if-not #'buffer-live-p org-indent-agentized-buffers))
+	(cl-remove-if-not #'buffer-live-p org-indent-agentized-buffers))
   (cond
    ;; Job done:  kill agent.
    ((not org-indent-agentized-buffers) (cancel-timer org-indent-agent-timer))
@@ -348,7 +349,7 @@ headline."
 	      (or (and (org-at-heading-p) (< beg (match-end 0)))
 		  (re-search-forward org-outline-regexp-bol end t)))))))
 
-(defun org-indent-refresh-maybe (beg end dummy)
+(defun org-indent-refresh-maybe (beg end _)
   "Refresh indentation properties in an adequate portion of buffer.
 BEG and END are the positions of the beginning and end of the
 range of inserted text.  DUMMY is an unused argument.

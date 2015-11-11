@@ -3,5 +3,7 @@
 # key: cha
 # --
 <Chapter Label="$1">
+  <Heading>$1</Heading>
+
   $0
 </Chapter>

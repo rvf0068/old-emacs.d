@@ -3,5 +3,7 @@
 # key: sec
 # --
 <Section Label="$1">
+  <Heading>$1</Heading>
+
   $0
 </Section>

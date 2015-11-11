@@ -112,6 +112,7 @@
     (:time-stamp-file nil "timestamp" org-export-time-stamp-file)
     (:with-archived-trees nil "arch" org-export-with-archived-trees)
     (:with-author nil "author" org-export-with-author)
+    (:with-broken-links nil "broken-links" org-export-with-broken-links)
     (:with-clocks nil "c" org-export-with-clocks)
     (:with-creator nil "creator" org-export-with-creator)
     (:with-date nil "date" org-export-with-date)
@@ -345,21 +346,24 @@ e.g. \"arch:nil\"."
   :type '(choice
 	  (const :tag "Not at all" nil)
 	  (const :tag "Headline only" headline)
-	  (const :tag "Entirely" t)))
+	  (const :tag "Entirely" t))
+  :safe (lambda (x) (memq x '(t nil headline))))
 
 (defcustom org-export-with-author t
   "Non-nil means insert author name into the exported file.
 This option can also be set with the OPTIONS keyword,
 e.g. \"author:nil\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-clocks nil
   "Non-nil means export CLOCK keywords.
 This option can also be set with the OPTIONS keyword,
 e.g. \"c:t\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-creator nil
   "Non-nil means the postamble should contain a creator sentence.
@@ -372,14 +376,16 @@ This option can also be set with the OPTIONS keyword, e.g.,
   :group 'org-export-general
   :version "25.1"
   :package-version '(Org . "8.3")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-date t
   "Non-nil means insert date in the exported document.
 This option can also be set with the OPTIONS keyword,
 e.g. \"date:nil\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-date-timestamp-format nil
   "Time-stamp format string to use for DATE keyword.
@@ -392,7 +398,8 @@ string."
   :group 'org-export-general
   :type '(choice
 	  (string :tag "Time-stamp format string")
-	  (const :tag "No format string" nil)))
+	  (const :tag "No format string" nil))
+  :safe (lambda (x) (or (null x) (stringp x))))
 
 (defcustom org-export-creator-string
   (format "Emacs %s (Org mode %s)"
@@ -401,7 +408,8 @@ string."
   "Information about the creator of the document.
 This option can also be set on with the CREATOR keyword."
   :group 'org-export-general
-  :type '(string :tag "Creator string"))
+  :type '(string :tag "Creator string")
+  :safe #'stringp)
 
 (defcustom org-export-with-drawers '(not "LOGBOOK")
   "Non-nil means export contents of standard drawers.
@@ -427,14 +435,20 @@ e.g. \"d:nil\"."
 		(const :format "" not)
 		(repeat :tag "Specify names of drawers to ignore during export"
 			:inline t
-			(string :tag "Drawer name")))))
+			(string :tag "Drawer name"))))
+  :safe (lambda (x) (or (booleanp x)
+			(and (listp x)
+			     (or (cl-every #'stringp x)
+				 (and (eq (nth 0 x) 'not)
+				      (cl-every #'stringp (cdr x))))))))
 
 (defcustom org-export-with-email nil
   "Non-nil means insert author email into the exported file.
 This option can also be set with the OPTIONS keyword,
 e.g. \"email:t\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-emphasize t
   "Non-nil means interpret *word*, /word/, _word_ and +word+.
@@ -446,7 +460,8 @@ respectively.
 This option can also be set with the OPTIONS keyword,
 e.g. \"*:nil\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-exclude-tags '("noexport")
   "Tags that exclude a tree from export.
@@ -457,7 +472,8 @@ carry one of the `org-export-select-tags' will be removed.
 
 This option can also be set with the EXCLUDE_TAGS keyword."
   :group 'org-export-general
-  :type '(repeat (string :tag "Tag")))
+  :type '(repeat (string :tag "Tag"))
+  :safe (lambda (x) (and (listp x) (cl-every #'stringp x))))
 
 (defcustom org-export-with-fixed-width t
   "Non-nil means export lines starting with \":\".
@@ -466,14 +482,16 @@ e.g. \"::nil\"."
   :group 'org-export-general
   :version "24.4"
   :package-version '(Org . "8.0")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-footnotes t
   "Non-nil means Org footnotes should be exported.
 This option can also be set with the OPTIONS keyword,
 e.g. \"f:nil\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-latex t
   "Non-nil means process LaTeX environments and fragments.
@@ -490,7 +508,8 @@ t           Allow export of math snippets."
   :type '(choice
 	  (const :tag "Do not process math in any way" nil)
 	  (const :tag "Interpret math snippets" t)
-	  (const :tag "Leave math verbatim" verbatim)))
+	  (const :tag "Leave math verbatim" verbatim))
+  :safe (lambda (x) (memq x '(t nil verbatim))))
 
 (defcustom org-export-headline-levels 3
   "The last level which is still exported as a headline.
@@ -501,7 +520,8 @@ when exported, but back-end behavior may differ.
 This option can also be set with the OPTIONS keyword,
 e.g. \"H:2\"."
   :group 'org-export-general
-  :type 'integer)
+  :type 'integer
+  :safe #'integerp)
 
 (defcustom org-export-default-language "en"
   "The default language for export and clocktable translations, as a string.
@@ -510,14 +530,16 @@ This may have an association in
 `org-export-smart-quotes-alist' and `org-export-dictionary'.
 This option can also be set with the LANGUAGE keyword."
   :group 'org-export-general
-  :type '(string :tag "Language"))
+  :type '(string :tag "Language")
+  :safe #'stringp)
 
 (defcustom org-export-preserve-breaks nil
   "Non-nil means preserve all line breaks when exporting.
 This option can also be set with the OPTIONS keyword,
 e.g. \"\\n:t\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-entities t
   "Non-nil means interpret entities when exporting.
@@ -531,7 +553,8 @@ and the user option `org-entities-user'.
 This option can also be set with the OPTIONS keyword,
 e.g. \"e:nil\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-inlinetasks t
   "Non-nil means inlinetasks should be exported.
@@ -540,7 +563,8 @@ e.g. \"inline:nil\"."
   :group 'org-export-general
   :version "24.4"
   :package-version '(Org . "8.0")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-planning nil
   "Non-nil means include planning info in export.
@@ -553,14 +577,16 @@ e.g. \"p:t\"."
   :group 'org-export-general
   :version "24.4"
   :package-version '(Org . "8.0")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-priority nil
   "Non-nil means include priority cookies in export.
 This option can also be set with the OPTIONS keyword,
 e.g. \"pri:t\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-properties nil
   "Non-nil means export contents of properties drawers.
@@ -577,7 +603,9 @@ e.g. \"prop:t\"."
 	  (const :tag "All properties" t)
 	  (const :tag "None" nil)
 	  (repeat :tag "Selected properties"
-		  (string :tag "Property name"))))
+		  (string :tag "Property name")))
+  :safe (lambda (x) (or (booleanp x)
+			(and (listp x) (cl-every #'stringp x)))))
 
 (defcustom org-export-with-section-numbers t
   "Non-nil means add section numbers to headlines when exporting.
@@ -588,7 +616,8 @@ headlines whose relative level is higher or equal to n.
 This option can also be set with the OPTIONS keyword,
 e.g. \"num:t\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-select-tags '("export")
   "Tags that select a tree for export.
@@ -600,7 +629,8 @@ tagging it with one of the `org-export-exclude-tags'.
 
 This option can also be set with the SELECT_TAGS keyword."
   :group 'org-export-general
-  :type '(repeat (string :tag "Tag")))
+  :type '(repeat (string :tag "Tag"))
+  :safe (lambda (x) (and (listp x) (cl-every #'stringp x))))
 
 (defcustom org-export-with-smart-quotes nil
   "Non-nil means activate smart quotes during export.
@@ -615,7 +645,8 @@ E.g., you can load Babel for french like this:
   :group 'org-export-general
   :version "24.4"
   :package-version '(Org . "8.0")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-special-strings t
   "Non-nil means interpret \"\\-\", \"--\" and \"---\" for export.
@@ -632,7 +663,8 @@ When this option is turned on, these strings will be exported as:
 This option can also be set with the OPTIONS keyword,
 e.g. \"-:nil\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-statistics-cookies t
   "Non-nil means include statistics cookies in export.
@@ -641,7 +673,8 @@ e.g. \"stat:nil\""
   :group 'org-export-general
   :version "24.4"
   :package-version '(Org . "8.0")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-sub-superscripts t
   "Non-nil means interpret \"_\" and \"^\" for export.
@@ -678,7 +711,8 @@ frequently in plain text."
   :type '(choice
 	  (const :tag "Interpret them" t)
 	  (const :tag "Curly brackets only" {})
-	  (const :tag "Do not interpret them" nil)))
+	  (const :tag "Do not interpret them" nil))
+  :safe (lambda (x) (memq x '(t nil {}))))
 
 (defcustom org-export-with-toc t
   "Non-nil means create a table of contents in exported files.
@@ -696,7 +730,9 @@ e.g. \"toc:nil\" or \"toc:3\"."
   :type '(choice
 	  (const :tag "No Table of Contents" nil)
 	  (const :tag "Full Table of Contents" t)
-	  (integer :tag "TOC to level")))
+	  (integer :tag "TOC to level"))
+  :safe (lambda (x) (or (booleanp x)
+			(integerp x))))
 
 (defcustom org-export-with-tables t
   "Non-nil means export tables.
@@ -705,7 +741,8 @@ e.g. \"|:nil\"."
   :group 'org-export-general
   :version "24.4"
   :package-version '(Org . "8.0")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-tags t
   "If nil, do not export tags, just remove them from headlines.
@@ -720,7 +757,8 @@ e.g. \"tags:nil\"."
   :type '(choice
 	  (const :tag "Off" nil)
 	  (const :tag "Not in TOC" not-in-toc)
-	  (const :tag "On" t)))
+	  (const :tag "On" t))
+  :safe (lambda (x) (memq x '(t nil not-in-toc))))
 
 (defcustom org-export-with-tasks t
   "Non-nil means include TODO items for export.
@@ -741,7 +779,10 @@ e.g. \"tasks:nil\"."
 	  (const :tag "Not-done tasks" todo)
 	  (const :tag "Only done tasks" done)
 	  (repeat :tag "Specific TODO keywords"
-		  (string :tag "Keyword"))))
+		  (string :tag "Keyword")))
+  :safe (lambda (x) (or (memq x '(nil t todo done))
+			(and (listp x)
+			     (cl-every #'stringp x)))))
 
 (defcustom org-export-with-title t
   "Non-nil means print title into the exported file.
@@ -750,14 +791,16 @@ e.g. \"title:nil\"."
   :group 'org-export-general
   :version "25.1"
   :package-version '(Org . "8.3")
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-time-stamp-file t
   "Non-nil means insert a time stamp into the exported file.
 The time stamp shows when the file was created.  This option can
 also be set with the OPTIONS keyword, e.g. \"timestamp:nil\"."
   :group 'org-export-general
-  :type 'boolean)
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-export-with-timestamps t
   "Non nil means allow timestamps in export.
@@ -779,7 +822,8 @@ This option can also be set with the OPTIONS keyword, e.g.
 	  (const :tag "All timestamps" t)
 	  (const :tag "Only active timestamps" active)
 	  (const :tag "Only inactive timestamps" inactive)
-	  (const :tag "No timestamp" nil)))
+	  (const :tag "No timestamp" nil))
+  :safe (lambda (x) (memq x '(t nil active inactive))))
 
 (defcustom org-export-with-todo-keywords t
   "Non-nil means include TODO keywords in export.
@@ -797,6 +841,27 @@ is nil.  You can also allow them through local buffer variables."
   :package-version '(Org . "8.0")
   :type 'boolean)
 
+(defcustom org-export-with-broken-links nil
+  "Non-nil means do not raise an error on broken links.
+
+When this variable is non-nil, broken links are ignored, without
+stopping the export process.  If it is set to `mark', broken
+links are marked as such in the output, with a string like
+
+  [BROKEN LINK: path]
+
+where PATH is the un-resolvable reference.
+
+This option can also be set with the OPTIONS keyword, e.g.,
+\"broken-links:mark\"."
+  :group 'org-export-general
+  :version "25.1"
+  :package-version '(Org . "9.0")
+  :type '(choice
+	  (const :tag "Ignore broken links" t)
+	  (const :tag "Mark broken links in output" mark)
+	  (const :tag "Raise an error" nil)))
+
 (defcustom org-export-snippet-translation-alist nil
   "Alist between export snippets back-ends and exporter back-ends.
 
@@ -810,7 +875,12 @@ HTML code while every other back-end will ignore it."
   :package-version '(Org . "8.0")
   :type '(repeat
 	  (cons (string :tag "Shortcut")
-		(string :tag "Back-end"))))
+		(string :tag "Back-end")))
+  :safe (lambda (x)
+	  (and (listp x)
+	       (cl-every #'consp x)
+	       (cl-every #'stringp (mapcar #'car x))
+	       (cl-every #'stringp (mapcar #'cdr x)))))
 
 (defcustom org-export-coding-system nil
   "Coding system for the exported file."
@@ -1259,7 +1329,7 @@ The back-end could then be called with, for example:
 ;;    `org-export-options-alist' variable.
 ;;
 ;; 2. Tree properties are extracted directly from the parsed tree,
-;;    just before export, by `org-export-collect-tree-properties'.
+;;    just before export, by `org-export--collect-tree-properties'.
 
 ;;;; Environment Options
 ;;
@@ -1304,7 +1374,7 @@ inferior to file-local settings."
   ;; First install #+BIND variables since these must be set before
   ;; global options are read.
   (dolist (pair (org-export--list-bound-variables))
-    (org-set-local (car pair) (nth 1 pair)))
+    (set (make-local-variable (car pair)) (nth 1 pair)))
   ;; Get and prioritize export options...
   (org-combine-plists
    ;; ... from global variables...
@@ -1314,25 +1384,7 @@ inferior to file-local settings."
    ;; ... from in-buffer settings...
    (org-export--get-inbuffer-options backend)
    ;; ... and from subtree, when appropriate.
-   (and subtreep (org-export--get-subtree-options backend))
-   ;; Eventually add misc. properties.
-   (list
-    :back-end
-    backend
-    :translate-alist (org-export-get-all-transcoders backend)
-    :id-alist
-    ;; Collect id references.
-    (let (alist)
-      (org-with-wide-buffer
-       (goto-char (point-min))
-       (while (re-search-forward "\\[\\[id:\\S-+?\\]" nil t)
-	 (let ((link (org-element-context)))
-	   (when (eq (org-element-type link) 'link)
-	     (let* ((id (org-element-property :path link))
-		    (file (car (org-id-find id))))
-	       (when file
-		 (push (cons id (file-relative-name file)) alist)))))))
-      alist))))
+   (and subtreep (org-export--get-subtree-options backend))))
 
 (defun org-export--parse-option-keyword (options &optional backend)
   "Parse an OPTIONS line and return values as a plist.
@@ -1530,6 +1582,20 @@ Assume buffer is in Org mode.  Narrowing, if any, is ignored."
 	       s (replace-regexp-in-string "\n" " " s))))
 	  (setq plist (plist-put plist p value)))))))
 
+(defun org-export--get-export-attributes
+    (&optional backend subtreep visible-only body-only)
+  "Return properties related to export process, as a plist.
+Optional arguments BACKEND, SUBTREEP, VISIBLE-ONLY and BODY-ONLY
+are like the arguments with the same names of function
+`org-export-as'."
+  (list :export-options (delq nil
+			      (list (and subtreep 'subtree)
+				    (and visible-only 'visible-only)
+				    (and body-only 'body-only)))
+	:back-end backend
+	:translate-alist (org-export-get-all-transcoders backend)
+	:exported-data (make-hash-table :test #'eq :size 4001)))
+
 (defun org-export--get-buffer-attributes ()
   "Return properties related to buffer attributes, as a plist."
   (list :input-buffer (buffer-name (buffer-base-buffer))
@@ -1610,7 +1676,7 @@ BLOB is the element or object considered."
 ;;
 ;; Tree properties are information extracted from parse tree.  They
 ;; are initialized at the beginning of the transcoding process by
-;; `org-export-collect-tree-properties'.
+;; `org-export--collect-tree-properties'.
 ;;
 ;; Dedicated functions focus on computing the value of specific tree
 ;; properties during initialization.  Thus,
@@ -1621,7 +1687,7 @@ BLOB is the element or object considered."
 ;; `org-export--collect-headline-numbering' builds an alist between
 ;; headlines and their numbering.
 
-(defun org-export-collect-tree-properties (data info)
+(defun org-export--collect-tree-properties (data info)
   "Extract tree properties from parse tree.
 
 DATA is the parse tree from which information is retrieved.  INFO
@@ -1629,16 +1695,16 @@ is a list holding export options.
 
 Following tree properties are set or updated:
 
-`:exported-data' Hash table used to memoize results from
-                 `org-export-data'.
-
 `:headline-offset' Offset between true level of headlines and
 		   local level.  An offset of -1 means a headline
 		   of level 2 should be considered as a level
 		   1 headline in the context.
 
-`:headline-numbering' Alist of all headlines as key an the
+`:headline-numbering' Alist of all headlines as key and the
 		      associated numbering as value.
+
+`:id-alist' Alist of all ID references as key and associated file
+            as value.
 
 Return updated plist."
   ;; Install the parse tree in the communication channel.
@@ -1649,12 +1715,18 @@ Return updated plist."
 	(plist-put info
 		   :headline-offset
 		   (- 1 (org-export--get-min-level data info))))
-  ;; Properties order doesn't matter: get the rest of the tree
-  ;; properties.
-  (nconc
-   `(:headline-numbering ,(org-export--collect-headline-numbering data info)
-     :exported-data ,(make-hash-table :test 'eq :size 4001))
-   info))
+  ;; From now on, properties order doesn't matter: get the rest of the
+  ;; tree properties.
+  (org-combine-plists
+   info
+   (list :headline-numbering (org-export--collect-headline-numbering data info)
+	 :id-alist
+	 (org-element-map data 'link
+	   (lambda (l)
+	     (and (string= (org-element-property :type l) "id")
+		  (let* ((id (org-element-property :path l))
+			 (file (car (org-id-find id))))
+		    (and file (cons id (file-relative-name file))))))))))
 
 (defun org-export--get-min-level (data options)
   "Return minimum exportable headline's level in DATA.
@@ -1662,14 +1734,12 @@ DATA is parsed tree as returned by `org-element-parse-buffer'.
 OPTIONS is a plist holding export options."
   (catch 'exit
     (let ((min-level 10000))
-      (mapc
-       (lambda (blob)
-	 (when (and (eq (org-element-type blob) 'headline)
-		    (not (org-element-property :footnote-section-p blob))
-		    (not (memq blob (plist-get options :ignore-list))))
-	   (setq min-level (min (org-element-property :level blob) min-level)))
-	 (when (= min-level 1) (throw 'exit 1)))
-       (org-element-contents data))
+      (dolist (datum (org-element-contents data))
+	(when (and (eq (org-element-type datum) 'headline)
+		   (not (org-element-property :footnote-section-p datum))
+		   (not (memq datum (plist-get options :ignore-list))))
+	  (setq min-level (min (org-element-property :level datum) min-level))
+	  (when (= min-level 1) (throw 'exit 1))))
       ;; If no headline was found, for the sake of consistency, set
       ;; minimum level to 1 nonetheless.
       (if (= min-level 10000) 1 min-level))))
@@ -1704,35 +1774,39 @@ for a footnotes section."
   "List headlines and inlinetasks with a select tag in their tree.
 DATA is parsed data as returned by `org-element-parse-buffer'.
 INFO is a plist holding export options."
-  (letrec ((selected-trees)
-	   (walk-data
-	    (lambda (data genealogy)
-	      (let ((type (org-element-type data)))
-		(cond
-		 ((memq type '(headline inlinetask))
-		  (let ((tags (org-element-property :tags data)))
-		    (if (cl-loop for tag in (plist-get info :select-tags)
-				 thereis (member tag tags))
-			;; When a select tag is found, mark full
-			;; genealogy and every headline within the
-			;; tree as acceptable.
-			(setq selected-trees
-			      (append
-			       genealogy
-			       (org-element-map data '(headline inlinetask)
-				 #'identity)
-			       selected-trees))
-		      ;; If at a headline, continue searching in tree,
-		      ;; recursively.
-		      (when (eq type 'headline)
-			(dolist (el (org-element-contents data))
-			  (funcall walk-data el (cons data genealogy)))))))
-		 ((or (eq type 'org-data)
-		      (memq type org-element-greater-elements))
-		  (dolist (el (org-element-contents data))
-		    (funcall walk-data el genealogy))))))))
-    (funcall walk-data data nil)
-    selected-trees))
+  (let ((select (plist-get info :select-tags)))
+    (if (cl-some (lambda (tag) (member tag select)) (plist-get info :filetags))
+	;; If FILETAGS contains a select tag, every headline or
+	;; inlinetask is returned.
+	(org-element-map data '(headline inlinetask) #'identity)
+      (letrec ((selected-trees)
+	       (walk-data
+		(lambda (data genealogy)
+		  (let ((type (org-element-type data)))
+		    (cond
+		     ((memq type '(headline inlinetask))
+		      (let ((tags (org-element-property :tags data)))
+			(if (cl-some (lambda (tag) (member tag select)) tags)
+			    ;; When a select tag is found, mark full
+			    ;; genealogy and every headline within the
+			    ;; tree as acceptable.
+			    (setq selected-trees
+				  (append
+				   genealogy
+				   (org-element-map data '(headline inlinetask)
+				     #'identity)
+				   selected-trees))
+			  ;; If at a headline, continue searching in
+			  ;; tree, recursively.
+			  (when (eq type 'headline)
+			    (dolist (el (org-element-contents data))
+			      (funcall walk-data el (cons data genealogy)))))))
+		     ((or (eq type 'org-data)
+			  (memq type org-element-greater-elements))
+		      (dolist (el (org-element-contents data))
+			(funcall walk-data el genealogy))))))))
+	(funcall walk-data data nil)
+	selected-trees))))
 
 (defun org-export--skip-p (blob options selected)
   "Non-nil when element or object BLOB should be skipped during export.
@@ -1761,7 +1835,7 @@ a tree with a select tag."
 	   (todo (org-element-property :todo-keyword blob))
 	   (todo-type (org-element-property :todo-type blob))
 	   (archived (plist-get options :with-archived-trees))
-	   (tags (org-element-property :tags blob)))
+	   (tags (org-export-get-tags blob options nil t)))
        (or
 	(and (eq (org-element-type blob) 'inlinetask)
 	     (not (plist-get options :with-inlinetasks)))
@@ -1851,91 +1925,106 @@ string.  INFO is a plist holding export options.
 
 Return a string."
   (or (gethash data (plist-get info :exported-data))
-      (let* ((type (org-element-type data))
-	     (results
-	      (cond
-	       ;; Ignored element/object.
-	       ((memq data (plist-get info :ignore-list)) nil)
-	       ;; Plain text.
-	       ((eq type 'plain-text)
-		(org-export-filter-apply-functions
-		 (plist-get info :filter-plain-text)
-		 (let ((transcoder (org-export-transcoder data info)))
-		   (if transcoder (funcall transcoder data info) data))
-		 info))
-	       ;; Secondary string.
-	       ((not type)
-		(mapconcat (lambda (obj) (org-export-data obj info)) data ""))
-	       ;; Element/Object without contents or, as a special
-	       ;; case, headline with archive tag and archived trees
-	       ;; restricted to title only.
-	       ((or (not (org-element-contents data))
-		    (and (eq type 'headline)
-			 (eq (plist-get info :with-archived-trees) 'headline)
-			 (org-element-property :archivedp data)))
-		(let ((transcoder (org-export-transcoder data info)))
-		  (or (and (functionp transcoder)
-			   (funcall transcoder data nil info))
-		      ;; Export snippets never return a nil value so
-		      ;; that white spaces following them are never
-		      ;; ignored.
-		      (and (eq type 'export-snippet) ""))))
-	       ;; Element/Object with contents.
-	       (t
-		(let ((transcoder (org-export-transcoder data info)))
-		  (when transcoder
-		    (let* ((greaterp (memq type org-element-greater-elements))
-			   (objectp
-			    (and (not greaterp)
-				 (memq type org-element-recursive-objects)))
-			   (contents
-			    (mapconcat
-			     (lambda (element) (org-export-data element info))
-			     (org-element-contents
-			      (if (or greaterp objectp) data
-				;; Elements directly containing
-				;; objects must have their indentation
-				;; normalized first.
-				(org-element-normalize-contents
-				 data
-				 ;; When normalizing contents of the
-				 ;; first paragraph in an item or
-				 ;; a footnote definition, ignore
-				 ;; first line's indentation: there is
-				 ;; none and it might be misleading.
-				 (when (eq type 'paragraph)
-				   (let ((parent (org-export-get-parent data)))
-				     (and
-				      (eq (car (org-element-contents parent))
-					  data)
-				      (memq (org-element-type parent)
-					    '(footnote-definition item))))))))
-			     "")))
-		      (funcall transcoder data
-			       (if (not greaterp) contents
-				 (org-element-normalize-string contents))
-			       info))))))))
-	;; Final result will be memoized before being returned.
-	(puthash
-	 data
-	 (cond
-	  ((not results) "")
-	  ((memq type '(org-data plain-text nil)) results)
-	  ;; Append the same white space between elements or objects
-	  ;; as in the original buffer, and call appropriate filters.
-	  (t
-	   (let ((results
+      ;; Handle broken links according to
+      ;; `org-export-with-broken-links'.
+      (cl-macrolet
+	  ((broken-link-handler
+	    (&rest body)
+	    `(condition-case err
+		 (progn ,@body)
+	       (org-link-broken
+		(pcase (plist-get info :with-broken-links)
+		  (`nil (user-error "Unable to resolve link: %S" (nth 1 err)))
+		  (`mark (org-export-data
+			  (format "[BROKEN LINK: %s]" (nth 1 err)) info))
+		  (_ nil))))))
+	(let* ((type (org-element-type data))
+	       (results
+		(cond
+		 ;; Ignored element/object.
+		 ((memq data (plist-get info :ignore-list)) nil)
+		 ;; Plain text.
+		 ((eq type 'plain-text)
 		  (org-export-filter-apply-functions
-		   (plist-get info (intern (format ":filter-%s" type)))
-		   (let ((post-blank (or (org-element-property :post-blank data)
-					 0)))
-		     (if (memq type org-element-all-elements)
-			 (concat (org-element-normalize-string results)
-				 (make-string post-blank ?\n))
-		       (concat results (make-string post-blank ?\s))))
-		   info)))
-	     results)))
-	 (plist-get info :exported-data)))))
+		   (plist-get info :filter-plain-text)
+		   (let ((transcoder (org-export-transcoder data info)))
+		     (if transcoder (funcall transcoder data info) data))
+		   info))
+		 ;; Secondary string.
+		 ((not type)
+		  (mapconcat (lambda (obj) (org-export-data obj info)) data ""))
+		 ;; Element/Object without contents or, as a special
+		 ;; case, headline with archive tag and archived trees
+		 ;; restricted to title only.
+		 ((or (not (org-element-contents data))
+		      (and (eq type 'headline)
+			   (eq (plist-get info :with-archived-trees) 'headline)
+			   (org-element-property :archivedp data)))
+		  (let ((transcoder (org-export-transcoder data info)))
+		    (or (and (functionp transcoder)
+			     (broken-link-handler
+			      (funcall transcoder data nil info)))
+			;; Export snippets never return a nil value so
+			;; that white spaces following them are never
+			;; ignored.
+			(and (eq type 'export-snippet) ""))))
+		 ;; Element/Object with contents.
+		 (t
+		  (let ((transcoder (org-export-transcoder data info)))
+		    (when transcoder
+		      (let* ((greaterp (memq type org-element-greater-elements))
+			     (objectp
+			      (and (not greaterp)
+				   (memq type org-element-recursive-objects)))
+			     (contents
+			      (mapconcat
+			       (lambda (element) (org-export-data element info))
+			       (org-element-contents
+				(if (or greaterp objectp) data
+				  ;; Elements directly containing
+				  ;; objects must have their indentation
+				  ;; normalized first.
+				  (org-element-normalize-contents
+				   data
+				   ;; When normalizing contents of the
+				   ;; first paragraph in an item or
+				   ;; a footnote definition, ignore
+				   ;; first line's indentation: there is
+				   ;; none and it might be misleading.
+				   (when (eq type 'paragraph)
+				     (let ((parent (org-export-get-parent data)))
+				       (and
+					(eq (car (org-element-contents parent))
+					    data)
+					(memq (org-element-type parent)
+					      '(footnote-definition item))))))))
+			       "")))
+			(broken-link-handler
+			 (funcall transcoder data
+				  (if (not greaterp) contents
+				    (org-element-normalize-string contents))
+				  info)))))))))
+	  ;; Final result will be memoized before being returned.
+	  (puthash
+	   data
+	   (cond
+	    ((not results) "")
+	    ((memq type '(org-data plain-text nil)) results)
+	    ;; Append the same white space between elements or objects
+	    ;; as in the original buffer, and call appropriate filters.
+	    (t
+	     (let ((results
+		    (org-export-filter-apply-functions
+		     (plist-get info (intern (format ":filter-%s" type)))
+		     (let ((post-blank (or (org-element-property :post-blank data)
+					   0)))
+		       (if (memq type org-element-all-elements)
+			   (concat (org-element-normalize-string results)
+				   (make-string post-blank ?\n))
+			 (concat results (make-string post-blank ?\s))))
+		     info)))
+	       results)))
+	   (plist-get info :exported-data))))))
 
 (defun org-export-data-with-backend (data backend info)
   "Convert DATA into BACKEND format.
@@ -2434,29 +2523,27 @@ Return the updated communication channel."
   (let (plist)
     ;; Install user-defined filters with `org-export-filters-alist'
     ;; and filters already in INFO (through ext-plist mechanism).
-    (mapc (lambda (p)
-	    (let* ((prop (car p))
-		   (info-value (plist-get info prop))
-		   (default-value (symbol-value (cdr p))))
-	      (setq plist
-		    (plist-put plist prop
-			       ;; Filters in INFO will be called
-			       ;; before those user provided.
-			       (append (if (listp info-value) info-value
-					 (list info-value))
-				       default-value)))))
-	  org-export-filters-alist)
+    (dolist (p org-export-filters-alist)
+      (let* ((prop (car p))
+	     (info-value (plist-get info prop))
+	     (default-value (symbol-value (cdr p))))
+	(setq plist
+	      (plist-put plist prop
+			 ;; Filters in INFO will be called
+			 ;; before those user provided.
+			 (append (if (listp info-value) info-value
+				   (list info-value))
+				 default-value)))))
     ;; Prepend back-end specific filters to that list.
-    (mapc (lambda (p)
-	    ;; Single values get consed, lists are appended.
-	    (let ((key (car p)) (value (cdr p)))
-	      (when value
-		(setq plist
-		      (plist-put
-		       plist key
-		       (if (atom value) (cons value (plist-get plist key))
-			 (append value (plist-get plist key))))))))
-	  (org-export-get-all-filters (plist-get info :back-end)))
+    (dolist (p (org-export-get-all-filters (plist-get info :back-end)))
+      ;; Single values get consed, lists are appended.
+      (let ((key (car p)) (value (cdr p)))
+	(when value
+	  (setq plist
+		(plist-put
+		 plist key
+		 (if (atom value) (cons value (plist-get plist key))
+		   (append value (plist-get plist key))))))))
     ;; Return new communication channel.
     (org-combine-plists info plist)))
 
@@ -2569,17 +2656,14 @@ The function assumes BUFFER's major mode is `org-mode'."
 	 (goto-char ,(point))
 	 ;; Overlays with invisible property.
 	 ,@(let (ov-set)
-	     (mapc
-	      (lambda (ov)
-		(let ((invis-prop (overlay-get ov 'invisible)))
-		  (when invis-prop
-		    (push `(overlay-put
-			    (make-overlay ,(overlay-start ov)
-					  ,(overlay-end ov))
-			    'invisible (quote ,invis-prop))
-			  ov-set))))
-	      (overlays-in (point-min) (point-max)))
-	     ov-set)))))
+	     (dolist (ov (overlays-in (point-min) (point-max)) ov-set)
+	       (let ((invis-prop (overlay-get ov 'invisible)))
+		 (when invis-prop
+		   (push `(overlay-put
+			   (make-overlay ,(overlay-start ov)
+					 ,(overlay-end ov))
+			   'invisible (quote ,invis-prop))
+			 ov-set)))))))))
 
 (defun org-export--delete-comments ()
   "Delete commented areas in the buffer.
@@ -2796,7 +2880,7 @@ not, are considered."
 	;; Filter out definitions referenced neither in the original
 	;; tree nor in the external definitions.
 	(let* ((directly-referenced
-		(org-remove-if-not
+		(cl-remove-if-not
 		 (lambda (d)
 		   (member (org-element-property :label d) referenced-labels))
 		 definitions))
@@ -2804,7 +2888,7 @@ not, are considered."
 		(append (funcall collect-labels directly-referenced)
 			referenced-labels)))
 	  (setq definitions
-		(org-remove-if-not
+		(cl-remove-if-not
 		 (lambda (d)
 		   (member (org-element-property :label d) all-labels))
 		 definitions)))
@@ -2911,11 +2995,8 @@ Return code as a string."
       ;; attributes, unavailable in its copy.
       (let* ((org-export-current-backend (org-export-backend-name backend))
 	     (info (org-combine-plists
-		    (list :export-options
-			  (delq nil
-				(list (and subtreep 'subtree)
-				      (and visible-only 'visible-only)
-				      (and body-only 'body-only))))
+		    (org-export--get-export-attributes
+		     backend subtreep visible-only body-only)
 		    (org-export--get-buffer-attributes)))
 	     (parsed-keywords
 	      (delq nil
@@ -3003,9 +3084,7 @@ Return code as a string."
 		(plist-get info :filter-parse-tree) tree info))
 	 ;; Now tree is complete, compute its properties and add them
 	 ;; to communication channel.
-	 (setq info
-	       (org-combine-plists
-		info (org-export-collect-tree-properties tree info)))
+	 (setq info (org-export--collect-tree-properties tree info))
 	 ;; Eventually transcode TREE.  Wrap the resulting string into
 	 ;; a template.
 	 (let* ((body (org-element-normalize-string
@@ -3838,7 +3917,7 @@ INFO is a plist holding contextual information."
 (defun org-export-numbered-headline-p (headline info)
   "Return a non-nil value if HEADLINE element should be numbered.
 INFO is a plist used as a communication channel."
-  (unless (org-some
+  (unless (cl-some
 	   (lambda (head) (org-not-nil (org-element-property :UNNUMBERED head)))
 	   (org-element-lineage headline nil t))
     (let ((sec-num (plist-get info :section-numbers))
@@ -3867,18 +3946,13 @@ INFO is a plist used as a communication channel."
 ELEMENT has either an `headline' or an `inlinetask' type.  INFO
 is a plist used as a communication channel.
 
-Select tags (see `org-export-select-tags') and exclude tags (see
-`org-export-exclude-tags') are removed from the list.
-
 When non-nil, optional argument TAGS should be a list of strings.
 Any tag belonging to this list will also be removed.
 
 When optional argument INHERITED is non-nil, tags can also be
 inherited from parent headlines and FILETAGS keywords."
-  (org-remove-if
-   (lambda (tag) (or (member tag (plist-get info :select-tags))
-		(member tag (plist-get info :exclude-tags))
-		(member tag tags)))
+  (cl-remove-if
+   (lambda (tag) (member tag tags))
    (if (not inherited) (org-element-property :tags element)
      ;; Build complete list of inherited tags.
      (let ((current-tag-list (org-element-property :tags element)))
@@ -3990,11 +4064,11 @@ meant to be translated with `org-export-data' or alike."
 ;;
 ;; `org-export-resolve-fuzzy-link' searches destination of fuzzy links
 ;; (i.e. links with "fuzzy" as type) within the parsed tree, and
-;; returns an appropriate unique identifier when found, or nil.
+;; returns an appropriate unique identifier.
 ;;
 ;; `org-export-resolve-id-link' returns the first headline with
 ;; specified id or custom-id in parse tree, the path to the external
-;; file with the id or nil when neither was found.
+;; file with the id.
 ;;
 ;; `org-export-resolve-coderef' associates a reference to a line
 ;; number in the element it belongs, or returns the reference itself
@@ -4002,6 +4076,12 @@ meant to be translated with `org-export-data' or alike."
 ;;
 ;; `org-export-file-uri' expands a filename as stored in :path value
 ;;  of a "file" link into a file URI.
+;;
+;; Broken links raise a `org-link-broken' error, which is caught by
+;; `org-export-data' for further processing, depending on
+;; `org-export-with-broken-links' value.
+
+(org-define-error 'org-link-broken "Unable to resolve link; aborting")
 
 (defun org-export-custom-protocol-maybe (link desc backend)
   "Try exporting LINK with a dedicated function.
@@ -4083,7 +4163,7 @@ error if no block contains REF."
 		  (+ (org-export-get-loc el info) (line-number-at-pos)))
 		 (t (line-number-at-pos)))))))
 	info 'first-match)
-      (user-error "Unable to resolve code reference: %s" ref)))
+      (signal 'org-link-broken (list ref))))
 
 (defun org-export-resolve-fuzzy-link (link info)
   "Return LINK destination.
@@ -4151,7 +4231,7 @@ significant."
 			   path)
 		    h))
 	     info 'first-match))
-	  (t (user-error "Unable to resolve link \"%s\"" raw-path)))
+	  (t (signal 'org-link-broken (list raw-path))))
 	 link-cache)))))
 
 (defun org-export-resolve-id-link (link info)
@@ -4172,7 +4252,7 @@ tree or a file name.  Assume LINK type is either \"id\" or
 	  info 'first-match)
 	;; Otherwise, look for external files.
 	(cdr (assoc id (plist-get info :id-alist)))
-	(user-error "Unable to resolve ID \"%s\"" id))))
+	(signal 'org-link-broken (list id)))))
 
 (defun org-export-resolve-radio-link (link info)
   "Return radio-target object referenced as LINK destination.
@@ -4493,16 +4573,14 @@ All special columns will be ignored during export."
   ;; only empty cells as special.
   (let ((special-column-p 'empty))
     (catch 'exit
-      (mapc
-       (lambda (row)
-	 (when (eq (org-element-property :type row) 'standard)
-	   (let ((value (org-element-contents
-			 (car (org-element-contents row)))))
-	     (cond ((member value '(("/") ("#") ("!") ("$") ("*") ("_") ("^")))
-		    (setq special-column-p 'special))
-		   ((not value))
-		   (t (throw 'exit nil))))))
-       (org-element-contents table))
+      (dolist (row (org-element-contents table))
+	(when (eq (org-element-property :type row) 'standard)
+	  (let ((value (org-element-contents
+			(car (org-element-contents row)))))
+	    (cond ((member value '(("/") ("#") ("!") ("$") ("*") ("_") ("^")))
+		   (setq special-column-p 'special))
+		  ((not value))
+		  (t (throw 'exit nil))))))
       (eq special-column-p 'special))))
 
 (defun org-export-table-has-header-p (table info)
@@ -4550,19 +4628,17 @@ All special rows will be ignored during export."
        ;; ... it contains only alignment cookies and empty cells.
        (let ((special-row-p 'empty))
 	 (catch 'exit
-	   (mapc
-	    (lambda (cell)
-	      (let ((value (org-element-contents cell)))
-		;; Since VALUE is a secondary string, the following
-		;; checks avoid expanding it with `org-export-data'.
-		(cond ((not value))
-		      ((and (not (cdr value))
-			    (stringp (car value))
-			    (string-match "\\`<[lrc]?\\([0-9]+\\)?>\\'"
-					  (car value)))
-		       (setq special-row-p 'cookie))
-		      (t (throw 'exit nil)))))
-	    (org-element-contents table-row))
+	   (dolist (cell (org-element-contents table-row))
+	     (let ((value (org-element-contents cell)))
+	       ;; Since VALUE is a secondary string, the following
+	       ;; checks avoid expanding it with `org-export-data'.
+	       (cond ((not value))
+		     ((and (not (cdr value))
+			   (stringp (car value))
+			   (string-match "\\`<[lrc]?\\([0-9]+\\)?>\\'"
+					 (car value)))
+		      (setq special-row-p 'cookie))
+		     (t (throw 'exit nil)))))
 	   (eq special-row-p 'cookie)))))))
 
 (defun org-export-table-row-group (table-row info)
@@ -4725,14 +4801,13 @@ Returned borders ignore special rows."
     ;; another regular row has to be found above that rule.
     (let (rule-flag)
       (catch 'exit
-	(mapc (lambda (row)
-		(cond ((eq (org-element-property :type row) 'rule)
-		       (setq rule-flag t))
-		      ((not (org-export-table-row-is-special-p row info))
-		       (if rule-flag (throw 'exit (push 'above borders))
-			 (throw 'exit nil)))))
-	      ;; Look at every row before the current one.
-	      (cdr (memq row (reverse (org-element-contents table)))))
+	;; Look at every row before the current one.
+	(dolist (row (cdr (memq row (reverse (org-element-contents table)))))
+	  (cond ((eq (org-element-property :type row) 'rule)
+		 (setq rule-flag t))
+		((not (org-export-table-row-is-special-p row info))
+		 (if rule-flag (throw 'exit (push 'above borders))
+		   (throw 'exit nil)))))
 	;; No rule above, or rule found starts the table (ignoring any
 	;; special row): TABLE-CELL is at the top of the table.
 	(when rule-flag (push 'above borders))
@@ -4741,14 +4816,13 @@ Returned borders ignore special rows."
     ;; non-regular row below is a rule.
     (let (rule-flag)
       (catch 'exit
-	(mapc (lambda (row)
-		(cond ((eq (org-element-property :type row) 'rule)
-		       (setq rule-flag t))
-		      ((not (org-export-table-row-is-special-p row info))
-		       (if rule-flag (throw 'exit (push 'below borders))
-			 (throw 'exit nil)))))
-	      ;; Look at every row after the current one.
-	      (cdr (memq row (org-element-contents table))))
+	;; Look at every row after the current one.
+	(dolist (row (cdr (memq row (org-element-contents table))))
+	  (cond ((eq (org-element-property :type row) 'rule)
+		 (setq rule-flag t))
+		((not (org-export-table-row-is-special-p row info))
+		 (if rule-flag (throw 'exit (push 'below borders))
+		   (throw 'exit nil)))))
 	;; No rule below, or rule found ends the table (modulo some
 	;; special row): TABLE-CELL is at the bottom of the table.
 	(when rule-flag (push 'below borders))
@@ -4760,37 +4834,35 @@ Returned borders ignore special rows."
     (catch 'exit
       (let ((column (let ((cells (org-element-contents row)))
 		      (- (length cells) (length (memq table-cell cells))))))
-	(mapc
-	 (lambda (row)
-	   (unless (eq (org-element-property :type row) 'rule)
-	     (when (equal (org-element-contents
-			   (car (org-element-contents row)))
-			  '("/"))
-	       (let ((column-groups
-		      (mapcar
-		       (lambda (cell)
-			 (let ((value (org-element-contents cell)))
-			   (when (member value '(("<") ("<>") (">") nil))
-			     (car value))))
-		       (org-element-contents row))))
-		 ;; There's a left border when previous cell, if
-		 ;; any, ends a group, or current one starts one.
-		 (when (or (and (not (zerop column))
-				(member (elt column-groups (1- column))
-					'(">" "<>")))
-			   (member (elt column-groups column) '("<" "<>")))
-		   (push 'left borders))
-		 ;; There's a right border when next cell, if any,
-		 ;; starts a group, or current one ends one.
-		 (when (or (and (/= (1+ column) (length column-groups))
-				(member (elt column-groups (1+ column))
-					'("<" "<>")))
-			   (member (elt column-groups column) '(">" "<>")))
-		   (push 'right borders))
-		 (throw 'exit nil)))))
-	 ;; Table rows are read in reverse order so last column groups
-	 ;; row has precedence over any previous one.
-	 (reverse (org-element-contents table)))))
+	;; Table rows are read in reverse order so last column groups
+	;; row has precedence over any previous one.
+	(dolist (row (reverse (org-element-contents table)))
+	  (unless (eq (org-element-property :type row) 'rule)
+	    (when (equal (org-element-contents
+			  (car (org-element-contents row)))
+			 '("/"))
+	      (let ((column-groups
+		     (mapcar
+		      (lambda (cell)
+			(let ((value (org-element-contents cell)))
+			  (when (member value '(("<") ("<>") (">") nil))
+			    (car value))))
+		      (org-element-contents row))))
+		;; There's a left border when previous cell, if
+		;; any, ends a group, or current one starts one.
+		(when (or (and (not (zerop column))
+			       (member (elt column-groups (1- column))
+				       '(">" "<>")))
+			  (member (elt column-groups column) '("<" "<>")))
+		  (push 'left borders))
+		;; There's a right border when next cell, if any,
+		;; starts a group, or current one ends one.
+		(when (or (and (/= (1+ column) (length column-groups))
+			       (member (elt column-groups (1+ column))
+				       '("<" "<>")))
+			  (member (elt column-groups column) '(">" "<>")))
+		  (push 'right borders))
+		(throw 'exit nil)))))))
     ;; Return value.
     borders))
 
@@ -5907,24 +5979,17 @@ Return file name as a string."
   (let* ((visited-file (buffer-file-name (buffer-base-buffer)))
 	 (base-name
 	  ;; File name may come from EXPORT_FILE_NAME subtree
-	  ;; property, assuming point is at beginning of said
-	  ;; sub-tree.
+	  ;; property.
 	  (file-name-sans-extension
-	   (or (and subtreep
-		    (org-entry-get
-		     (save-excursion
-		       (ignore-errors (org-back-to-heading) (point)))
-		     "EXPORT_FILE_NAME" 'selective))
+	   (or (and subtreep (org-entry-get nil "EXPORT_FILE_NAME" 'selective))
 	       ;; File name may be extracted from buffer's associated
 	       ;; file, if any.
 	       (and visited-file (file-name-nondirectory visited-file))
 	       ;; Can't determine file name on our own: Ask user.
-	       (let ((read-file-name-function
-		      (and org-completion-use-ido 'ido-read-file-name)))
-		 (read-file-name
-		  "Output file: " pub-dir nil nil nil
-		  (lambda (name)
-		    (string= (file-name-extension name t) extension)))))))
+	       (read-file-name
+		"Output file: " pub-dir nil nil nil
+		(lambda (name)
+		  (string= (file-name-extension name t) extension))))))
 	 (output-file
 	  ;; Build file name.  Enforce EXTENSION over whatever user
 	  ;; may have come up with.  PUB-DIR, if defined, always has
@@ -5938,7 +6003,7 @@ Return file name as a string."
 	   (t (concat (file-name-as-directory ".") base-name extension)))))
     ;; If writing to OUTPUT-FILE would overwrite original file, append
     ;; EXTENSION another time to final name.
-    (if (and visited-file (org-file-equal-p visited-file output-file))
+    (if (and visited-file (file-equal-p visited-file output-file))
 	(concat output-file extension)
       output-file)))
 
@@ -6012,7 +6077,7 @@ stack."
 	       ;; Clear stack from exited processes, dead buffers or
 	       ;; non-existent files.
 	       (setq org-export-stack-contents
-		     (org-remove-if-not
+		     (cl-remove-if-not
 		      (lambda (el)
 			(if (processp (nth 2 el))
 			    (buffer-live-p (process-buffer (nth 2 el)))
@@ -6027,7 +6092,7 @@ If optional argument SOURCE is non-nil, remove it instead."
   (interactive)
   (let ((source (or source (org-export--stack-source-at-point))))
     (setq org-export-stack-contents
-	  (org-remove-if (lambda (el) (equal (car el) source))
+	  (cl-remove-if (lambda (el) (equal (car el) source))
 			 org-export-stack-contents))))
 
 (defun org-export-stack-view (&optional in-emacs)
@@ -6081,8 +6146,8 @@ files or buffers, only the display.
 	'(:eval
 	  (format "  %-12s | %6s | %s" "Back-End" "Age" "Source")))
   (org-add-hook 'post-command-hook 'org-export-stack-refresh nil t)
-  (set (make-local-variable 'revert-buffer-function)
-       'org-export-stack-refresh))
+  (setq-local revert-buffer-function
+	      'org-export-stack-refresh))
 
 
 
@@ -6423,10 +6488,9 @@ options as CDR."
 	     ;; path. Indeed, derived backends can share the same
 	     ;; FIRST-KEY.
 	     (t (catch 'found
-		  (mapc (lambda (entry)
-			  (let ((match (assq key (nth 2 entry))))
-			    (when match (throw 'found (nth 2 match)))))
-			(member (assq first-key entries) entries)))))
+		  (dolist (entry (member (assq first-key entries) entries))
+		    (let ((match (assq key (nth 2 entry))))
+		      (when match (throw 'found (nth 2 match))))))))
 	    options))
      ;; Otherwise, enter sub-menu.
      (t (org-export--dispatch-ui options key expertp)))))
