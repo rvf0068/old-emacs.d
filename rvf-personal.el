@@ -143,7 +143,6 @@
 (setq calendar-location-name "Pachuca, Hidalgo, Mexico")
 
 ;; see http://thread.gmane.org/gmane.emacs.gnus.general/82879/focus=83006
-;;(add-to-list 'load-path "~/Dropbox/emacs/site-lisp/gnus/lisp")
 (setq gnus-home-directory "~/Dropbox/gnus")
 (setq gnus-directory "~/Dropbox/gnus/News")
 (setq gnus-cache-directory "~/Dropbox/gnus/News/cache/")

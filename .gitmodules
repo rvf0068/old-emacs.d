@@ -1,0 +1,3 @@
+[submodule "site-lisp/gnus"]
+	path = site-lisp/gnus
+	url = http://git.gnus.org/gnus.git

@@ -7,7 +7,7 @@
 
 (load "~/.emacs.d/rvf-elpa.el")
 
-(push "~/Dropbox/emacs/site-lisp/gnus/lisp" load-path)
+(push "~/.emacs.d/site-lisp/gnus/lisp" load-path)
 
 (if (file-exists-p "~/.emacs.d/custom.el")
     (load "~/.emacs.d/custom.el"))
