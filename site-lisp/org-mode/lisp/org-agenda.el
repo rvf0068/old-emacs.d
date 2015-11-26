@@ -3349,7 +3349,7 @@ the agenda to write."
 	     (rename-buffer org-agenda-write-buffer-name t)
 	     (set-buffer-modified-p nil)
 	     (insert bs)
-	     (org-agenda-remove-marked-text 'org-filtered)
+	     (org-agenda-remove-marked-text 'invisible 'org-filtered)
 	     (run-hooks 'org-agenda-before-write-hook)
 	     (cond
 	      ((org-bound-and-true-p org-mobile-creating-agendas)
@@ -7629,30 +7629,22 @@ tags in the FILTER if any of the tags in FILTER are grouptags."
     (cons 'and (nreverse f))))
 
 (defun org-agenda-filter-make-matcher-tag-exp (tags op)
-  "Create the form that tests a line for agenda filter for
-tag-expressions.  Return a match-expression given TAGS.  OP is an
-operator of type CHAR that allows the function to set the right
-switches in the returned form."
-  (let (f f1) ;f = return expression. f1 = working-area
-    (dolist (x tags)
+  "Return a form associated to tag-expression TAGS.
+Build a form testing a line for agenda filter for
+tag-expressions.  OP is an operator of type CHAR that allows the
+function to set the right switches in the returned form."
+  (let (form)
+    ;; Any of the expressions can match if OP is +, all must match if
+    ;; the operator is -.
+    (dolist (x tags (cons (if (eq op ?-) 'and 'or) form))
       (let* ((tag (substring x 1))
-	     (isregexp (and (equal "{" (substring tag 0 1))
-			    (equal "}" (substring tag -1))))
-	     regexp)
-	(cond
-	 (isregexp
-	  (setq regexp (substring tag 1 -1))
-	  (setq f1 (list 'org-match-any-p regexp 'tags)))
-	 (t
-	  (setq f1 (list 'member (downcase tag) 'tags))))
-	(when (eq op ?-)
-	    (setq f1 (list 'not f1))))
-      (push f1 f))
-    ;; Any of the expressions can match if op = +
-    ;; all must match if the operator is -.
-    (if (eq op ?-)
-	(cons 'and f)
-      (cons 'or f))))
+	     (f (cond
+		 ((string= "" tag) '(not tags))
+		 ((and (string-match-p "\\`{" tag) (string-match-p "}\\'" tag))
+		  ;; TAG is a regexp.
+		  (list 'org-match-any-p (substring tag 1 -1) 'tags))
+		 (t (list 'member (downcase tag) 'tags)))))
+	(push (if (eq op ?-) (list 'not f) f) form)))))
 
 (defun org-agenda-filter-effort-form (e)
   "Return the form to compare the effort of the current line with what E says.

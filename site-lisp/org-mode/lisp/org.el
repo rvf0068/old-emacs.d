@@ -111,16 +111,6 @@ sure that we are at the beginning of the line.")
   "Matches a headline, putting stars and text into groups.
 Stars are put in group 1 and the trimmed body in group 2.")
 
-;; Emacs 22 calendar compatibility:  Make sure the new variables are available
-(unless (boundp 'calendar-view-holidays-initially-flag)
-  (org-defvaralias 'calendar-view-holidays-initially-flag
-    'view-calendar-holidays-initially))
-(unless (boundp 'calendar-view-diary-initially-flag)
-  (org-defvaralias 'calendar-view-diary-initially-flag
-    'view-diary-entries-initially))
-(unless (boundp 'diary-fancy-buffer)
-  (org-defvaralias 'diary-fancy-buffer 'fancy-diary-buffer))
-
 (declare-function cdlatex-environment "ext:cdlatex" (environment item))
 (declare-function org-add-archive-files "org-archive" (files))
 (declare-function org-agenda-entry-get-agenda-timestamp "org-agenda" (pom))
@@ -7437,8 +7427,8 @@ returns to the original buffer in which the visibility is still
 unchanged.  After RET it will also jump to the location selected
 in the indirect buffer and expose the headline hierarchy above.
 
-With a prefix argument, use the alternative interface: e.g. if
-`org-goto-interface' is 'outline use 'outline-path-completion."
+With a prefix argument, use the alternative interface: e.g., if
+`org-goto-interface' is `outline' use `outline-path-completion'."
   (interactive "P")
   (org-goto-map)
   (let* ((org-refile-targets `((nil . (:maxlevel . ,org-goto-max-level))))
@@ -24870,7 +24860,7 @@ should be shown.  Default is enough to cause the following
 heading to appear."
   (interactive "p")
   ;; If `orgstruct-mode' is active, use the slower version.
-  (if orgstruct-mode (call-interactively #'show-children)
+  (if orgstruct-mode (call-interactively #'outline-show-children)
     (save-excursion
       (org-back-to-heading t)
       (let* ((current-level (funcall outline-level))
