@@ -58,7 +58,7 @@
 		 ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
 
 (add-to-list 'org-latex-classes
-	     '("tesis" "\\documentclass[12pt]{book}"
+	     '("tesis" "\\documentclass[12pt]{report}"
 	       ("\\chapter{%s}" . "\\chapter*{%s}")
 	       ("\\section{%s}" . "\\section*{%s}")
 	       ("\\subsection{%s}" . "\\subsection*{%s}")
