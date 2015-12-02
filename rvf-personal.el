@@ -135,6 +135,16 @@
 
 (mapcar 'my-octopress-projects (mapcar 'form-octopress-project my-base-directories))
 
+(setq org-publish-project-alist 
+      (nconc org-publish-project-alist
+	     '(("olimpiada-index" 
+		:base-directory "/home/rafael/Dropbox/paginas/olimpiada/index" 
+		:publishing-directory "/home/rafael/Dropbox/paginas/olimpiada" 
+		:publishing-function org-html-publish-to-html 
+		:base-extension "org")
+	       )
+	     ))
+
 (load "~/.emacs.d/rvf-captures.el")
 
 (setq diary-file "~/Dropbox/emacs/diary")
