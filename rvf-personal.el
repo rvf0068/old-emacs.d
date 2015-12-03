@@ -137,10 +137,16 @@
 
 (setq org-publish-project-alist 
       (nconc org-publish-project-alist
-	     '(("olimpiada-index" 
+	     '(
+	       ("olimpiada-index" 
 		:base-directory "/home/rafael/Dropbox/paginas/olimpiada/index" 
 		:publishing-directory "/home/rafael/Dropbox/paginas/olimpiada" 
-		:publishing-function org-html-publish-to-html 
+		:publishing-function org-kramdown-publish-to-kramdown 
+		:base-extension "org")
+	       ("olimpiada-examenes" 
+		:base-directory "/home/rafael/Dropbox/paginas/olimpiada/examenes" 
+		:publishing-directory "/home/rafael/Dropbox/paginas/olimpiada" 
+		:publishing-function org-kramdown-publish-to-kramdown 
 		:base-extension "org")
 	       )
 	     ))
