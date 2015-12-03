@@ -123,6 +123,7 @@
 
 (load "~/.emacs.d/rvf-org.el")
 (load "~/.emacs.d/rvf-kramdown.el")
+(load "~/.emacs.d/rvf-jekyll.el")
 
 (require 'calfw)
 (require 'calfw-org) 
