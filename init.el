@@ -51,6 +51,9 @@
    '(
      ( ?c  ("\\colon"))
      ( ?m  ("\\mu" "\\mapsto"))
+     ( ?p  ("\\pi" "\\varpi" "\\perp"))
+     ( ?O  ("\\Omega" "\\mathrm{Orb}"))
+     ( ?S  ("\\Sigma" "\\mathrm{Stab}"))
      ( ?-  ("\\cap" "\\leftrightarrow" "\\longleftrightarrow" ))
      ( ?.  ("\\ldots" "\\cdots" "\\cdot" ))
      ( ?<  ("\\leq" "\\langle"))
@@ -71,8 +74,13 @@
       '(
 	("bin"         "Insert \\binom{}{}"
 	 "\\binom{?}{}"           cdlatex-position-cursor nil nil t)
-	)
-      )
+	("norm"         "Insert \\Vert \\Vert"
+	 "\\Vert ?\\Vert"           cdlatex-position-cursor nil nil t)
+	("gen"         "Insert \\langle \\rangle"
+	 "\\langle ?\\rangle"           cdlatex-position-cursor nil nil t)
+	("set"         "Insert a set"
+	 "\\{?\\mid \\}"           cdlatex-position-cursor nil nil t)
+	))
 
 (setq cdlatex-simplify-sub-super-scripts nil)
 

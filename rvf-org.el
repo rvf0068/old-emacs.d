@@ -83,7 +83,7 @@
 ;; idea from 
 ;; http://endlessparentheses.com/keymap-for-launching-external-applications-and-websites.html
 (defmacro field-org (exec symb)
-  "Return a function that runs the executable EXEC."
+  "Return a function to print a mathbb letter."
   (let ((func-name (intern (concat "org-cdlatex-" exec))))
     `(progn
        (defun ,func-name ()
@@ -101,8 +101,27 @@
 
 ;; inside math mode, pressing C once gives \mathbb{C}. Twice gives C.
 ;; (field-org "complex" "C")
-;; (field-org "real" "R")
+(field-org "real" "R")
 ;; (field-org "rational" "Q")
+
+(defmacro mathcal-org (symb)
+  "Return a function to print a mathcal letter."
+  (let ((func-name (intern (concat "org-cal-cdlatex-" symb))))
+    `(progn
+       (defun ,func-name ()
+         ,(format "Print a letter %s inside mathcal." symb)
+         (interactive)
+	 (if (org-inside-LaTeX-fragment-p)
+	     (if (looking-back (concat "\\\\mathcal{" ,symb "}"))
+		 (progn (delete-char -11)
+			(insert ,symb))
+	       (insert "\\mathcal{" ,symb "}"))
+	   (insert ,symb)
+	   ))
+       (define-key org-mode-map ,symb ',func-name)
+       #',func-name)))
+
+(mathcal-org "O")
 
 ;; from Nicolas Richard <theonewiththeevillook@yahoo.fr>
 ;; Date: Fri, 8 Mar 2013 16:23:02 +0100
@@ -118,6 +137,18 @@ When called twice, replace the previously inserted \\(\\) by one $."
     (insert "\\(\\)")
     (backward-char 2)))
 
+(defun org-absolute-value ()
+  "Insert || and leave point inside when pressing |"
+  (interactive)
+  (if (org-inside-LaTeX-fragment-p)
+      (progn
+	(insert "||")
+	(backward-char 1)
+	)
+    (insert "|")
+    )
+  )
+
 ;; see http://stackoverflow.com/a/25778692/577007
 (add-hook 'org-mode-hook
 	  (lambda ()
@@ -132,6 +163,7 @@ When called twice, replace the previously inserted \\(\\) by one $."
             (add-to-list 'org-tab-first-hook 'yas/org-very-safe-expand)
             (define-key yas/keymap [tab] 'yas/next-field)
 	    (local-set-key (kbd "$") 'yf/org-electric-dollar)
+	    (local-set-key (kbd "|") 'org-absolute-value)
 	    ))
 
 ;; see https://lists.nongnu.org/archive/html/emacs-orgmode/2014-02/msg00223.html
