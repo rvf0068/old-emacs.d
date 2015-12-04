@@ -81,10 +81,12 @@
 
 (define-abbrev-table 'git-rebase-mode-abbrev-table '())
 
+(define-abbrev-table 'gitignore-mode-abbrev-table '())
+
 (define-abbrev-table 'global-abbrev-table
   '(
     ("taht" "that" nil 2)
-    ("teh" "the" nil 0)
+    ("teh" "the" nil 1)
    ))
 
 (define-abbrev-table 'gnus-article-edit-mode-abbrev-table '())
@@ -147,6 +149,8 @@
 
 (define-abbrev-table 'magit-log-select-mode-abbrev-table '())
 
+(define-abbrev-table 'magit-merge-preview-mode-abbrev-table '())
+
 (define-abbrev-table 'magit-mode-abbrev-table '())
 
 (define-abbrev-table 'magit-popup-mode-abbrev-table '())
@@ -175,6 +179,8 @@
 
 (define-abbrev-table 'messages-buffer-mode-abbrev-table '())
 
+(define-abbrev-table 'nxml-mode-abbrev-table '())
+
 (define-abbrev-table 'objc-mode-abbrev-table '())
 
 (define-abbrev-table 'occur-edit-mode-abbrev-table '())
@@ -190,13 +196,14 @@
     ("cd" "campo de descomposición" nil 2)
     ("ev" "espacio vectorial" nil 0)
     ("iff" "if and only if" nil 0)
+    ("li" "linearly independent" nil 0)
     ("mcd" "máximo común divisor" nil 3)
     ("nc" "número complejo" nil 0)
     ("ncs" "números complejos" nil 1)
     ("pda" "punto de acumulación" nil 2)
-    ("pm" "polinomio mínimo" nil 5)
+    ("pm" "polinomio mínimo" nil 6)
     ("ssi" "si y solo si" nil 9)
-    ("st" "such that" nil 0)
+    ("st" "such that" nil 1)
     ("ts" "topological space" nil 1)
    ))
 
@@ -204,7 +211,11 @@
 
 (define-abbrev-table 'package-menu-mode-abbrev-table '())
 
+(define-abbrev-table 'pdf-annot-list-mode-abbrev-table '())
+
 (define-abbrev-table 'pdf-occur-buffer-mode-abbrev-table '())
+
+(define-abbrev-table 'pdf-outline-buffer-mode-abbrev-table '())
 
 (define-abbrev-table 'pike-mode-abbrev-table '())
 
