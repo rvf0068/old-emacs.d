@@ -15,14 +15,21 @@
 
 (setq org-latex-default-packages-alist
       (nconc org-latex-default-packages-alist
-	     '(("" "listings")
-	       ("colorlinks=true, linkcolor=blue" "hyperref")
-	       ("margin=2.5cm" "geometry")
-	       ("mono=false" "libertine")
-	       ("libertine,timesmathacc" "newtxmath")
-	       ("scaled=0.7" "luximono")
-;;	       ("" "amsthm")
+	     '(("colorlinks=true, linkcolor=blue" "hyperref")
 	       )))
+
+(add-to-list 'org-latex-classes
+	     '("libertine"
+	       "\\documentclass{article}
+               \\usepackage[AUTO]{inputenc}
+               \\usepackage[AUTO]{babel}
+               \\usepackage[mono=false]{libertine}
+               \\usepackage[libertine,timesmathacc]{newtxmath}
+               \\usepackage[scaled=0.7]{luximono}"
+	       ("\\section{%s}" . "\\section*{%s}")
+	       ("\\subsection{%s}" . "\\subsection*{%s}")
+	       ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+	       ))
 
 (add-to-list 'org-latex-classes
 	     '("two-column"
