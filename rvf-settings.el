@@ -35,8 +35,5 @@
 (setq magit-turn-on-auto-revert-mode t)
 (setq magit-set-upstream-on-push t)
 
-;; python mode
-(add-to-list 'auto-mode-alist '("\\.sage\\'" . python-mode))
-
 (add-to-list 'auto-mode-alist '("\\.pdf\\'" . pdf-view-mode))
 

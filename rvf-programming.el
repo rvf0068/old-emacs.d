@@ -1,3 +1,4 @@
+;; C++
 ;; from http://stackoverflow.com/a/27187158/577007
 
 (require 'compile)
@@ -10,4 +11,19 @@
 			 ))
 	    (smartparens-mode 1)
 	    (yas/minor-mode-on)
-	    ))
+	    )
+	  )
+
+;; Python
+;; from http://stackoverflow.com/a/33436265/577007
+(add-to-list 'auto-mode-alist '("\\.sage\\'" . python-mode))
+
+(add-hook 'python-mode-hook
+          (lambda ()
+	    (set (make-local-variable 'compile-command)
+		 (concat "python " buffer-file-name)
+		 )
+	    (smartparens-mode 1)
+	    (yas/minor-mode-on)
+	    )
+	  )
