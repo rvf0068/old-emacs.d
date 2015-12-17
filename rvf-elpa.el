@@ -42,6 +42,7 @@
     smart-mode-line
     smartparens
     smex
+    xbm-life
     yasnippet
     zenburn-theme)
   "A list of packages to ensure are installed at launch.")
