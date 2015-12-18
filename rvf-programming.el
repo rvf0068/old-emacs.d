@@ -27,3 +27,25 @@
 	    (yas/minor-mode-on)
 	    )
 	  )
+
+;; Perl
+
+(add-hook 'perl-mode-hook
+          (lambda ()
+	    (set (make-local-variable 'compile-command)
+		 (concat "perl " buffer-file-name)
+		 )
+	    (smartparens-mode 1)
+	    (yas/minor-mode-on)
+	    )
+	  )
+
+;; Emacs Lisp
+
+(add-hook 'emacs-lisp-mode-hook
+	  (lambda ()
+	    (smartparens-mode 1)
+	    (yas/minor-mode-on)
+	    ))
+
+
