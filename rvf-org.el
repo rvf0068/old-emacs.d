@@ -35,8 +35,7 @@
 	     '("two-column"
 	       "\\documentclass[twocolumn]{article}
                \\usepackage[AUTO]{inputenc}
-               \\usepackage[AUTO,mexico]{babel}
-	       \[NO-DEFAULT-PACKAGES]"
+               \\usepackage[AUTO]{babel}"
 	       ("\\section{%s}" . "\\section*{%s}")
 	       ("\\subsection{%s}" . "\\subsection*{%s}")
 	       ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
@@ -213,7 +212,7 @@ When called twice, replace the previously inserted \\(\\) by one $."
 	))
 
 (setq org-latex-listings-options
-      '(("basicstyle" "\\scriptsize\\ttfamily")
+      '(("basicstyle" "\\ttfamily")
 	("commentstyle" "\\itshape\\ttfamily\\color{green!50!black}")
 	("keywordstyle" "\\bfseries\\color{blue}")
 	("stringstyle" "\\color{purple}")
