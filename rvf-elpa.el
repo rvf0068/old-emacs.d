@@ -35,6 +35,7 @@
     markdown-mode
     move-text
     org-journal
+    org-pomodoro
     org2blog
     orgbox
     pandoc-mode
