@@ -4383,8 +4383,7 @@ You need to reload Org or to restart Emacs after customizing this."
 	    (plist :tag "Face property list"))
 	   (option (const verbatim)))))
 
-(defvar org-protecting-blocks
-  '("src" "example" "latex" "ascii" "html" "ditaa" "dot" "r" "R")
+(defvar org-protecting-blocks '("src" "example" "export")
   "Blocks that contain text that is quoted, i.e. not processed as Org syntax.
 This is needed for font-lock setup.")
 
@@ -7596,7 +7595,7 @@ frame is not changed."
 	(while (> (setq level (org-outline-level)) arg)
 	  (org-up-heading-safe)))
       (setq beg (point)
-	    heading (org-get-heading))
+	    heading (org-get-heading 'no-tags))
       (org-end-of-subtree t t)
       (when (org-at-heading-p) (backward-char 1))
       (setq end (point)))
@@ -9923,16 +9922,25 @@ active region."
 	 (car org-stored-links))))))
 
 (defun org-store-link-props (&rest plist)
-  "Store link properties, extract names and addresses."
-  (let (x adr)
-    (when (setq x (plist-get plist :from))
-      (setq adr (mail-extract-address-components x))
-      (setq plist (plist-put plist :fromname (car adr)))
-      (setq plist (plist-put plist :fromaddress (nth 1 adr))))
-    (when (setq x (plist-get plist :to))
-      (setq adr (mail-extract-address-components x))
-      (setq plist (plist-put plist :toname (car adr)))
-      (setq plist (plist-put plist :toaddress (nth 1 adr)))))
+  "Store link properties, extract names, addresses and dates."
+  (let ((x (plist-get plist :from)))
+    (when x
+      (let ((adr (mail-extract-address-components x)))
+	(setq plist (plist-put plist :fromname (car adr)))
+	(setq plist (plist-put plist :fromaddress (nth 1 adr))))))
+  (let ((x (plist-get plist :to)))
+    (when x
+      (let ((adr (mail-extract-address-components x)))
+	(setq plist (plist-put plist :toname (car adr)))
+	(setq plist (plist-put plist :toaddress (nth 1 adr))))))
+  (let ((x (ignore-errors (date-to-time (plist-get plist :date)))))
+    (when x
+      (setq plist (plist-put plist :date-timestamp
+			     (format-time-string
+			      (org-time-stamp-format t) x)))
+      (setq plist (plist-put plist :date-timestamp-inactive
+			     (format-time-string
+			      (org-time-stamp-format t t) x)))))
   (let ((from (plist-get plist :from))
 	(to (plist-get plist :to)))
     (when (and from to org-from-is-user-regexp)
@@ -11927,7 +11935,7 @@ prefix argument (`C-u C-u C-u C-c C-w')."
 		  (unless (bolp) (newline))
 		  (org-paste-subtree level nil nil t)
 		  (when org-log-refile
-		    (org-add-log-setup 'refile nil nil 'findpos org-log-refile)
+		    (org-add-log-setup 'refile nil nil org-log-refile)
 		    (unless (eq org-log-refile 'note)
 		      (save-excursion (org-add-log-note))))
 		  (and org-auto-align-tags
@@ -12296,11 +12304,11 @@ keywords relative to each registered export back-end."
     ("v" "#+BEGIN_VERSE\n?\n#+END_VERSE")
     ("V" "#+BEGIN_VERBATIM\n?\n#+END_VERBATIM")
     ("c" "#+BEGIN_CENTER\n?\n#+END_CENTER")
-    ("l" "#+BEGIN_LaTeX\n?\n#+END_LaTeX")
+    ("l" "#+BEGIN_EXPORT latex\n?\n#+END_EXPORT")
     ("L" "#+LaTeX: ")
-    ("h" "#+BEGIN_HTML\n?\n#+END_HTML")
+    ("h" "#+BEGIN_EXPORT html\n?\n#+END_EXPORT")
     ("H" "#+HTML: ")
-    ("a" "#+BEGIN_ASCII\n?\n#+END_ASCII")
+    ("a" "#+BEGIN_EXPORT ascii\n?\n#+END_EXPORT")
     ("A" "#+ASCII: ")
     ("i" "#+INDEX: ?")
     ("I" "#+INCLUDE: %file ?"))
@@ -12643,10 +12651,10 @@ When called through ELisp, arg is also interpreted in the following way:
 		;; It is now done, and it was not done before
 		(org-add-planning-info 'closed (org-current-effective-time))
 		(when (and (not dolog) (eq 'note org-log-done))
-		  (org-add-log-setup 'done org-state this 'findpos 'note)))
+		  (org-add-log-setup 'done org-state this 'note)))
 	      (when (and org-state dolog)
 		;; This is a non-nil state, and we need to log it
-		(org-add-log-setup 'state org-state this 'findpos dolog)))
+		(org-add-log-setup 'state org-state this dolog)))
 	    ;; Fixup tag positioning
 	    (org-todo-trigger-tag-changes org-state)
 	    (and org-auto-align-tags (not org-setting-tags) (org-set-tags nil t))
@@ -13187,9 +13195,10 @@ This function is run automatically after each state change to a DONE state."
 	      ;; make sure we take a note, not only a time stamp
 	      (setq org-log-note-how 'note))
 	  ;; Set up for taking a record
-	  (org-add-log-setup 'state (or done-word (car org-done-keywords))
+	  (org-add-log-setup 'state
+			     (or done-word (car org-done-keywords))
 			     org-last-state
-			     'findpos org-log-repeat)))
+			     org-log-repeat)))
       (org-back-to-heading t)
       (org-add-planning-info nil nil 'closed)
       (setq re (concat "\\(" org-scheduled-time-regexp "\\)\\|\\("
@@ -13290,8 +13299,7 @@ can either be an Org date like \"2011-07-24\" or a delta like \"+2d\"."
       (cond
        ((equal arg '(4))
 	(when (and old-date org-log-redeadline)
-	  (org-add-log-setup 'deldeadline nil old-date 'findpos
-			     org-log-redeadline))
+	  (org-add-log-setup 'deldeadline nil old-date org-log-redeadline))
 	(org-remove-timestamp-with-keyword org-deadline-string)
 	(message "Item no longer has a deadline."))
        ((equal arg '(16))
@@ -13319,8 +13327,7 @@ can either be an Org date like \"2011-07-24\" or a delta like \"+2d\"."
 		   org-log-redeadline
 		   (not (equal old-date org-last-inserted-timestamp)))
 	  (org-add-log-setup
-	   'redeadline org-last-inserted-timestamp old-date 'findpos
-	   org-log-redeadline))
+	   'redeadline org-last-inserted-timestamp old-date org-log-redeadline))
 	(when repeater
 	  (save-excursion
 	    (org-back-to-heading t)
@@ -13362,8 +13369,7 @@ either be an Org date like \"2011-07-24\" or a delta like \"+2d\"."
        ((equal arg '(4))
 	(progn
 	  (when (and old-date org-log-reschedule)
-	    (org-add-log-setup 'delschedule nil old-date 'findpos
-			       org-log-reschedule))
+	    (org-add-log-setup 'delschedule nil old-date org-log-reschedule))
 	  (org-remove-timestamp-with-keyword org-scheduled-string)
 	  (message "Item is no longer scheduled.")))
        ((equal arg '(16))
@@ -13391,8 +13397,7 @@ either be an Org date like \"2011-07-24\" or a delta like \"+2d\"."
 		   org-log-reschedule
 		   (not (equal old-date org-last-inserted-timestamp)))
 	  (org-add-log-setup
-	   'reschedule org-last-inserted-timestamp old-date 'findpos
-	   org-log-reschedule))
+	   'reschedule org-last-inserted-timestamp old-date org-log-reschedule))
 	(when repeater
 	  (save-excursion
 	    (org-back-to-heading t)
@@ -13556,7 +13561,7 @@ WHAT entry will also be removed."
 	   (unless (eolp) (insert " "))
 	   ts))))))
 
-(defvar org-log-note-marker (make-marker))
+(defvar org-log-note-buffer nil)
 (defvar org-log-note-purpose nil)
 (defvar org-log-note-state nil)
 (defvar org-log-note-previous-state nil)
@@ -13576,7 +13581,7 @@ The auto-repeater uses this.")
   "Add a note to the current entry.
 This is done in the same way as adding a state change note."
   (interactive)
-  (org-add-log-setup 'note nil nil 'findpos nil))
+  (org-add-log-setup 'note))
 
 (defun org-log-beginning (&optional create)
   "Return expected start of log notes in current entry.
@@ -13615,31 +13620,19 @@ narrowing."
 	 (forward-line)))))
    (if (bolp) (point) (line-beginning-position 2))))
 
-(defun org-add-log-setup (&optional purpose state prev-state findpos how extra)
+(defun org-add-log-setup (&optional purpose state prev-state how extra)
   "Set up the post command hook to take a note.
 If this is about to TODO state change, the new state is expected in STATE.
-When FINDPOS is non-nil, find the correct position for the note in
-the current entry.  If not, assume that it can be inserted at point.
 HOW is an indicator what kind of note should be created.
 EXTRA is additional text that will be inserted into the notes buffer."
-  (org-with-wide-buffer
-   (when findpos
-     (goto-char (org-log-beginning t))
-     (unless org-log-states-order-reversed
-       (org-skip-over-state-notes)
-       (skip-chars-backward " \t\n\r")
-       (forward-line)))
-   (move-marker org-log-note-marker (point))
-   ;; Preserve position even if a property drawer is inserted in the
-   ;; process.
-   (set-marker-insertion-type org-log-note-marker t)
-   (setq org-log-note-purpose purpose
-	 org-log-note-state state
-	 org-log-note-previous-state prev-state
-	 org-log-note-how how
-	 org-log-note-extra extra
-	 org-log-note-effective-time (org-current-effective-time))
-   (add-hook 'post-command-hook 'org-add-log-note 'append)))
+  (setq org-log-note-buffer (current-buffer)
+	org-log-note-purpose purpose
+	org-log-note-state state
+	org-log-note-previous-state prev-state
+	org-log-note-how how
+	org-log-note-extra extra
+	org-log-note-effective-time (org-current-effective-time))
+  (add-hook 'post-command-hook 'org-add-log-note 'append))
 
 (defun org-skip-over-state-notes ()
   "Skip past the list of State notes in an entry."
@@ -13665,13 +13658,12 @@ EXTRA is additional text that will be inserted into the notes buffer."
 		       (org-list-get-item-end (point) struct)))))))
 
 (defun org-add-log-note (&optional purpose)
-  "Pop up a window for taking a note, and add this note later at point."
+  "Pop up a window for taking a note, and add this note later."
   (remove-hook 'post-command-hook 'org-add-log-note)
   (setq org-log-note-window-configuration (current-window-configuration))
   (delete-other-windows)
   (move-marker org-log-note-return-to (point))
-  (org-pop-to-buffer-same-window (marker-buffer org-log-note-marker))
-  (goto-char org-log-note-marker)
+  (org-pop-to-buffer-same-window org-log-note-buffer)
   (org-switch-to-buffer-other-window "*Org Note*")
   (erase-buffer)
   (if (memq org-log-note-how '(time state))
@@ -13706,93 +13698,94 @@ EXTRA is additional text that will be inserted into the notes buffer."
 (defvar org-note-abort nil) ; dynamically scoped
 (defun org-store-log-note ()
   "Finish taking a log note, and insert it to where it belongs."
-  (let ((txt (buffer-string)))
-    (kill-buffer (current-buffer))
-    (let ((note (cdr (assq org-log-note-purpose org-log-note-headings))) lines)
-      (while (string-match "\\`# .*\n[ \t\n]*" txt)
-	(setq txt (replace-match "" t t txt)))
-      (when (string-match "\\s-+\\'" txt)
-	(setq txt (replace-match "" t t txt)))
-      (setq lines (org-split-string txt "\n"))
-      (when (and note (string-match "\\S-" note))
-	(setq note
-	      (org-replace-escapes
-	       note
-	       (list (cons "%u" (user-login-name))
-		     (cons "%U" user-full-name)
-		     (cons "%t" (format-time-string
-				 (org-time-stamp-format 'long 'inactive)
-				 org-log-note-effective-time))
-		     (cons "%T" (format-time-string
-				 (org-time-stamp-format 'long nil)
-				 org-log-note-effective-time))
-		     (cons "%d" (format-time-string
-				 (org-time-stamp-format nil 'inactive)
-				 org-log-note-effective-time))
-		     (cons "%D" (format-time-string
-				 (org-time-stamp-format nil nil)
-				 org-log-note-effective-time))
-		     (cons "%s" (cond
-				 ((not org-log-note-state) "")
-				 ((org-string-match-p org-ts-regexp
-						      org-log-note-state)
-				  (format "\"[%s]\""
-					  (substring org-log-note-state 1 -1)))
-				 (t (format "\"%s\"" org-log-note-state))))
-		     (cons "%S"
-			   (cond
-			    ((not org-log-note-previous-state) "")
-			    ((org-string-match-p org-ts-regexp
-						 org-log-note-previous-state)
-			     (format "\"[%s]\""
-				     (substring
-				      org-log-note-previous-state 1 -1)))
-			    (t (format "\"%s\""
-				       org-log-note-previous-state)))))))
-	(when lines (setq note (concat note " \\\\")))
-	(push note lines))
-      (when (or current-prefix-arg org-note-abort)
-	(when (org-log-into-drawer)
-	  (org-remove-empty-drawer-at org-log-note-marker))
-	(setq lines nil))
-      (when lines
-	(with-current-buffer (marker-buffer org-log-note-marker)
-	  (org-with-wide-buffer
-	    (goto-char org-log-note-marker)
-	    (move-marker org-log-note-marker nil)
-	    ;; Make sure point is at the beginning of an empty line.
-	    (cond ((not (bolp)) (let ((inhibit-read-only t)) (insert "\n")))
-		  ((looking-at "[ \t]*\\S-") (save-excursion (insert "\n"))))
-	    ;; In an existing list, add a new item at the top level.
-	    ;; Otherwise, indent line like a regular one.
-	    (let ((itemp (org-in-item-p)))
-	      (if itemp
-		  (org-indent-line-to
-		   (let ((struct (save-excursion
-				   (goto-char itemp) (org-list-struct))))
-		     (org-list-get-ind (org-list-get-top-point struct) struct)))
-		(org-indent-line)))
-	    (insert (org-list-bullet-string "-") (pop lines))
-	    (let ((ind (org-list-item-body-column (line-beginning-position))))
-	      (dolist (line lines)
-		(insert "\n")
-		(org-indent-line-to ind)
-		(insert line)))
-	    (message "Note stored")
-	    (org-back-to-heading t)
-	    (org-cycle-hide-drawers 'children))
-	  ;; Fix `buffer-undo-list' when `org-store-log-note' is called
-	  ;; from within `org-add-log-note' because `buffer-undo-list'
-	  ;; is then modified outside of `org-with-remote-undo'.
-	  (when (eq this-command 'org-agenda-todo)
-	    (setcdr buffer-undo-list (cddr buffer-undo-list)))))))
-  ;; Don't add undo information when called from `org-agenda-todo'
+  (let ((txt (prog1 (buffer-string)
+	       (kill-buffer)))
+	(note (cdr (assq org-log-note-purpose org-log-note-headings)))
+	lines)
+    (while (string-match "\\`# .*\n[ \t\n]*" txt)
+      (setq txt (replace-match "" t t txt)))
+    (when (string-match "\\s-+\\'" txt)
+      (setq txt (replace-match "" t t txt)))
+    (setq lines (org-split-string txt "\n"))
+    (when (org-string-nw-p note)
+      (setq note
+	    (org-replace-escapes
+	     note
+	     (list (cons "%u" (user-login-name))
+		   (cons "%U" user-full-name)
+		   (cons "%t" (format-time-string
+			       (org-time-stamp-format 'long 'inactive)
+			       org-log-note-effective-time))
+		   (cons "%T" (format-time-string
+			       (org-time-stamp-format 'long nil)
+			       org-log-note-effective-time))
+		   (cons "%d" (format-time-string
+			       (org-time-stamp-format nil 'inactive)
+			       org-log-note-effective-time))
+		   (cons "%D" (format-time-string
+			       (org-time-stamp-format nil nil)
+			       org-log-note-effective-time))
+		   (cons "%s" (cond
+			       ((not org-log-note-state) "")
+			       ((org-string-match-p org-ts-regexp
+						    org-log-note-state)
+				(format "\"[%s]\""
+					(substring org-log-note-state 1 -1)))
+			       (t (format "\"%s\"" org-log-note-state))))
+		   (cons "%S"
+			 (cond
+			  ((not org-log-note-previous-state) "")
+			  ((org-string-match-p org-ts-regexp
+					       org-log-note-previous-state)
+			   (format "\"[%s]\""
+				   (substring
+				    org-log-note-previous-state 1 -1)))
+			  (t (format "\"%s\""
+				     org-log-note-previous-state)))))))
+      (when lines (setq note (concat note " \\\\")))
+      (push note lines))
+    (when (and lines (not (or current-prefix-arg org-note-abort)))
+      (with-current-buffer org-log-note-buffer
+	(org-with-wide-buffer
+	 ;; Find location for the new note.
+	 (goto-char (org-log-beginning t))
+	 (unless org-log-states-order-reversed
+	   (org-skip-over-state-notes)
+	   (skip-chars-backward " \t\n\r")
+	   (forward-line))
+	 ;; Make sure point is at the beginning of an empty line.
+	 (cond ((not (bolp)) (let ((inhibit-read-only t)) (insert "\n")))
+	       ((looking-at "[ \t]*\\S-") (save-excursion (insert "\n"))))
+	 ;; In an existing list, add a new item at the top level.
+	 ;; Otherwise, indent line like a regular one.
+	 (let ((itemp (org-in-item-p)))
+	   (if itemp
+	       (org-indent-line-to
+		(let ((struct (save-excursion
+				(goto-char itemp) (org-list-struct))))
+		  (org-list-get-ind (org-list-get-top-point struct) struct)))
+	     (org-indent-line)))
+	 (insert (org-list-bullet-string "-") (pop lines))
+	 (let ((ind (org-list-item-body-column (line-beginning-position))))
+	   (dolist (line lines)
+	     (insert "\n")
+	     (org-indent-line-to ind)
+	     (insert line)))
+	 (message "Note stored")
+	 (org-back-to-heading t)
+	 (org-cycle-hide-drawers 'children))
+	;; Fix `buffer-undo-list' when `org-store-log-note' is called
+	;; from within `org-add-log-note' because `buffer-undo-list'
+	;; is then modified outside of `org-with-remote-undo'.
+	(when (eq this-command 'org-agenda-todo)
+	  (setcdr buffer-undo-list (cddr buffer-undo-list))))))
+  ;; Don't add undo information when called from `org-agenda-todo'.
   (let ((buffer-undo-list (eq this-command 'org-agenda-todo)))
     (set-window-configuration org-log-note-window-configuration)
     (with-current-buffer (marker-buffer org-log-note-return-to)
       (goto-char org-log-note-return-to))
     (move-marker org-log-note-return-to nil)
-    (and org-log-post-message (message "%s" org-log-post-message))))
+    (when org-log-post-message (message "%s" org-log-post-message))))
 
 (defun org-remove-empty-drawer-at (pos)
   "Remove an empty drawer at position POS.
@@ -15524,6 +15517,12 @@ but in some other way.")
   "Some properties that are used by Org mode for various purposes.
 Being in this list makes sure that they are offered for completion.")
 
+(defun org--valid-property-p (property)
+  "Non nil when string PROPERTY is a valid property name."
+  (not
+   (or (equal property "")
+       (org-string-match-p "\\s-" property))))
+
 (defun org--update-property-plist (key val props)
   "Associate KEY to VAL in alist PROPS.
 Modifications are made by side-effect.  Return new alist."
@@ -16044,8 +16043,9 @@ and the new value.")
 (defun org-entry-put (pom property value)
   "Set PROPERTY to VALUE for entry at point-or-marker POM.
 
-If the value is nil, it is converted to the empty string.  If
-it is not a string, an error is raised.
+If the value is nil, it is converted to the empty string.  If it
+is not a string, an error is raised.  Also raise an error on
+invalid property names.
 
 PROPERTY can be any regular property (see
 `org-special-properties').  It can also be \"TODO\",
@@ -16055,7 +16055,9 @@ For the last two properties, VALUE may have any of the special
 values \"earlier\" and \"later\".  The function then increases or
 decreases scheduled or deadline date by one day."
   (cond ((null value) (setq value ""))
-	((not (stringp value)) (error "Properties values should be strings")))
+	((not (stringp value)) (error "Properties values should be strings"))
+	((not (org--valid-property-p property))
+	 (user-error "Invalid property name: \"%s\"" property)))
   (org-with-point-at pom
     (if (or (not (featurep 'org-inlinetask)) (org-inlinetask-in-task-p))
 	(org-back-to-heading t)
@@ -16113,7 +16115,8 @@ decreases scheduled or deadline date by one day."
 	  (org-indent-line)))))
     (run-hook-with-args 'org-property-changed-functions property value)))
 
-(defun org-buffer-property-keys (&optional specials defaults columns)
+(defun org-buffer-property-keys
+    (&optional specials defaults columns ignore-malformed)
   "Get all property keys in the current buffer.
 
 When SPECIALS is non-nil, also list the special properties that
@@ -16124,7 +16127,10 @@ special meaning internally: ARCHIVE, CATEGORY, SUMMARY,
 DESCRIPTION, LOCATION, and LOGGING and others.
 
 When COLUMNS in non-nil, also include property names given in
-COLUMN formats in the current buffer."
+COLUMN formats in the current buffer.
+
+When IGNORE-MALFORMED is non-nil, malformed drawer repair will not be
+automatically performed, such drawers will be silently ignored."
   (let ((case-fold-search t)
 	(props (append
 		(and specials org-special-properties)
@@ -16136,7 +16142,8 @@ COLUMN formats in the current buffer."
        (let ((range (org-get-property-block)))
 	 (catch 'skip
 	   (unless range
-	     (when (and (not (org-before-first-heading-p))
+	     (when (and (not ignore-malformed)
+			(not (org-before-first-heading-p))
 			(y-or-n-p (format "Malformed drawer at %d, repair?"
 					  (line-beginning-position))))
 	       (org-get-property-block nil t))
@@ -16338,21 +16345,29 @@ When use-default, don't even ask, just use the last
 
 (defun org-set-property (property value)
   "In the current entry, set PROPERTY to VALUE.
+
 When called interactively, this will prompt for a property name, offering
 completion on existing and default properties.  And then it will prompt
 for a value, offering completion either on allowed values (via an inherited
 xxx_ALL property) or on existing values in other instances of this property
-in the current file."
+in the current file.
+
+Throw an error when trying to set a property with an invalid name."
   (interactive (list nil nil))
-  (let* ((property (or property (org-read-property-name)))
-	 (value (or value (org-read-property-value property)))
-	 (fn (cdr (assoc property org-properties-postprocess-alist))))
-    (setq org-last-set-property property)
-    (setq org-last-set-property-value (concat property ": " value))
-    ;; Possibly postprocess the inserted value:
-    (when fn (setq value (funcall fn value)))
-    (unless (equal (org-entry-get nil property) value)
-      (org-entry-put nil property value))))
+  (let ((property (or property (org-read-property-name))))
+    ;; `org-entry-put' also makes the following check, but this one
+    ;; avoids polluting `org-last-set-property' and
+    ;; `org-last-set-property-value' needlessly.
+    (unless (org--valid-property-p property)
+      (user-error "Invalid property name: \"%s\"" property))
+    (let ((value (or value (org-read-property-value property)))
+	  (fn (cdr (assoc-string property org-properties-postprocess-alist t))))
+      (setq org-last-set-property property)
+      (setq org-last-set-property-value (concat property ": " value))
+      ;; Possibly postprocess the inserted value:
+      (when fn (setq value (funcall fn value)))
+      (unless (equal (org-entry-get nil property) value)
+	(org-entry-put nil property value)))))
 
 (defun org-find-property (property &optional value)
   "Find first entry in buffer that sets PROPERTY.
@@ -21602,10 +21617,11 @@ number of stars to add."
 	   (when (org-at-item-p)
 	     ;; Pay attention to cases when region ends before list.
 	     (let* ((struct (org-list-struct))
-		    (list-end (min (org-list-get-bottom-point struct) (1+ end))))
+		    (list-end
+		     (min (org-list-get-bottom-point struct) (1+ end))))
 	       (save-restriction
 		 (narrow-to-region (point) list-end)
-		 (insert (org-list-to-subtree (org-list-to-lisp t)))))
+		 (insert (org-list-to-subtree (org-list-to-lisp t)) "\n")))
 	     (setq toggled t))
 	   (forward-line)))
 	;; Case 3. Started at normal text: make every line an heading,

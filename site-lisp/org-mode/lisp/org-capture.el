@@ -60,6 +60,7 @@
 (declare-function org-table-analyze "org-table" ())
 (declare-function org-table-goto-line "org-table" (N))
 
+(defvar org-end-time-was-given)
 (defvar org-remember-default-headline)
 (defvar org-remember-templates)
 (defvar org-table-hlines)
@@ -150,6 +151,12 @@ target       Specification of where the captured item should be placed.
 
              (file+datetree+prompt \"path/to/file\")
                  Will create a heading in a date tree, prompts for date
+
+             (file+weektree \"path/to/file\")
+                 Will create a heading in a week tree for today's date
+
+             (file+weektree+prompt \"path/to/file\")
+                 Will create a heading in a week tree, prompts for date
 
              (file+function \"path/to/file\" function-finding-location)
                  A function to find the right location in the file
@@ -330,6 +337,12 @@ you can escape ambiguous cases with a backward slash, e.g., \\%i."
 				(file :tag "  File"))
 			  (list :tag "File & Date tree, prompt for date"
 				(const :format "" file+datetree+prompt)
+				(file :tag "  File"))
+			  (list :tag "File & Week tree"
+				(const :format "" file+weektree)
+				(file :tag "  File"))
+			  (list :tag "File & Week tree, prompt for date"
+				(const :format "" file+weektree+prompt)
 				(file :tag "  File"))
 			  (list :tag "File & function"
 				(const :format "" file+function)
@@ -908,21 +921,25 @@ Store them in the capture property list."
 	      (setq target-entry-p (and (derived-mode-p 'org-mode) (org-at-heading-p))))
 	  (error "No match for target regexp in file %s" (nth 1 target))))
 
-       ((memq (car target) '(file+datetree file+datetree+prompt))
+       ((memq (car target) '(file+datetree file+datetree+prompt file+weektree file+weektree+prompt))
 	(require 'org-datetree)
 	(set-buffer (org-capture-target-buffer (nth 1 target)))
 	(org-capture-put-target-region-and-position)
 	(widen)
-	;; Make a date tree entry, with the current date (or yesterday,
-	;; if we are extending dates for a couple of hours)
-	(org-datetree-find-date-create
+	;; Make a date/week tree entry, with the current date (or
+	;; yesterday, if we are extending dates for a couple of hours)
+	(funcall
+	 (cond
+	  ((memq (car target) '(file+weektree file+weektree+prompt))
+	   #'org-datetree-find-iso-week-create)
+	  (t #'org-datetree-find-date-create))
 	 (calendar-gregorian-from-absolute
 	  (cond
 	   (org-overriding-default-time
 	    ;; use the overriding default time
 	    (time-to-days org-overriding-default-time))
 
-	   ((eq (car target) 'file+datetree+prompt)
+	   ((memq (car target) '(file+datetree+prompt file+weektree+prompt))
 	    ;; prompt for date
 	    (let ((prompt-time (org-read-date
 				nil t nil "Date for tree entry:"
@@ -1685,7 +1702,7 @@ The template may still contain \"%?\" for cursor positioning."
 		       (key (match-string 2)))
 		  (delete-region (match-beginning 0) (match-end 0))
 		  (pcase key
-		    ((or `"G" `"g")
+		    ((or "G" "g")
 		     (let* ((org-last-tags-completion-table
 			     (org-global-tags-completion-table
 			      (cond ((equal key "G") (org-agenda-files))
@@ -1708,7 +1725,7 @@ The template may still contain \"%?\" for cursor positioning."
 			 (and (org-at-heading-p)
 			      (let ((org-ignore-region t))
 				(org-set-tags nil 'align))))))
-		    (`"C"
+		    ("C"
 		     (cond
 		      ((= (length clipboards) 1) (insert (car clipboards)))
 		      ((> (length clipboards) 1)
@@ -1716,7 +1733,7 @@ The template may still contain \"%?\" for cursor positioning."
 					    (car clipboards)
 					    '(clipboards . 1)
 					    (car clipboards))))))
-		    (`"L"
+		    ("L"
 		     (cond ((= (length clipboards) 1)
 			    (org-insert-link 0 (car clipboards)))
 			   ((> (length clipboards) 1)
@@ -1726,7 +1743,7 @@ The template may still contain \"%?\" for cursor positioning."
 					  (car clipboards)
 					  '(clipboards . 1)
 					  (car clipboards))))))
-		    (`"p" (org-set-property prompt nil))
+		    ("p" (org-set-property prompt nil))
 		    ((guard key)
 		     ;; These are the date/time related ones.
 		     (let* ((upcase? (equal (upcase key) key))
