@@ -189,6 +189,9 @@ When called twice, replace the previously inserted \\(\\) by one $."
 (setq org-src-preserve-indentation t)
 (setq org-support-shift-select 'always)
 
+;; org-pomodoro
+(setq org-pomodoro-keep-killed-pomodoro-time t)
+
 ;; see http://stackoverflow.com/questions/28126222/latex-math-mode-font-color-in-org-mode
 (eval-after-load 'org
   '(setf org-highlight-latex-and-related '(latex)))
