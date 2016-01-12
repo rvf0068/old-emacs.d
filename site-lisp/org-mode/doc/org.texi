@@ -259,7 +259,7 @@
 @copying
 This manual is for Org version @value{VERSION}.
 
-Copyright @copyright{} 2004--2015 Free Software Foundation, Inc.
+Copyright @copyright{} 2004--2016 Free Software Foundation, Inc.
 
 @quotation
 Permission is granted to copy, distribute and/or modify this document
@@ -6429,7 +6429,9 @@ You may have both scheduling and deadline information for a specific task.
 If the repeater is set for the scheduling information only, you probably want
 the repeater to be ignored after the deadline.  If so, set the variable
 @code{org-agenda-skip-scheduled-if-deadline-is-shown} to
-@code{repeated-after-deadline}.  If you want both scheduling and deadline
+@code{repeated-after-deadline}.  However, any scheduling information without
+a repeater is no longer relevant once the task is done, and thus, removed
+upon repeating the task.  If you want both scheduling and deadline
 information to repeat after the same interval, set the same repeater for both
 timestamps.
 
@@ -13569,7 +13571,7 @@ Copyright information is printed on the back of the title page.
 
   This is a short example of a complete Texinfo file, version 1.0.
 
-  Copyright \copy 2015 Free Software Foundation, Inc.
+  Copyright \copy 2016 Free Software Foundation, Inc.
 @end example
 
 @subsubheading The Top node

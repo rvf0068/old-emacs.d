@@ -1,6 +1,6 @@
 ;;; ox.el --- Export Framework for Org Mode          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2016 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -6198,7 +6198,7 @@ When ARG is \\[universal-argument] \\[universal-argument], display the asynchron
       (publish-current-project
        (org-publish-current-project (memq 'force optns) (memq 'async optns)))
       (publish-choose-project
-       (org-publish (assoc (org-icompleting-read
+       (org-publish (assoc (completing-read
 			    "Publish project: "
 			    org-publish-project-alist nil t)
 			   org-publish-project-alist)
