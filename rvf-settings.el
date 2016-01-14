@@ -37,3 +37,7 @@
 
 (add-to-list 'auto-mode-alist '("\\.pdf\\'" . pdf-view-mode))
 
+;; org-ref
+
+(setq org-ref-default-bibliography '("~/Dropbox/texmf/bibtex/bib/misc/rvf.bib"))
+(setq org-ref-pdf-directory "~/Dropbox/References/")

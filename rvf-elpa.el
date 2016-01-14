@@ -36,6 +36,7 @@
     move-text
     org-journal
     org-pomodoro
+    org-ref
     org2blog
     orgbox
     pandoc-mode
