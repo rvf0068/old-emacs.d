@@ -5497,13 +5497,8 @@ The following commands are available:
   (setq-local imenu-create-index-function 'org-imenu-get-tree)
 
   ;; Make isearch reveal context
-  (if (or (featurep 'xemacs)
-	  (not (boundp 'outline-isearch-open-invisible-function)))
-      ;; Emacs 21 and XEmacs make use of the hook
-      (org-add-hook 'isearch-mode-end-hook 'org-isearch-end 'append 'local)
-    ;; Emacs 22 deals with this through a special variable
-    (setq-local outline-isearch-open-invisible-function
-		(lambda (&rest _) (org-show-context 'isearch))))
+  (setq-local outline-isearch-open-invisible-function
+	      (lambda (&rest _) (org-show-context 'isearch)))
 
   ;; Setup the pcomplete hooks
   (setq-local pcomplete-command-completion-function 'org-pcomplete-initial)
@@ -6170,9 +6165,13 @@ done, nil otherwise."
   (when (org-string-nw-p org-latex-and-related-regexp)
     (catch 'found
       (while (re-search-forward org-latex-and-related-regexp limit t)
-	(unless (memq (car-safe (get-text-property (1+ (match-beginning 0))
-						   'face))
-		      '(org-code org-verbatim underline))
+	(unless
+	    (cl-some
+	     (lambda (f)
+	       (memq f '(org-code org-verbatim underline org-special-keyword)))
+	     (save-excursion
+	       (goto-char (1+ (match-beginning 0)))
+	       (face-at-point nil t)))
 	  (let ((offset (if (memq (char-after (1+ (match-beginning 0)))
 				  '(?_ ?^))
 			    1
@@ -6192,7 +6191,8 @@ done, nil otherwise."
     (font-lock-mode 1)))
 
 (defun org-activate-tags (limit)
-  (when (re-search-forward (org-re "^\\*+.*[ \t]\\(:[[:alnum:]_@#%:]+:\\)[ \r\n]") limit t)
+  (when (re-search-forward
+	 (org-re "^\\*+.*[ \t]\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$") limit t)
     (org-remove-flyspell-overlays-in (match-beginning 1) (match-end 1))
     (add-text-properties (match-beginning 1) (match-end 1)
 			 (list 'mouse-face 'highlight
@@ -6252,6 +6252,8 @@ There are four matching groups:
 
 (defvar org-font-lock-hook nil
   "Functions to be called for special font lock stuff.")
+
+(defvar org-font-lock-extra-keywords nil) ;Dynamically scoped.
 
 (defvar org-font-lock-set-keywords-hook nil
   "Functions that can manipulate `org-font-lock-extra-keywords'.
@@ -12386,6 +12388,7 @@ nil or a string to be used for the todo mark." )
 				     bound1 t))
 	(replace-match "0" t nil nil 1)))))
 
+(defvar org-state) ;; dynamically scoped into this function
 (defun org-todo (&optional arg)
   "Change the TODO state of an item.
 The state of an item is given by a keyword at the start of the heading,
@@ -13138,73 +13141,78 @@ This function is run automatically after each state change to a DONE state."
 			     org-log-repeat)))
       (org-back-to-heading t)
       (org-add-planning-info nil nil 'closed)
-      (let ((regexp (concat "\\(" org-scheduled-time-regexp "\\)\\|\\("
-			    org-deadline-time-regexp "\\)\\|\\("
-			    org-ts-regexp "\\)"))
-	    (end (save-excursion (outline-next-heading) (point))))
-	(while (re-search-forward regexp end t)
-	  (let ((type (cond ((match-end 1) org-scheduled-string)
-			    ((match-end 3) org-deadline-string)
-			    (t "Plain:")))
-		(ts (or (match-string 2) (match-string 4) (match-string 0))))
-	    (cond
-	     ((not (string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)" ts))
-	      ;; Time-stamps without a repeater are usually skipped.
-	      ;; However, a SCHEDULED time-stamp without one is
-	      ;; removed, as it is considered as no longer relevant.
-	      (when (equal type org-scheduled-string)
-		(org-remove-timestamp-with-keyword type)))
-	     (t
-	      (let ((n (string-to-number (match-string 2 ts)))
-		    (what (match-string 3 ts)))
-		(when (equal what "w") (setq n (* n 7) what "d"))
-		(when (and (equal what "h")
-			   (not (string-match-p "[0-9]\\{1,2\\}:[0-9]\\{2\\}"
-						ts)))
-		  (user-error
-		   "Cannot repeat in Repeat in %d hour(s) because no hour has \
-been set"
-		   n))
-		;; Preparation, see if we need to modify the start
-		;; date for the change.
-		(when (match-end 1)
-		  (let ((time (save-match-data (org-time-string-to-time ts))))
-		    (cond
-		     ((equal (match-string 1 ts) ".")
-		      ;; Shift starting date to today
-		      (org-timestamp-change
-		       (- (org-today) (time-to-days time))
-		       'day))
-		     ((equal (match-string 1 ts) "+")
-		      (let ((nshiftmax 10)
-			    (nshift 0))
-			(while (or (= nshift 0)
-				   (<= (time-to-days time)
-				       (time-to-days (current-time))))
-			  (when (= (cl-incf nshift) nshiftmax)
-			    (or (y-or-n-p
-				 (format "%d repeater intervals were not \
+      (let ((end (save-excursion (outline-next-heading) (point))))
+	(while (re-search-forward org-ts-regexp end t)
+	  (when (save-match-data
+		  (or (org-at-planning-p)
+		      (org-at-property-p)
+		      (eq (org-element-type (save-excursion
+					      (backward-char)
+					      (org-element-context)))
+			  'timestamp)))
+	    (let ((type (cond ((match-end 1) org-scheduled-string)
+			      ((match-end 3) org-deadline-string)
+			      (t "Plain:")))
+		  (ts (or (match-string 2) (match-string 4) (match-string 0))))
+	      (cond
+	       ((not
+		 (string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)" ts))
+		;; Time-stamps without a repeater are usually skipped.
+		;; However, a SCHEDULED time-stamp without one is
+		;; removed, as it is considered as no longer relevant.
+		(when (equal type org-scheduled-string)
+		  (org-remove-timestamp-with-keyword type)))
+	       (t
+		(let ((n (string-to-number (match-string 2 ts)))
+		      (what (match-string 3 ts)))
+		  (when (equal what "w") (setq n (* n 7) what "d"))
+		  (when (and (equal what "h")
+			     (not (string-match-p "[0-9]\\{1,2\\}:[0-9]\\{2\\}"
+						  ts)))
+		    (user-error
+		     "Cannot repeat in Repeat in %d hour(s) because no hour \
+has been set"
+		     n))
+		  ;; Preparation, see if we need to modify the start
+		  ;; date for the change.
+		  (when (match-end 1)
+		    (let ((time (save-match-data (org-time-string-to-time ts))))
+		      (cond
+		       ((equal (match-string 1 ts) ".")
+			;; Shift starting date to today
+			(org-timestamp-change
+			 (- (org-today) (time-to-days time))
+			 'day))
+		       ((equal (match-string 1 ts) "+")
+			(let ((nshiftmax 10)
+			      (nshift 0))
+			  (while (or (= nshift 0)
+				     (<= (time-to-days time)
+					 (time-to-days (current-time))))
+			    (when (= (cl-incf nshift) nshiftmax)
+			      (or (y-or-n-p
+				   (format "%d repeater intervals were not \
 enough to shift date past today.  Continue? "
-					 nshift))
-				(user-error "Abort")))
-			  (org-timestamp-change n (cdr (assoc what whata)))
-			  (org-at-timestamp-p t)
-			  (setq ts (match-string 1))
-			  (setq time
-				(save-match-data
-				  (org-time-string-to-time ts)))))
-		      (org-timestamp-change (- n) (cdr (assoc what whata)))
-		      ;; Rematch, so that we have everything in place
-		      ;; for the real shift.
-		      (org-at-timestamp-p t)
-		      (setq ts (match-string 1))
-		      (string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)"
-				    ts)))))
-		(save-excursion
-		  (org-timestamp-change n (cdr (assoc what whata)) nil t))
-		(setq msg
-		      (concat
-		       msg type " " org-last-changed-timestamp " "))))))))
+					   nshift))
+				  (user-error "Abort")))
+			    (org-timestamp-change n (cdr (assoc what whata)))
+			    (org-at-timestamp-p t)
+			    (setq ts (match-string 1))
+			    (setq time
+				  (save-match-data
+				    (org-time-string-to-time ts)))))
+			(org-timestamp-change (- n) (cdr (assoc what whata)))
+			;; Rematch, so that we have everything in
+			;; place for the real shift.
+			(org-at-timestamp-p t)
+			(setq ts (match-string 1))
+			(string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)"
+				      ts)))))
+		  (save-excursion
+		    (org-timestamp-change n (cdr (assoc what whata)) nil t))
+		  (setq msg
+			(concat
+			 msg type " " org-last-changed-timestamp " ")))))))))
       (setq org-log-post-message msg)
       (message "%s" msg))))
 
@@ -18718,10 +18726,14 @@ When a buffer is unmodified, it is just killed.  When modified, it is saved
 		   (append org-tag-alist-for-agenda
 			   org-tag-alist
 			   org-tag-persistent-alist)))
+	    ;; Merge current file's tag groups into global
+	    ;; `org-tag-groups-alist-for-agenda'.
 	    (when org-group-tags
-	      (setq org-tag-groups-alist-for-agenda
-		    (org-uniquify-alist
-		     (append org-tag-groups-alist-for-agenda org-tag-groups-alist))))
+	      (dolist (alist org-tag-groups-alist)
+		(let ((old (assoc (car alist) org-tag-groups-alist-for-agenda)))
+		  (if old
+		      (setcdr old (org-uniquify (append (cdr old) (cdr alist))))
+		    (push alist org-tag-groups-alist-for-agenda)))))
 	    (org-with-silent-modifications
 	     (save-excursion
 	       (remove-text-properties (point-min) (point-max) pall)
@@ -24906,29 +24918,6 @@ when non-nil, is a regexp matching keywords names."
 	  (regexp-opt kwds)
 	  (and extra (concat (and kwds "\\|") extra))
 	  "\\):[ \t]*\\(.*\\)"))
-
-;; Make isearch reveal the necessary context
-(defun org-isearch-end ()
-  "Reveal context after isearch exits."
-  (when isearch-success ; only if search was successful
-    (if (featurep 'xemacs)
-	;; Under XEmacs, the hook is run in the correct place,
-	;; we directly show the context.
-	(org-show-context 'isearch)
-      ;; In Emacs the hook runs *before* restoring the overlays.
-      ;; So we have to use a one-time post-command-hook to do this.
-      ;; (Emacs 22 has a special variable, see function `org-mode')
-      (unless (and (boundp 'isearch-mode-end-hook-quit)
-		   isearch-mode-end-hook-quit)
-	;; Only when the isearch was not quitted.
-	(org-add-hook 'post-command-hook 'org-isearch-post-command
-		      'append 'local)))))
-
-(defun org-isearch-post-command ()
-  "Remove self from hook, and show context."
-  (remove-hook 'post-command-hook 'org-isearch-post-command 'local)
-  (org-show-context 'isearch))
-
 
 ;;;; Integration with and fixes for other packages
 
