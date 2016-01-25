@@ -153,7 +153,9 @@
 		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016aTopologia/clases"
 		:publishing-directory "/home/rafael/Dropbox/paginas/jekyll-sites/topologia/_posts"
 		:publishing-function org-jekyll-publish-to-jekyll
-		:base-extension "org")
+		:base-extension "org"
+		:exclude "options.org"
+		)
 	       ("topologia-inicio"
 		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016aTopologia/inicio"
 		:publishing-directory "/home/rafael/Dropbox/paginas/jekyll-sites/topologia/"
@@ -162,10 +164,11 @@
 	       ("topologia-pdf"
 		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016aTopologia/clases"
 		:publishing-directory "/home/rafael/Dropbox/paginas/jekyll-sites/topologia/pdfs"
-		:publishing-function org-jekyll-publish-to-jekyll
-		:base-extension "org")
+		:publishing-function org-beamer-publish-to-pdf
+		:base-extension "org"
+		:exclude "options.org"
 	       )
-	     ))
+	     )))
 
 (load "~/.emacs.d/rvf-captures.el")
 
