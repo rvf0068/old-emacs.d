@@ -108,6 +108,7 @@
   (sp-local-pair "`" nil :actions nil)
   (sp-local-pair "'" nil :actions nil)
   (sp-local-pair "\\{" "\\}")
+  (sp-local-pair "\\[" "\\]")
   )
 (sp-with-modes '(
 		 emacs-lisp-mode
