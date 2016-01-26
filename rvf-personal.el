@@ -31,6 +31,11 @@
 	("" '(space . (:height (16) :width (16))))
         ))
 
+;; org-ref
+(require 'org-ref)
+(setq org-ref-default-bibliography '("~/Dropbox/texmf/bibtex/bib/misc/rvf.bib"))
+(setq org-ref-pdf-directory "~/Dropbox/References/")
+
 (setq org-publish-project-alist
       '(
 	("topology-org" .  (
