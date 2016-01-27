@@ -75,6 +75,10 @@
 
 (define-abbrev-table 'fundamental-mode-abbrev-table '())
 
+(define-abbrev-table 'gap-mode-abbrev-table '())
+
+(define-abbrev-table 'gap-process-mode-abbrev-table '())
+
 (define-abbrev-table 'gfm-mode-abbrev-table '())
 
 (define-abbrev-table 'git-commit-mode-abbrev-table '())
@@ -137,6 +141,8 @@
 
 (define-abbrev-table 'log-edit-mode-abbrev-table '())
 
+(define-abbrev-table 'log4e-mode-abbrev-table '())
+
 (define-abbrev-table 'magit-branch-manager-mode-abbrev-table '())
 
 (define-abbrev-table 'magit-cherry-mode-abbrev-table '())
@@ -173,6 +179,18 @@
 
 (define-abbrev-table 'magit-wazzup-mode-abbrev-table '())
 
+(define-abbrev-table 'makefile-automake-mode-abbrev-table '())
+
+(define-abbrev-table 'makefile-bsdmake-mode-abbrev-table '())
+
+(define-abbrev-table 'makefile-gmake-mode-abbrev-table '())
+
+(define-abbrev-table 'makefile-imake-mode-abbrev-table '())
+
+(define-abbrev-table 'makefile-makepp-mode-abbrev-table '())
+
+(define-abbrev-table 'makefile-mode-abbrev-table '())
+
 (define-abbrev-table 'markdown-mode-abbrev-table '())
 
 (define-abbrev-table 'message-mode-abbrev-table '())
@@ -204,6 +222,7 @@
     ("pm" "polinomio mínimo" nil 6)
     ("ssi" "si y solo si" nil 9)
     ("st" "such that" nil 1)
+    ("tos" "totally ordered set" nil 1)
     ("ts" "topological space" nil 1)
    ))
 
@@ -228,6 +247,10 @@
 (define-abbrev-table 'pylint-mode-abbrev-table '())
 
 (define-abbrev-table 'python-mode-abbrev-table '())
+
+(define-abbrev-table 'python-mode-skeleton-abbrev-table
+  '(
+   ))
 
 (define-abbrev-table 'reftex-select-bib-mode-abbrev-table '())
 
