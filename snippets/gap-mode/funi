@@ -1,0 +1,9 @@
+#contributor : Rafael Villarroel <rvf0068@gmail.com>
+#name : function installation
+#key: funi
+# --
+#F  $1( $2 ) 
+##
+InstallGlobalFunction( $1, function( $3 )
+    $0
+end);
