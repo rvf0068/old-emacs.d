@@ -409,9 +409,9 @@ Other brackets are treated as spaces.")
 ;; Provide four accessors: `org-element-type', `org-element-property'
 ;; `org-element-contents' and `org-element-restriction'.
 ;;
-;; Setter functions allow to modify elements by side effect.  There is
-;; `org-element-put-property', `org-element-set-contents'.  These
-;; low-level functions are useful to build a parse tree.
+;; Setter functions allow modification of elements by side effect.
+;; There is `org-element-put-property', `org-element-set-contents'.
+;; These low-level functions are useful to build a parse tree.
 ;;
 ;; `org-element-adopt-element', `org-element-set-element',
 ;; `org-element-extract-element' and `org-element-insert-before' are
@@ -459,10 +459,11 @@ Return modified element."
     element))
 
 (defsubst org-element-set-contents (element &rest contents)
-  "Set ELEMENT contents to CONTENTS."
-  (cond ((not element) (list contents))
+  "Set ELEMENT's contents to CONTENTS.
+Return ELEMENT."
+  (cond ((null element) contents)
 	((not (symbolp (car element))) contents)
-	((cdr element) (setcdr (cdr element) contents))
+	((cdr element) (setcdr (cdr element) contents) element)
 	(t (nconc element contents))))
 
 (defun org-element-secondary-p (object)
@@ -989,17 +990,16 @@ Assume point is at beginning of the headline."
 	(org-element-put-property
 	 headline :title
 	 (if raw-secondary-p raw-value
-	   (let ((title (org-element--parse-objects
-			 (progn (goto-char title-start)
-				(skip-chars-forward " \t")
-				(point))
-			 (progn (goto-char title-end)
-				(skip-chars-backward " \t")
-				(point))
-			 nil
-			 (org-element-restriction 'headline))))
-	     (dolist (datum title title)
-	       (org-element-put-property datum :parent headline)))))))))
+	   (org-element--parse-objects
+	    (progn (goto-char title-start)
+		   (skip-chars-forward " \t")
+		   (point))
+	    (progn (goto-char title-end)
+		   (skip-chars-backward " \t")
+		   (point))
+	    nil
+	    (org-element-restriction 'headline)
+	    headline)))))))
 
 (defun org-element-headline-interpreter (headline contents)
   "Interpret HEADLINE element as Org syntax.
@@ -1125,17 +1125,16 @@ Assume point is at beginning of the inline task."
       (org-element-put-property
        inlinetask :title
        (if raw-secondary-p raw-value
-	 (let ((title (org-element--parse-objects
-		       (progn (goto-char title-start)
-			      (skip-chars-forward " \t")
-			      (point))
-		       (progn (goto-char title-end)
-			      (skip-chars-backward " \t")
-			      (point))
-		       nil
-		       (org-element-restriction 'inlinetask))))
-	   (dolist (datum title title)
-	     (org-element-put-property datum :parent inlinetask))))))))
+	 (org-element--parse-objects
+	  (progn (goto-char title-start)
+		 (skip-chars-forward " \t")
+		 (point))
+	  (progn (goto-char title-end)
+		 (skip-chars-backward " \t")
+		 (point))
+	  nil
+	  (org-element-restriction 'inlinetask)
+	  inlinetask))))))
 
 (defun org-element-inlinetask-interpreter (inlinetask contents)
   "Interpret INLINETASK element as Org syntax.
@@ -1247,11 +1246,10 @@ Assume point is at the beginning of the item."
        (let ((raw (org-list-get-tag begin struct)))
 	 (when raw
 	   (if raw-secondary-p raw
-	     (let ((tag (org-element--parse-objects
-			 (match-beginning 4) (match-end 4) nil
-			 (org-element-restriction 'item))))
-	       (dolist (datum tag tag)
-		 (org-element-put-property datum :parent item))))))))))
+	     (org-element--parse-objects
+	      (match-beginning 4) (match-end 4) nil
+	      (org-element-restriction 'item)
+	      item))))))))
 
 (defun org-element-item-interpreter (item contents)
   "Interpret ITEM element as Org syntax.
@@ -3898,8 +3896,8 @@ position of point and CDR is nil."
 ;; `org-element-parse-secondary-string', which parses objects within
 ;; a given string.
 ;;
-;; The (almost) almighty `org-element-map' allows to apply a function
-;; on elements or objects matching some type, and accumulate the
+;; The (almost) almighty `org-element-map' allows applying a function
+;; on elements or objects matching some type, and accumulating the
 ;; resulting values.  In an export situation, it also skips unneeded
 ;; parts of the parse tree.
 
@@ -3978,11 +3976,8 @@ If STRING is the empty string or nil, return nil."
 		(set (make-local-variable (car v)) (cdr v)))))
 	  (insert string)
 	  (restore-buffer-modified-p nil)
-	  (let ((data (org-element--parse-objects
-		       (point-min) (point-max) nil restriction)))
-	    (when parent
-	      (dolist (o data) (org-element-put-property o :parent parent)))
-	    data))))))
+	  (org-element--parse-objects
+	   (point-min) (point-max) nil restriction parent))))))
 
 (defun org-element-map
     (data types fun &optional info first-match no-recursion with-affiliated)
@@ -4173,7 +4168,7 @@ otherwise.  Modes can be either `first-section', `item',
       (`table-row 'table-row))))
 
 (defun org-element--parse-elements
-  (beg end mode structure granularity visible-only acc)
+    (beg end mode structure granularity visible-only acc)
   "Parse elements between BEG and END positions.
 
 MODE prioritizes some elements over the others.  It can be set to
@@ -4199,49 +4194,49 @@ Elements are accumulated into ACC."
     ;; When parsing only headlines, skip any text before first one.
     (when (and (eq granularity 'headline) (not (org-at-heading-p)))
       (org-with-limited-levels (outline-next-heading)))
-    ;; Main loop start.
-    (while (< (point) end)
-      ;; Find current element's type and parse it accordingly to
-      ;; its category.
-      (let* ((element (org-element--current-element
-		       end granularity mode structure))
-	     (type (org-element-type element))
-	     (cbeg (org-element-property :contents-begin element)))
-	(goto-char (org-element-property :end element))
-	;; Visible only: skip invisible parts between siblings.
-	(when (and visible-only (org-invisible-p2))
-	  (goto-char (min (1+ (org-find-visible)) end)))
-	;; Fill ELEMENT contents by side-effect.
-	(cond
-	 ;; If element has no contents, don't modify it.
-	 ((not cbeg))
-	 ;; Greater element: parse it between `contents-begin' and
-	 ;; `contents-end'.  Make sure GRANULARITY allows the
-	 ;; recursion, or ELEMENT is a headline, in which case going
-	 ;; inside is mandatory, in order to get sub-level headings.
-	 ((and (memq type org-element-greater-elements)
-	       (or (memq granularity '(element object nil))
-		   (and (eq granularity 'greater-element)
-			(eq type 'section))
-		   (eq type 'headline)))
-	  (org-element--parse-elements
-	   cbeg (org-element-property :contents-end element)
-	   ;; Possibly switch to a special mode.
-	   (org-element--next-mode type t)
-	   (and (memq type '(item plain-list))
-		(org-element-property :structure element))
-	   granularity visible-only element))
-	 ;; ELEMENT has contents.  Parse objects inside, if
-	 ;; GRANULARITY allows it.
-	 ((memq granularity '(object nil))
-	  (org-element--parse-objects
-	   cbeg (org-element-property :contents-end element) element
-	   (org-element-restriction type))))
-	(org-element-adopt-elements acc element)
-	;; Update mode.
-	(setq mode (org-element--next-mode type nil))))
-    ;; Return result.
-    acc))
+    (let (elements)
+      (while (< (point) end)
+	;; Find current element's type and parse it accordingly to
+	;; its category.
+	(let* ((element (org-element--current-element
+			 end granularity mode structure))
+	       (type (org-element-type element))
+	       (cbeg (org-element-property :contents-begin element)))
+	  (goto-char (org-element-property :end element))
+	  ;; Visible only: skip invisible parts between siblings.
+	  (when (and visible-only (org-invisible-p2))
+	    (goto-char (min (1+ (org-find-visible)) end)))
+	  ;; Fill ELEMENT contents by side-effect.
+	  (cond
+	   ;; If element has no contents, don't modify it.
+	   ((not cbeg))
+	   ;; Greater element: parse it between `contents-begin' and
+	   ;; `contents-end'.  Make sure GRANULARITY allows the
+	   ;; recursion, or ELEMENT is a headline, in which case going
+	   ;; inside is mandatory, in order to get sub-level headings.
+	   ((and (memq type org-element-greater-elements)
+		 (or (memq granularity '(element object nil))
+		     (and (eq granularity 'greater-element)
+			  (eq type 'section))
+		     (eq type 'headline)))
+	    (org-element--parse-elements
+	     cbeg (org-element-property :contents-end element)
+	     ;; Possibly switch to a special mode.
+	     (org-element--next-mode type t)
+	     (and (memq type '(item plain-list))
+		  (org-element-property :structure element))
+	     granularity visible-only element))
+	   ;; ELEMENT has contents.  Parse objects inside, if
+	   ;; GRANULARITY allows it.
+	   ((memq granularity '(object nil))
+	    (org-element--parse-objects
+	     cbeg (org-element-property :contents-end element) element
+	     (org-element-restriction type))))
+	  (push (org-element-put-property element :parent acc) elements)
+	  ;; Update mode.
+	  (setq mode (org-element--next-mode type nil))))
+      ;; Return result.
+      (apply #'org-element-set-contents acc (nreverse elements)))))
 
 (defun org-element--object-lex (restriction)
   "Return next object in current buffer or nil.
@@ -4330,51 +4325,55 @@ to an appropriate container (e.g., a paragraph)."
 	      ((and limit (memq 'link restriction))
 	       (goto-char limit) (org-element-link-parser)))))))
 
-(defun org-element--parse-objects (beg end acc restriction)
+(defun org-element--parse-objects (beg end acc restriction &optional parent)
   "Parse objects between BEG and END and return recursive structure.
 
-Objects are accumulated in ACC.
+Objects are accumulated in ACC.  RESTRICTION is a list of object
+successors which are allowed in the current object.
 
-RESTRICTION is a list of object successors which are allowed in
-the current object."
+ACC becomes the parent for all parsed objects.  However, if ACC
+is nil (i.e., a secondary string is being parsed) and optional
+argument PARENT is non-nil, use it as the parent for all objects.
+Eventually, if both ACC and PARENT are nil, the common parent is
+the list of objects itself."
   (save-excursion
     (save-restriction
       (narrow-to-region beg end)
       (goto-char (point-min))
-      (let (next-object)
+      (let (next-object contents)
 	(while (and (not (eobp))
 		    (setq next-object (org-element--object-lex restriction)))
-	  ;; 1. Text before any object.  Untabify it.
+	  ;; Text before any object.  Untabify it.
 	  (let ((obj-beg (org-element-property :begin next-object)))
 	    (unless (= (point) obj-beg)
-	      (setq acc
-		    (org-element-adopt-elements
-		     acc
-		     (replace-regexp-in-string
-		      "\t" (make-string tab-width ?\s)
-		      (buffer-substring-no-properties (point) obj-beg))))))
-	  ;; 2. Object...
+	      (let ((text (buffer-substring-no-properties (point) obj-beg)))
+		(push (if acc (org-element-put-property text :parent acc) text)
+		      contents))))
+	  ;; Object...
 	  (let ((obj-end (org-element-property :end next-object))
 		(cont-beg (org-element-property :contents-begin next-object)))
-	    ;; Fill contents of NEXT-OBJECT by side-effect, if it has
-	    ;; a recursive type.
-	    (when (and cont-beg
-		       (memq (car next-object) org-element-recursive-objects))
-	      (org-element--parse-objects
-	       cont-beg (org-element-property :contents-end next-object)
-	       next-object (org-element-restriction next-object)))
-	    (setq acc (org-element-adopt-elements acc next-object))
-	    (goto-char obj-end))))
-      ;; 3. Text after last object.  Untabify it.
-      (unless (eobp)
-	(setq acc
-	      (org-element-adopt-elements
-	       acc
-	       (replace-regexp-in-string
-		"\t" (make-string tab-width ?\s)
-		(buffer-substring-no-properties (point) end)))))
-      ;; Result.
-      acc)))
+	    (when acc (org-element-put-property next-object :parent acc))
+	    (push (if cont-beg
+		      ;; Fill contents of NEXT-OBJECT if possible.
+		      (org-element--parse-objects
+		       cont-beg
+		       (org-element-property :contents-end next-object)
+		       next-object
+		       (org-element-restriction next-object))
+		    next-object)
+		  contents)
+	    (goto-char obj-end)))
+	;; Text after last object.  Untabify it.
+	(unless (eobp)
+	  (let ((text (buffer-substring-no-properties (point) end)))
+	    (push (if acc (org-element-put-property text :parent acc) text)
+		  contents)))
+	;; Result.  Set appropriate parent.
+	(if acc (apply #'org-element-set-contents acc (nreverse contents))
+	  (let* ((contents (nreverse contents))
+		 (parent (or parent contents)))
+	    (dolist (datum contents contents)
+	      (org-element-put-property datum :parent parent))))))))
 
 
 
@@ -4536,8 +4535,7 @@ If optional argument IGNORE-FIRST is non-nil, ignore first line's
 indentation to compute maximal common indentation.
 
 Return the normalized element that is element with global
-indentation removed from its contents.  The function assumes that
-indentation is not done with TAB characters."
+indentation removed from its contents."
   (letrec ((find-min-ind
 	    ;; Return minimal common indentation within BLOB.  This is
 	    ;; done by walking recursively BLOB and updating MIN-IND
@@ -4548,67 +4546,78 @@ indentation is not done with TAB characters."
 	    ;; break.
 	    (lambda (blob first-flag min-ind)
 	      (catch 'zero
-		(dolist (object (org-element-contents blob) min-ind)
+		(dolist (datum (org-element-contents blob) min-ind)
 		  (when first-flag
 		    (setq first-flag nil)
-		    ;; Objects cannot start with spaces: in this case,
-		    ;; indentation is 0.
-		    (if (not (stringp object)) (throw 'zero 0)
-		      (string-match "\\` *" object)
-		      (let ((len (match-end 0)))
-			;; An indentation of zero means no string will
-			;; be modified.  Quit the process.
-			(if (zerop len) (throw 'zero 0)
-			  (setq min-ind (min len min-ind))))))
+		    (cond
+		     ;; Objects cannot start with spaces: in this
+		     ;; case, indentation is 0.
+		     ((not (stringp datum)) (throw 'zero 0))
+		     ((not (string-match
+			    "\\`\\([ \t]+\\)\\([^ \t\n]\\|\n\\|\\'\\)" datum))
+		      (throw 'zero 0))
+		     ((equal (match-string 2 datum) "\n")
+		      (put-text-property
+		       (match-beginning 1) (match-end 1) 'org-ind 'empty datum))
+		     (t
+		      (let ((i (string-width (match-string 1 datum))))
+			(put-text-property
+			 (match-beginning 1) (match-end 1) 'org-ind i datum)
+			(setq min-ind (min i min-ind))))))
 		  (cond
-		   ((stringp object)
-		    (dolist (line (cdr (org-split-string object " *\n")))
-		      (unless (string= line "")
-			(setq min-ind
-			      (min (org-get-indentation line) min-ind)))))
-		   ((eq (org-element-type object) 'line-break)
+		   ((stringp datum)
+		    (let ((s 0))
+		      (while (string-match
+			      "\n\\([ \t]+\\)\\([^ \t\n]\\|\n\\|\\'\\)" datum s)
+			(setq s (match-end 1))
+			(if (equal (match-string 2 datum) "\n")
+			    (put-text-property
+			     (match-beginning 1) (match-end 1)
+			     'org-ind 'empty
+			     datum)
+			  (let ((i (string-width (match-string 1 datum))))
+			    (put-text-property
+			     (match-beginning 1) (match-end 1) 'org-ind i datum)
+			    (setq min-ind (min i min-ind)))))))
+		   ((eq (org-element-type datum) 'line-break)
 		    (setq first-flag t))
-		   ((memq (org-element-type object)
-			  org-element-recursive-objects)
+		   ((memq (org-element-type datum) org-element-recursive-objects)
 		    (setq min-ind
-			  (funcall find-min-ind
-				   object first-flag min-ind))))))))
+			  (funcall find-min-ind datum first-flag min-ind))))))))
 	   (min-ind (funcall find-min-ind
 			     element (not ignore-first) most-positive-fixnum)))
     (if (or (zerop min-ind) (= min-ind most-positive-fixnum)) element
       ;; Build ELEMENT back, replacing each string with the same
       ;; string minus common indentation.
       (letrec ((build
-		(lambda (datum first-flag)
+		(lambda (datum)
 		  ;; Return DATUM with all its strings indentation
 		  ;; shortened from MIN-IND white spaces.
-		  ;; FIRST-FLAG is non-nil when the next object is
-		  ;; expected to be a string that doesn't start with
-		  ;; a newline character.
-		  (setcdr (cdr datum)
-			  (mapcar
-			   (lambda (object)
-			     (when first-flag
-			       (setq first-flag nil)
-			       (when (stringp object)
-				 (setq object
-				       (replace-regexp-in-string
-					(format "\\` \\{%d\\}" min-ind)
-					"" object))))
-			     (cond
-			      ((stringp object)
-			       (replace-regexp-in-string
-				(format "\n \\{%d\\}" min-ind) "\n" object))
-			      ((memq (org-element-type object)
-				     org-element-recursive-objects)
-			       (funcall build object first-flag))
-			      ((eq (org-element-type object) 'line-break)
-			       (setq first-flag t)
-			       object)
-			      (t object)))
-			   (org-element-contents datum)))
+		  (setcdr
+		   (cdr datum)
+		   (mapcar
+		    (lambda (object)
+		      (cond
+		       ((stringp object)
+			(with-temp-buffer
+			  (insert object)
+			  (let ((s (point-min)))
+			    (while (setq s (text-property-not-all
+					    s (point-max) 'org-ind nil))
+			      (goto-char s)
+			      (let ((i (get-text-property s 'org-ind)))
+				(delete-region s (progn
+						   (skip-chars-forward " \t")
+						   (point)))
+				(when (integerp i) (indent-to (- i min-ind))))))
+			  (buffer-string)))
+		       ((memq (org-element-type object)
+			      org-element-recursive-objects)
+			(funcall build object))
+		       (t object)))
+		    (org-element-contents datum)))
 		  datum)))
-	(funcall build element (not ignore-first))))))
+	(funcall build element)))))
 
 
 

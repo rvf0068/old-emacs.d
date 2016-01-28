@@ -2466,7 +2466,7 @@ fast, while still showing the whole path to the entry."
   :type 'boolean)
 
 (defcustom org-refile-allow-creating-parent-nodes nil
-  "Non-nil means allow to create new nodes as refile targets.
+  "Non-nil means allow the creation of new nodes as refile targets.
 New nodes are then created by adding \"/new node name\" to the completion
 of an existing node.  When the value of this variable is `confirm',
 new node creation must be confirmed by the user (recommended).
@@ -5801,23 +5801,20 @@ prompted for."
 
 (defun org-activate-plain-links (limit)
   "Add link properties for plain links."
-  (let (f hl)
-    (when (and (re-search-forward (concat org-plain-link-re) limit t)
-	       (not (member 'org-tag
-			    (get-text-property (1- (match-beginning 0)) 'face)))
-	       (not (org-in-src-block-p)))
-      (org-remove-flyspell-overlays-in (match-beginning 0) (match-end 0))
-      (setq f (get-text-property (match-beginning 0) 'face))
-      (setq hl (org-match-string-no-properties 0))
-      (unless (or (eq f 'org-tag)
-		  (and (listp f) (memq 'org-tag f)))
+  (when (and (re-search-forward org-plain-link-re limit t)
+	     (not (org-in-src-block-p)))
+    (let ((face (get-text-property (max (1- (match-beginning 0)) (point-min))
+				   'face))
+	  (link (org-match-string-no-properties 0)))
+      (unless (if (consp face) (memq 'org-tag face) (eq 'org-tag face))
+	(org-remove-flyspell-overlays-in (match-beginning 0) (match-end 0))
 	(add-text-properties (match-beginning 0) (match-end 0)
 			     (list 'mouse-face 'highlight
 				   'face 'org-link
-				   'htmlize-link `(:uri ,hl)
+				   'htmlize-link `(:uri ,link)
 				   'keymap org-mouse-map))
-	(org-rear-nonsticky-at (match-end 0)))
-      t)))
+	(org-rear-nonsticky-at (match-end 0))
+	t))))
 
 (defun org-activate-code (limit)
   (when (re-search-forward "^[ \t]*\\(:\\(?: .*\\|$\\)\n?\\)" limit t)
@@ -7137,7 +7134,7 @@ open and agenda-wise Org files."
 
 (defsubst org-entry-beginning-position ()
   "Return the beginning position of the current entry."
-  (save-excursion (outline-back-to-heading t) (point)))
+  (save-excursion (org-back-to-heading t) (point)))
 
 (defsubst org-entry-end-position ()
   "Return the end position of the current entry."
@@ -15256,7 +15253,7 @@ Returns the new tags string, or nil to not change the current settings."
 					    (org-get-buffer-tags))))))
 		    (quit (setq tg "")))
 		  (when (string-match "\\S-" tg)
-		    (add-to-list 'buffer-tags (list tg))
+		    (cl-pushnew (list tg) buffer-tags :test #'equal)
 		    (if (member tg current)
 			(setq current (delete tg current))
 		      (push tg current)))
@@ -19090,11 +19087,12 @@ Some of the options can be changed using the variable
 		(cl-case processing-type
 		  (mathjax
 		   ;; Prepare for MathJax processing.
-		   (if (eq (char-after beg) ?$)
-		       (save-excursion
-			 (delete-region beg end)
-			 (insert "\\(" (substring value 1 -1) "\\)"))
-		     (goto-char end)))
+		   (if (not (string-match "\\`\\$\\$?" value))
+		       (goto-char end)
+		     (delete-region beg end)
+		     (if (string= (match-string 0 value) "$$")
+			 (insert "\\[" (substring value 2 -2) "\\]")
+		       (insert "\\(" (substring value 1 -1) "\\)"))))
 		  ((dvipng imagemagick)
 		   ;; Process to an image.
 		   (cl-incf cnt)
