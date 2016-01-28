@@ -48,4 +48,12 @@
 	    (yas/minor-mode-on)
 	    ))
 
+;; XML
+
+(add-hook 'nxml-mode-hook
+	  (lambda ()
+	    (smartparens-mode 1)
+	    (yas/minor-mode-on)
+	    ))
+
 

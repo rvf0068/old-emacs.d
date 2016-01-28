@@ -1,0 +1,11 @@
+# -*- mode: snippet -*-
+# name : <ManSection>Func
+# key: manf
+# --
+<ManSection>
+  <Func Name="$1" Arg="$2"/>
+  <Returns>$3</Returns>
+  <Description>
+    $4
+  </Description>
+</ManSection>
