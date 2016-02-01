@@ -12,7 +12,7 @@
 ;; (defadvice reftex-format-citation (before eval-citation-format)
 ;;   (setq format (eval format)))
 
-(defun org-mode-reftex-setup ()
+(defun my-org-mode-reftex-setup ()
   (interactive)
   (load-library "reftex")
   (and (buffer-file-name) (file-exists-p (buffer-file-name))
