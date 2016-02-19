@@ -70,9 +70,24 @@ When called twice, replace the previously inserted stuff by one $."
 
 ;; GAP
 
+(defun my/insert-tag (tag-name)
+  (insert (concat "<" tag-name "></" tag-name ">"))
+  (backward-char (+ (length tag-name) 3))
+)
+
 (add-hook 'gap-mode-hook
 	  (lambda()
 	    (smartparens-mode 1)
 	    (yas/minor-mode-on)
 	    (local-set-key (kbd "$") 'xml-electric-dollar)
+	    (local-set-key
+	     (kbd "<")
+      (defhydra hydra-xml-gap (:hint nil)
+        "
+        Tags  _T_ Title 
+        "
+        ("T" (my/insert-tag "Title"))
+	))
+
 	  ))
+
