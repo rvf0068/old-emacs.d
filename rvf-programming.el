@@ -48,12 +48,31 @@
 	    (yas/minor-mode-on)
 	    ))
 
+(defun xml-electric-dollar nil
+  "When called once, insert <M></M> and leave point in between.
+When called twice, replace the previously inserted stuff by one $."
+  (interactive)
+  (if (and (looking-at "</M>") (looking-back "<M>"))
+      (progn (delete-char 4)
+             (delete-char -3)
+             (insert "$"))
+    (insert "<M></M>")
+    (backward-char 4)))
+
 ;; XML
 
 (add-hook 'nxml-mode-hook
 	  (lambda ()
 	    (smartparens-mode 1)
 	    (yas/minor-mode-on)
+	    (local-set-key (kbd "$") 'xml-electric-dollar)
 	    ))
 
+;; GAP
 
+(add-hook 'gap-mode-hook
+	  (lambda()
+	    (smartparens-mode 1)
+	    (yas/minor-mode-on)
+	    (local-set-key (kbd "$") 'xml-electric-dollar)
+	  ))

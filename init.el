@@ -162,20 +162,6 @@
     (load "~/.emacs.d/rvf-personal.el")
   )
 
-;; stuff for gap-mode
-(add-hook 'gap-mode-hook
-	  (lambda()
-	    (yas/minor-mode-on)
-	  ))
-
-;; stuff for nxml-mode
-;; for some reason this does not take effect
-(add-hook 'nmxl-mode-hook
-	  (lambda()
-	    (yas-minor-mode-on)
-	    (smartparens-mode 1)
-	  ))
-
 (require 'chess)
 (setq chess-images-directory (concat "~/.emacs.d/elpa/chess-" chess-version "/pieces/xboard"))
 (setq chess-images-separate-frame nil)
