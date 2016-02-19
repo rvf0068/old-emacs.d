@@ -2142,30 +2142,23 @@ See `org-file-apps'.")
 
 (defconst org-file-apps-defaults-macosx
   '((remote . emacs)
-    (t . "open %s")
     (system . "open %s")
     ("ps.gz"  . "gv %s")
     ("eps.gz" . "gv %s")
     ("dvi"    . "xdvi %s")
-    ("fig"    . "xfig %s"))
+    ("fig"    . "xfig %s")
+    (t . "open %s"))
   "Default file applications on a MacOS X system.
 The system \"open\" is known as a default, but we use X11 applications
 for some files for which the OS does not have a good default.
 See `org-file-apps'.")
 
 (defconst org-file-apps-defaults-windowsnt
-  (list
-   '(remote . emacs)
-   (cons t
-	 (list (if (featurep 'xemacs)
-		   'mswindows-shell-execute
-		 'w32-shell-execute)
-	       "open" 'file))
-   (cons 'system
-	 (list (if (featurep 'xemacs)
-		   'mswindows-shell-execute
-		 'w32-shell-execute)
-	       "open" 'file)))
+  (list '(remote . emacs)
+	(cons 'system (lambda (file _path)
+			(with-no-warnings (w32-shell-execute "open" file))))
+	(cons t (lambda (file _path)
+		  (with-no-warnings (w32-shell-execute "open" file)))))
   "Default file applications on a Windows NT system.
 The system \"open\" is used for most files.
 See `org-file-apps'.")
@@ -2176,7 +2169,8 @@ See `org-file-apps'.")
     ("\\.x?html?\\'" . default)
     ("\\.pdf\\'" . default))
   "External applications for opening `file:path' items in a document.
-Org-mode uses system defaults for different file types, but
+\\<org-mode-map>\
+Org mode uses system defaults for different file types, but
 you can use this variable to set the application for a given file
 extension.  The entries in this list are cons cells where the car identifies
 files and the cdr the corresponding command.  Possible values for the
@@ -2194,7 +2188,7 @@ file identifier are
                  use groups here, use shy groups.
 
                  Example: (\"\\.x?html\\\\='\" . \"firefox %s\")
-                          (\"\\(?:xhtml\\|html\\)\" . \"firefox %s\")
+                          \(\"\\(?:xhtml\\|html\\)\" . \"firefox %s\")
                           to open *.html and *.xhtml with firefox.
 
                - Regular expression which contains (non-shy) groups:
@@ -2206,8 +2200,8 @@ file identifier are
                  that does not use any of the group matches, this case is
                  handled identically to the second one (i.e. match against
                  file name only).
-                 In a custom lisp form, you can access the group matches with
-                 (match-string n link).
+                 In a custom function, you can access the group matches with
+                 \(match-string n link).
 
                  Example: (\"\\.pdf::\\(\\d+\\)\\\\='\" . \"evince -p %1 %s\")
                      to open [[file:document.pdf::5]] with evince at page 5.
@@ -2220,29 +2214,32 @@ file identifier are
                so all files Emacs knows how to handle.  Using this with
                command `emacs' will open most files in Emacs.  Beware that this
                will also open html files inside Emacs, unless you add
-               (\"html\" . default) to the list as well.
- t             Default for files not matched by any of the other options.
+               \(\"html\" . default) to the list as well.
  `system'      The system command to open files, like `open' on Windows
                and Mac OS X, and mailcap under GNU/Linux.  This is the command
-               that will be selected if you call `C-c C-o' with a double
+               that will be selected if you call \\[org-open-at-point] with a double
                \\[universal-argument] \\[universal-argument] prefix.
+ t             Default for files not matched by any of the other options.
 
 Possible values for the command are:
  `emacs'       The file will be visited by the current Emacs process.
  `default'     Use the default application for this file type, which is the
                association for t in the list, most likely in the system-specific
-               part.
-               This can be used to overrule an unwanted setting in the
+               part.  This can be used to overrule an unwanted setting in the
                system-specific variable.
  `system'      Use the system command for opening files, like \"open\".
                This command is specified by the entry whose car is `system'.
                Most likely, the system-specific version of this variable
                does define this command, but you can overrule/replace it
                here.
+`mailcap'      Use command specified in the mailcaps.
  string        A command to be executed by a shell; %s will be replaced
                by the path to the file.
- sexp          A Lisp form which will be evaluated.  The file path will
-               be available in the Lisp variable `file'.
+
+ function      A Lisp function, which will be called with two arguments:
+               the file path and the original link string, without the
+               \"file:\" prefix.
+
 For more examples, see the system specific constants
 `org-file-apps-defaults-macosx'
 `org-file-apps-defaults-windowsnt'
@@ -2262,7 +2259,7 @@ For more examples, see the system specific constants
 			(const :tag "Use default" default)
 			(const :tag "Use the system command" system)
 			(string :tag "Command")
-			(sexp :tag "Lisp form")))))
+			(function :tag "Function")))))
 
 (defcustom org-doi-server-url "http://dx.doi.org/"
   "The URL of the DOI server."
@@ -3740,19 +3737,6 @@ ellipses string, only part of the ellipses string will be shown."
   :group 'org-properties
   :type 'string)
 
-(defcustom org-columns-modify-value-for-display-function nil
-  "Function that modifies values for display in column view.
-For example, it can be used to cut out a certain part from a time stamp.
-The function must take 2 arguments:
-
-column-title    The title of the column (*not* the property name)
-value           The value that should be modified.
-
-The function should return the value that should be displayed,
-or nil if the normal value should be used."
-  :group 'org-properties
-  :type '(choice (const nil) (function)))
-
 (defconst org-global-properties-fixed
   '(("VISIBILITY_ALL" . "folded children content all")
     ("CLOCK_MODELINE_TOTAL_ALL" . "current today repeat all auto"))
@@ -4382,37 +4366,6 @@ You need to reload Org or to restart Emacs after customizing this."
 (defvar org-protecting-blocks '("src" "example" "export")
   "Blocks that contain text that is quoted, i.e. not processed as Org syntax.
 This is needed for font-lock setup.")
-
-;;; Miscellaneous options
-
-(defgroup org-completion nil
-  "Completion in Org-mode."
-  :tag "Org Completion"
-  :group 'org)
-
-(defcustom org-completion-use-ido nil
-  "Non-nil means use ido completion wherever possible.
-Note that `ido-mode' must be active for this variable to be relevant.
-If you decide to turn this variable on, you might well want to turn off
-`org-outline-path-complete-in-steps'.
-See also `org-completion-use-iswitchb'."
-  :group 'org-completion
-  :type 'boolean)
-
-(defcustom org-completion-use-iswitchb nil
-  "Non-nil means use iswitchb completion wherever possible.
-Note that `iswitchb-mode' must be active for this variable to be relevant.
-If you decide to turn this variable on, you might well want to turn off
-`org-outline-path-complete-in-steps'.
-Note that this variable has only an effect if `org-completion-use-ido' is nil."
-  :group 'org-completion
-  :type 'boolean)
-
-(defcustom org-completion-fallback-command 'hippie-expand
-  "The expansion command called by \\[pcomplete] in normal context.
-Normal means, no org-mode-specific context."
-  :group 'org-completion
-  :type 'function)
 
 ;;; Functions and variables from their packages
 ;;  Declared here to avoid compiler warnings
@@ -10398,7 +10351,7 @@ Use TAB to complete link prefixes, then RET for type-specific completion support
 
 (defun org-file-complete-link (&optional arg)
   "Create a file link using completion."
-  (let ((file (org-iread-file-name "File: "))
+  (let ((file (read-file-name "File: "))
 	(pwd (file-name-as-directory (expand-file-name ".")))
 	(pwd1 (file-name-as-directory (abbreviate-file-name
 				       (expand-file-name ".")))))
@@ -10415,20 +10368,6 @@ Use TAB to complete link prefixes, then RET for type-specific completion support
 		   (match-string 1 (expand-file-name file))))
 	  (t (concat "file:" file)))))
 
-(defvar ido-enter-matching-directory)
-(defun org-iread-file-name (&rest args)
-  "Read-file-name using `ido-mode' speedup if available.
-ARGS are arguments that may be passed to `ido-read-file-name' or `read-file-name'.
-See `read-file-name' for a description of parameters."
-  (org-without-partial-completion
-   (if (and org-completion-use-ido
-            (fboundp 'ido-read-file-name)
-            (org-bound-and-true-p ido-mode)
-            (listp (nth 1 args)))
-       (let ((ido-enter-matching-directory nil))
-         (apply #'ido-read-file-name args))
-     (apply #'read-file-name args))))
-
 (defun org-completing-read (&rest args)
   "Completing-read with SPACE being a normal character."
   (let ((enable-recursive-minibuffers t)
@@ -10444,6 +10383,8 @@ See `read-file-name' for a description of parameters."
   'org-completing-read-no-i 'completing-read "Org 9.0")
 (define-obsolete-function-alias
   'org-icompleting-read 'completing-read "Org 9.0")
+(define-obsolete-function-alias
+  'org-iread-file-name 'read-file-name "Org 9.0")
 
 ;;; Opening/following a link
 
@@ -11281,32 +11222,29 @@ If the file does not exist, an error is thrown."
 		 file))
 	 (a-m-a-p (assq 'auto-mode apps))
 	 (dfile (downcase file))
-	 ;; reconstruct the original file: link from the PATH, LINE and SEARCH args
-	 (link (cond ((and (eq line nil)
-			   (eq search nil))
-		      file)
-		     (line
-		      (concat file "::" (number-to-string line)))
-		     (search
-		      (concat file "::" search))))
+	 ;; Reconstruct the original link from the PATH, LINE and
+	 ;; SEARCH args.
+	 (link (cond (line (concat file "::" (number-to-string line)))
+		     (search (concat file "::" search))
+		     (t file)))
 	 (dlink (downcase link))
 	 (old-buffer (current-buffer))
 	 (old-pos (point))
 	 (old-mode major-mode)
-	 ext cmd link-match-data)
-    (if (string-match "^.*\\.\\([a-zA-Z0-9]+\\.gz\\)$" dfile)
-	(setq ext (match-string 1 dfile))
-      (when (string-match "^.*\\.\\([a-zA-Z0-9]+\\)$" dfile)
-	(setq ext (match-string 1 dfile))))
+	 (ext
+	  (and (string-match "\\`.*?\\.\\([a-zA-Z0-9]+\\(\\.gz\\)?\\)\\'" dfile)
+	       (match-string 1 dfile)))
+	 cmd link-match-data)
     (cond
      ((member in-emacs '((16) system))
-      (setq cmd (cdr (assoc 'system apps))))
+      (setq cmd (cdr (assq 'system apps))))
      (in-emacs (setq cmd 'emacs))
      (t
-      (setq cmd (or (and remp (cdr (assoc 'remote apps)))
-		    (and dirp (cdr (assoc 'directory apps)))
-					; first, try matching against apps-dlink
-					; if we get a match here, store the match data for later
+      (setq cmd (or (and remp (cdr (assq 'remote apps)))
+		    (and dirp (cdr (assq 'directory apps)))
+		    ;; First, try matching against apps-dlink if we
+		    ;; get a match here, store the match data for
+		    ;; later.
 		    (let ((match (assoc-default dlink apps-dlink
 						'string-match)))
 		      (if match
@@ -11319,7 +11257,7 @@ If the file does not exist, an error is thrown."
 		    (assoc-default dfile (org-apps-regexp-alist apps a-m-a-p)
 				   'string-match)
 		    (cdr (assoc ext apps))
-		    (cdr (assoc t apps))))))
+		    (cdr (assq t apps))))))
     (when (eq cmd 'system)
       (setq cmd (cdr (assoc 'system apps))))
     (when (eq cmd 'default)
@@ -11368,18 +11306,33 @@ If the file does not exist, an error is thrown."
 	  (eq cmd 'emacs))
       (funcall (cdr (assq 'file org-link-frame-setup)) file)
       (widen)
-      (if line (progn (org-goto-line line)
-		      (when (derived-mode-p 'org-mode)
-			(org-reveal)))
-	(when search (org-link-search search))))
-     ((consp cmd)
+      (cond (line (org-goto-line line)
+		  (when (derived-mode-p 'org-mode) (org-reveal)))
+	    (search (org-link-search search))))
+     ((functionp cmd)
       (save-match-data
 	(set-match-data link-match-data)
-	(eval cmd `((file . ,(convert-standard-filename file))))))
+	(condition-case nil
+	    (funcall cmd file link)
+	  ;; FIXME: Remove this check when most default installations
+	  ;; of Emacs have at least Org 9.0.
+	  ((debug wrong-number-of-arguments wrong-type-argument
+	    invalid-function)
+	   (user-error "Please see Org News for version 9.0 about \
+`org-file-apps'--Lisp error: %S" cmd)))))
+     ((consp cmd)
+      ;; FIXME: Remove this check when most default installations of
+      ;; Emacs have at least Org 9.0.
+      ;; Heads-up instead of silently fall back to
+      ;; `org-link-frame-setup' for an old usage of `org-file-apps'
+      ;; with sexp instead of a function for `cmd'.
+      (user-error "Please see Org News for version 9.0 about \
+`org-file-apps'--Error: Deprecated usage of %S" cmd))
      (t (funcall (cdr (assq 'file org-link-frame-setup)) file)))
-    (and (derived-mode-p 'org-mode) (eq old-mode 'org-mode)
-	 (or (not (equal old-buffer (current-buffer)))
-	     (not (equal old-pos (point))))
+    (and (derived-mode-p 'org-mode)
+	 (eq old-mode 'org-mode)
+	 (or (not (eq old-buffer (current-buffer)))
+	     (not (eq old-pos (point))))
 	 (org-mark-ring-push old-pos old-buffer))))
 
 (defun org-file-apps-entry-match-against-dlink-p (entry)
@@ -11766,7 +11719,7 @@ RFLOC can be a refile location obtained in a different way.
 MSG is a string to replace \"Refile\" in the default prompt with
 another verb.  E.g. `org-copy' sets this parameter to \"Copy\".
 
-See also `org-refile-use-outline-path' and `org-completion-use-ido'.
+See also `org-refile-use-outline-path'.
 
 If you are using target caching (see `org-refile-use-cache'), you
 have to clear the target cache in order to find new targets.
@@ -14507,9 +14460,12 @@ See also `org-scan-tags'."
 	  (setq todomatcher nil))
 	(setq todomatcher (cons 'or orlist))))
 
-    ;; Return the string and function of the matcher.
-    (let ((matcher (if todomatcher `(and ,tagsmatcher ,todomatcher)
-		     tagsmatcher)))
+    ;; Return the string and function of the matcher.  If no
+    ;; tags-specific or todo-specific matcher exists, match
+    ;; everything.
+    (let ((matcher (if (and tagsmatcher todomatcher)
+		       `(and ,tagsmatcher ,todomatcher)
+		     (or tagsmatcher todomatcher t))))
       (when org--matcher-tags-todo-only
 	(setq matcher `(and (member todo org-not-done-keywords) ,matcher)))
       (cons match0 `(lambda (todo tags-list level) ,matcher)))))
@@ -15596,12 +15552,11 @@ When INCREMENT is non-nil, set the property to the next allowed value."
 		      (car (nth (1- rpl) allowed))
 		    (org-completing-read "Effort: " allowed nil))))
 	       (t
-		(let (org-completion-use-ido org-completion-use-iswitchb)
-		  (org-completing-read
-		   (concat "Effort " (if (and cur (string-match "\\S-" cur))
-					 (concat "[" cur "]") "")
-			   ": ")
-		   existing nil nil "" nil cur))))))
+		(org-completing-read
+		 (concat "Effort " (if (and cur (string-match "\\S-" cur))
+				       (concat "[" cur "]") "")
+			 ": ")
+		 existing nil nil "" nil cur)))))
     (unless (equal (org-entry-get nil prop) val)
       (org-entry-put nil prop val))
     (org-refresh-property
@@ -15661,11 +15616,10 @@ strings."
 	    (when (or (not specific) (string= specific "ITEM"))
 	      (when (looking-at org-complex-heading-regexp)
 		(push (cons "ITEM"
-			    (concat
-			     (org-match-string-no-properties 1)
-			     (let ((title (org-match-string-no-properties 4)))
-			       (when (org-string-nw-p title)
-				 (concat " " (org-remove-tabs title))))))
+			    (let ((title (match-string-no-properties 4)))
+			      (if (org-string-nw-p title)
+				  (org-remove-tabs title)
+				"")))
 		      props))
 	      (when specific (throw 'exit props)))
 	    (when (or (not specific) (string= specific "TODO"))
@@ -16277,10 +16231,9 @@ This is computed according to `org-property-set-functions-alist'."
 		  (funcall set-function prompt allowed nil
 			   (not (get-text-property 0 'org-unrestricted
 						   (caar allowed))))
-		(let (org-completion-use-ido org-completion-use-iswitchb)
-		  (funcall set-function prompt
-			   (mapcar 'list (org-property-values property))
-			   nil nil "" nil cur)))))
+		(funcall set-function prompt
+			 (mapcar 'list (org-property-values property))
+			 nil nil "" nil cur))))
     (org-trim val)))
 
 (defvar org-last-set-property nil)
@@ -17460,14 +17413,15 @@ both scheduled and deadline timestamps."
 (defun org-check-before-date (d)
   "Check if there are deadlines or scheduled entries before date D."
   (interactive (list (org-read-date)))
-  (let ((case-fold-search nil)
-	(regexp (org-re-timestamp org-ts-type))
-	(callback
-	 `(lambda ()
+  (let* ((case-fold-search nil)
+	 (regexp (org-re-timestamp org-ts-type))
+	 (ts-type org-ts-type)
+	 (callback
+	  (lambda ()
 	    (let ((match (match-string 1)))
-	      (and ,(if (memq org-ts-type '(active inactive all))
-			'(eq (org-element-type (org-element-context)) 'timestamp)
-		      '(org-at-planning-p))
+	      (and (if (memq ts-type '(active inactive all))
+		       (eq (org-element-type (org-element-context)) 'timestamp)
+		     (org-at-planning-p))
 		   (time-less-p
 		    (org-time-string-to-time match)
 		    (org-time-string-to-time d)))))))
@@ -17478,14 +17432,15 @@ both scheduled and deadline timestamps."
 (defun org-check-after-date (d)
   "Check if there are deadlines or scheduled entries after date D."
   (interactive (list (org-read-date)))
-  (let ((case-fold-search nil)
-	(regexp (org-re-timestamp org-ts-type))
-	(callback
-	 `(lambda ()
+  (let* ((case-fold-search nil)
+	 (regexp (org-re-timestamp org-ts-type))
+	 (ts-type org-ts-type)
+	 (callback
+	  (lambda ()
 	    (let ((match (match-string 1)))
-	      (and ,(if (memq org-ts-type '(active inactive all))
-			'(eq (org-element-type (org-element-context)) 'timestamp)
-		      '(org-at-planning-p))
+	      (and (if (memq ts-type '(active inactive all))
+		       (eq (org-element-type (org-element-context)) 'timestamp)
+		     (org-at-planning-p))
 		   (not (time-less-p
 			 (org-time-string-to-time match)
 			 (org-time-string-to-time d))))))))
@@ -17669,11 +17624,11 @@ D may be an absolute day number, or a calendar-type list (month day year)."
   (when (numberp d) (setq d (calendar-gregorian-from-absolute d)))
   (encode-time 0 0 0 (nth 1 d) (car d) (nth 2 d)))
 
+(defvar org-agenda-current-date)
 (defun org-calendar-holiday ()
   "List of holidays, for Diary display in Org mode."
-  (declare (special date))
   (require 'holidays)
-  (let ((hl (calendar-check-holidays date)))
+  (let ((hl (calendar-check-holidays org-agenda-current-date)))
     (and hl (mapconcat #'identity hl "; "))))
 
 (defun org-diary-sexp-entry (sexp entry d)
@@ -18412,29 +18367,19 @@ changes from another.  I believe the procedure must be like this:
 ;;;###autoload
 (defun org-switchb (&optional arg)
   "Switch between Org buffers.
-With one prefix argument, restrict available buffers to files.
-With two prefix arguments, restrict available buffers to agenda files.
 
-Defaults to `iswitchb' for buffer name completion.
-Set `org-completion-use-ido' to make it use ido instead."
+With \\[universal-argument] prefix, restrict available buffers to files.
+
+With \\[universal-argument] \\[universal-argument] \
+prefix, restrict available buffers to agenda files."
   (interactive "P")
-  (let ((blist (cond ((equal arg '(4))  (org-buffer-list 'files))
-                     ((equal arg '(16)) (org-buffer-list 'agenda))
-                     (t                 (org-buffer-list))))
-	(org-completion-use-iswitchb org-completion-use-iswitchb)
-	(org-completion-use-ido org-completion-use-ido))
-    (unless (or org-completion-use-ido org-completion-use-iswitchb)
-      (setq org-completion-use-iswitchb t))
+  (let ((blist (org-buffer-list
+		(cond ((equal arg '(4))  'files)
+		      ((equal arg '(16)) 'agenda)))))
     (org-pop-to-buffer-same-window
      (completing-read "Org buffer: "
 		      (mapcar #'list (mapcar #'buffer-name blist))
 		      nil t))))
-
-;;; Define some older names previously used for this functionality
-;;;###autoload
-(defalias 'org-ido-switchb 'org-switchb)
-;;;###autoload
-(defalias 'org-iswitchb 'org-switchb)
 
 (defun org-buffer-list (&optional predicate exclude-tmp)
   "Return a list of Org buffers.
@@ -18949,28 +18894,38 @@ looks only before point, not after."
     (org-in-regexp
      "\\\\[a-zA-Z]+\\*?\\(\\(\\[[^][\n{}]*\\]\\)\\|\\({[^{}\n]*}\\)\\)*")))
 
-(defvar-local org-latex-fragment-image-overlays nil
-  "List of overlays carrying the images of latex fragments.")
+(defun org--format-latex-make-overlay (beg end image)
+  "Build an overlay between BEG and END using IMAGE file."
+  (let ((ov (make-overlay beg end)))
+    (overlay-put ov 'org-overlay-type 'org-latex-overlay)
+    (overlay-put ov 'evaporate t)
+    (overlay-put ov
+		 'modification-hooks
+		 (list (lambda (o _flag _beg _end &optional _l)
+			 (delete-overlay o))))
+    (if (featurep 'xemacs)
+	(progn
+	  (overlay-put ov 'invisible t)
+	  (overlay-put ov 'end-glyph (make-glyph (vector 'png :file image))))
+      (overlay-put ov
+		   'display
+		   (list 'image :type 'png :file image :ascent 'center)))))
+
+(defun org--list-latex-overlays (&optional beg end)
+  "List all Org LaTeX overlays in current buffer.
+Limit to overlays between BEG and END when those are provided."
+  (cl-remove-if-not
+   (lambda (o) (eq (overlay-get o 'org-overlay-type) 'org-latex-overlay))
+   (overlays-in (or beg (point-min)) (or end (point-max)))))
 
 (defun org-remove-latex-fragment-image-overlays (&optional beg end)
   "Remove all overlays with LaTeX fragment images in current buffer.
 When optional arguments BEG and END are non-nil, remove all
-overlays between them instead.  Return t when some overlays were
-removed, nil otherwise."
-  (let (removedp)
-    (setq org-latex-fragment-image-overlays
-	  (let ((beg (or beg (point-min)))
-		(end (or end (point-max))))
-	    (cl-remove-if
-	     (lambda (o)
-	       (cond ((not (overlay-buffer o)) (delete-overlay o) t)
-		     ((and (>= (overlay-start o) beg)
-			   (<= (overlay-end o) end))
-		      (delete-overlay o)
-		      (unless removedp (setq removedp t)))
-		     (t nil)))
-	     org-latex-fragment-image-overlays)))
-    removedp))
+overlays between them instead.  Return a non-nil value when some
+overlays were removed, nil otherwise."
+  (let ((overlays (org--list-latex-overlays beg end)))
+    (mapc #'delete-overlay overlays)
+    overlays))
 
 (define-obsolete-function-alias
   'org-preview-latex-fragment 'org-toggle-latex-fragment "24.4")
@@ -18988,8 +18943,6 @@ headline.  With a double prefix ARG \\[universal-argument] \
 \\[universal-argument] preview or clear images
 for all fragments in the buffer."
   (interactive "P")
-  (unless (buffer-file-name (buffer-base-buffer))
-    (user-error "Can't preview LaTeX fragment in a non-file buffer"))
   (when (display-graphic-p)
     (catch 'exit
       (save-excursion
@@ -19037,11 +18990,11 @@ for all fragments in the buffer."
 		   (narrow-to-region beg end))))))
 	    (let ((file (buffer-file-name (buffer-base-buffer))))
 	      (org-format-latex
-	       (concat org-latex-preview-ltxpng-directory
-		       (file-name-sans-extension (file-name-nondirectory file)))
+	       (concat org-latex-preview-ltxpng-directory "org-ltxpng")
 	       ;; Emacs cannot overlay images from remote hosts.
 	       ;; Create it in `temporary-file-directory' instead.
-	       (if (file-remote-p file) temporary-file-directory
+	       (if (or (not file) (file-remote-p file))
+		   temporary-file-directory
 		 default-directory)
 	       'overlays msg 'forbuffer
 	       org-latex-create-formula-image-program)))
@@ -19141,25 +19094,7 @@ Some of the options can be changed using the variable
 			     (when (eq (overlay-get o 'org-overlay-type)
 				       'org-latex-overlay)
 			       (delete-overlay o)))
-			   (let ((ov (make-overlay beg end)))
-			     (overlay-put ov
-					  'org-overlay-type
-					  'org-latex-overlay)
-			     (overlay-put ov 'evaporate t)
-			     (if (featurep 'xemacs)
-				 (progn
-				   (overlay-put ov 'invisible t)
-				   (overlay-put
-				    ov 'end-glyph
-				    (make-glyph
-				     (vector 'png :file movefile))))
-			       (overlay-put
-				ov 'display
-				(list 'image
-				      :type 'png
-				      :file movefile
-				      :ascent 'center)))
-			     (push ov org-latex-fragment-image-overlays))
+			   (org--format-latex-make-overlay beg end movefile)
 			   (goto-char end))
 		       (delete-region beg end)
 		       (insert
@@ -19970,7 +19905,7 @@ boundaries."
 (org-defkey org-mode-map "\C-c\C-xe"    'org-set-effort)
 (org-defkey org-mode-map "\C-c\C-xE"    'org-inc-effort)
 (org-defkey org-mode-map "\C-c\C-xo"    'org-toggle-ordered-property)
-(org-defkey org-mode-map "\C-c\C-xi"    'org-insert-columns-dblock)
+(org-defkey org-mode-map "\C-c\C-xi"    'org-columns-insert-dblock)
 (org-defkey org-mode-map [(control ?c) (control ?x) ?\;] 'org-timer-set-timer)
 
 (org-defkey org-mode-map "\C-c\C-x."    'org-timer)
@@ -21822,7 +21757,7 @@ on context.  See the individual commands for more information."
      "--"
      ["Set property" org-set-property (not (org-before-first-heading-p))]
      ["Column view of properties" org-columns t]
-     ["Insert Column View DBlock" org-insert-columns-dblock t])
+     ["Insert Column View DBlock" org-columns-insert-dblock t])
     ("Dates and Scheduling"
      ["Timestamp" org-time-stamp (not (org-before-first-heading-p))]
      ["Timestamp (inactive)" org-time-stamp-inactive (not (org-before-first-heading-p))]
@@ -22488,11 +22423,11 @@ and :keyword."
       (when (looking-at org-radio-target-regexp)
 	(push (org-point-in-group p 0 :radio-target) clist))
       (goto-char p))
-     ((setq o (car (delq nil
-			 (mapcar
-			  (lambda (x)
-			    (when (memq x org-latex-fragment-image-overlays) x))
-			  (overlays-at (point))))))
+     ((setq o (cl-some
+	       (lambda (o)
+		 (and (eq (overlay-get o 'org-overlay-type) 'org-latex-overlay)
+		      o))
+	       (overlays-at (point))))
       (push (list :latex-fragment
 		  (overlay-start o) (overlay-end o)) clist)
       (push (list :latex-preview

@@ -1950,6 +1950,14 @@ category, you can use:
   :tag "Org Agenda Column View"
   :group 'org-agenda)
 
+(defcustom org-agenda-view-columns-initially nil
+  "When non-nil, switch to columns view right after creating the agenda."
+  :group 'org-agenda-column-view
+  :type 'boolean
+  :version "25.1"
+  :package-version '(Org . "9.0")
+  :safe #'booleanp)
+
 (defcustom org-agenda-columns-show-summaries t
   "Non-nil means show summaries for columns displayed in the agenda view."
   :group 'org-agenda-column-view
@@ -2047,6 +2055,8 @@ The buffer is still writable when this hook is called.")
 (defvar org-agenda-force-single-file nil)
 (defvar org-agenda-bulk-marked-entries nil
   "List of markers that refer to marked entries in the agenda.")
+(defvar org-agenda-current-date nil
+  "Active date when building the agenda.")
 
 ;;; Multiple agenda buffers support
 
@@ -2319,7 +2329,6 @@ The following commands are available:
 (org-defkey org-agenda-mode-map "_" 'org-agenda-filter-by-effort)
 (org-defkey org-agenda-mode-map "=" 'org-agenda-filter-by-regexp)
 (org-defkey org-agenda-mode-map "|" 'org-agenda-filter-remove-all)
-(org-defkey org-agenda-mode-map "\\" 'org-agenda-filter-by-tag-refine)
 (org-defkey org-agenda-mode-map "~" 'org-agenda-limit-interactively)
 (org-defkey org-agenda-mode-map "<" 'org-agenda-filter-by-category)
 (org-defkey org-agenda-mode-map "^" 'org-agenda-filter-by-top-headline)
@@ -5341,6 +5350,7 @@ the documentation of `org-diary'."
 	(unless (derived-mode-p 'org-mode)
 	  (error "Agenda file %s is not in `org-mode'" file))
 	(setq org-agenda-buffer (or org-agenda-buffer buffer))
+	(setf org-agenda-current-date date)
 	(save-excursion
 	  (save-restriction
 	    (if (eq buffer org-agenda-restrict)
@@ -7584,10 +7594,6 @@ to switch between filtering and excluding."
 	      (get-text-property (point) 'tags))))
     tags))
 
-(defun org-agenda-filter-by-tag-refine (arg &optional char)
-  "Refine the current filter.  See `org-agenda-filter-by-tag'."
-  (interactive "P")
-  (org-agenda-filter-by-tag arg char 'refine))
 
 (defun org-agenda-filter-make-matcher (filter type &optional expand)
   "Create the form that tests a line for agenda filter.  Optional
