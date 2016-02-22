@@ -373,12 +373,8 @@
   ;; {@min}, {@max} and {@mean} apply to ages.
   (should
    (equal
-    (org-columns-number-to-string
-     (float-time
-      (time-subtract
-       (current-time)
-       (apply #'encode-time (org-parse-time-string "<2014-03-04 Tue>"))))
-     'min_age)
+    (let ((org-columns--time (float-time (current-time))))
+      (org-columns--summary-min-age (list "<2014-03-04 Tue>") nil))
     (org-test-with-temp-text
 	"* H
 ** S1
@@ -393,12 +389,8 @@
       (get-char-property (point) 'org-columns-value-modified))))
   (should
    (equal
-    (org-columns-number-to-string
-     (float-time
-      (time-subtract
-       (current-time)
-       (apply #'encode-time (org-parse-time-string "<2012-03-29 Thu>"))))
-     'max_age)
+    (let ((org-columns--time (float-time (current-time))))
+      (org-columns--summary-max-age (list "<2012-03-29 Thu>") nil))
     (org-test-with-temp-text
 	"* H
 ** S1
@@ -413,17 +405,9 @@
       (get-char-property (point) 'org-columns-value-modified))))
   (should
    (equal
-    (org-columns-number-to-string
-     (/ (+ (float-time
-	    (time-subtract
-	     (current-time)
-	     (apply #'encode-time (org-parse-time-string "<2014-03-04 Tue>"))))
-	   (float-time
-	    (time-subtract
-	     (current-time)
-	     (apply #'encode-time (org-parse-time-string "<2012-03-29 Thu>")))))
-	2)
-     'mean_age)
+    (let ((org-columns--time (float-time (current-time))))
+      (org-columns--summary-mean-age
+       (list "<2012-03-29 Thu>" "<2014-03-04 Tue>") nil))
     (org-test-with-temp-text
 	"* H
 ** S1
@@ -436,6 +420,42 @@
 :END:"
       (let ((org-columns-default-format "%A{@mean}")) (org-columns))
       (get-char-property (point) 'org-columns-value-modified))))
+  ;; If a time value is expressed as a duration, return a duration.
+  ;; If any of them follows H:MM:SS pattern, use it too.
+  (should
+   (equal
+    "1d 4:20"
+    (org-test-with-temp-text
+	"* H
+** S1
+:PROPERTIES:
+:A: 3d 3h
+:END:
+** S1
+:PROPERTIES:
+:A: 1:20
+:END:"
+      (let ((org-columns-default-format "%A{:}")
+	    (org-time-clocksum-use-fractional nil)
+	    (org-time-clocksum-format
+	     '(:days "%dd " :hours "%d" :minutes ":%02d")))
+	(org-columns))
+      (get-char-property (point) 'org-columns-value-modified))))
+  (should
+   (equal
+    "6:00:10"
+    (org-test-with-temp-text
+	"* H
+** S1
+:PROPERTIES:
+:A: 4:40:10
+:END:
+** S1
+:PROPERTIES:
+:A: 1:20
+:END:"
+      (let ((org-columns-default-format "%A{:}")) (org-columns))
+      (get-char-property (point) 'org-columns-value-modified))))
   ;; @min, @max and @mean also accept regular duration in
   ;; a "?d ?h ?m ?s" format.
   (should
@@ -445,11 +465,11 @@
 	"* H
 ** S1
 :PROPERTIES:
-:A: 1d 10h
+:A: 1d 10h 0m 0s
 :END:
 ** S1
 :PROPERTIES:
-:A: 5d 3h
+:A: 5d 3h 0m 0s
 :END:"
       (let ((org-columns-default-format "%A{@min}")) (org-columns))
       (get-char-property (point) 'org-columns-value-modified))))
@@ -483,7 +503,61 @@
 :END:
 "
       (let ((org-columns-default-format "%A{est+}")) (org-columns))
+      (get-char-property (point) 'org-columns-value-modified))))
+  ;; Test custom summary types.
+  (should
+   (equal
+    "1|2"
+    (org-test-with-temp-text
+	"* H
+** S1
+:PROPERTIES:
+:A: 1
+:END:
+** S1
+:PROPERTIES:
+:A: 2
+:END:"
+      (let ((org-columns-summary-types
+	     '(("custom" . (lambda (s _) (mapconcat #'identity s "|")))))
+	    (org-columns-default-format "%A{custom}")) (org-columns))
       (get-char-property (point) 'org-columns-value-modified)))))
+
+(ert-deftest test-org-colview/columns-new ()
+  "Test `org-columns-new' specifications."
+  ;; Insert new column at the left of the current one.
+  (should
+   (equal '("FOO" "ITEM")
+	  (org-test-with-temp-text "* H"
+	    (let ((org-columns-default-format "%ITEM")) (org-columns))
+	    (org-columns-new "FOO")
+	    (list (get-char-property (point) 'org-columns-key)
+		  (get-char-property (1+ (point)) 'org-columns-key)))))
+  (should
+   (equal '("ITEM" "FOO" "ITEM")
+	  (org-test-with-temp-text "* H"
+	    (let ((org-columns-default-format "%ITEM %BAR")) (org-columns))
+	    (forward-char)
+	    (org-columns-new "FOO")
+	    (list (get-char-property (1- (point)) 'org-columns-key)
+		  (get-char-property (point) 'org-columns-key)
+		  (get-char-property (1+ (point)) 'org-columns-key)))))
+  ;; Update #+COLUMNS: keyword if needed.
+  (should
+   (equal "#+COLUMNS: %FOO %ITEM"
+	  (org-test-with-temp-text "#+COLUMNS: %ITEM\n<point>* H"
+	    (let ((org-columns-default-format "%ITEM")) (org-columns))
+	    (org-columns-new "FOO")
+	    (goto-char (point-min))
+	    (buffer-substring-no-properties (point) (line-end-position)))))
+  (should
+   (equal "#+COLUMNS: %ITEM %FOO %BAR"
+	  (org-test-with-temp-text "#+COLUMNS: %ITEM %BAR\n<point>* H"
+	    (let ((org-columns-default-format "%ITEM %BAR")) (org-columns))
+	    (forward-char)
+	    (org-columns-new "FOO")
+	    (goto-char (point-min))
+	    (buffer-substring-no-properties (point) (line-end-position))))))
 
 (ert-deftest test-org-colview/columns-update ()
   "Test `org-columns-update' specifications."
