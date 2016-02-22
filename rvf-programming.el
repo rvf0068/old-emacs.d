@@ -71,8 +71,12 @@ When called twice, replace the previously inserted stuff by one $."
 ;; GAP
 
 (defun my/insert-tag (tag-name)
-  (insert (concat "<" tag-name "></" tag-name ">"))
-  (backward-char (+ (length tag-name) 3))
+  (if (region-active-p) (goto-char (region-beginning)))
+  (insert (concat "<" tag-name ">"))
+  (if (region-active-p) (goto-char (region-end)))
+  (insert (concat "</" tag-name ">"))
+  (if (region-active-p) ()
+    (backward-char (+ (length tag-name) 3)))
 )
 
 (add-hook 'gap-mode-hook
@@ -84,10 +88,11 @@ When called twice, replace the previously inserted stuff by one $."
 	     (kbd "<")
       (defhydra hydra-xml-gap (:hint nil)
         "
-        Tags  _T_ Title 
+        Tags  _T_ Title
+              _<_ < 
         "
         ("T" (my/insert-tag "Title"))
+        ("<" (insert "<"))
 	))
-
 	  ))
 
