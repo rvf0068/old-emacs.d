@@ -77,6 +77,10 @@
              '("LuaLaTeX"
                "lualatex %s"
                TeX-run-command nil nil) t)
+(add-to-list 'TeX-command-list
+             '("XeLaTeX"
+               "xelatex %s"
+               TeX-run-command nil nil) t)
 
 ;; some functions
 
