@@ -79,6 +79,23 @@ When called twice, replace the previously inserted stuff by one $."
     (backward-char (+ (length tag-name) 3)))
 )
 
+(defun my/insert-env (tag-name)
+  (if (region-active-p) (progn
+			 (goto-char (region-beginning))
+			 (forward-line -1)
+			 (indent-according-to-mode)
+			 ))
+  (insert (concat "<" tag-name ">"))
+  (if (region-active-p) (progn
+			 (goto-char (region-beginning))
+			 (forward-line 1)
+			 (indent-according-to-mode)
+			 ))
+  (insert (concat "</" tag-name ">"))
+  (if (region-active-p) ()
+    (backward-char (+ (length tag-name) 3)))
+)
+
 (add-hook 'gap-mode-hook
 	  (lambda()
 	    (smartparens-mode 1)
@@ -88,10 +105,14 @@ When called twice, replace the previously inserted stuff by one $."
 	     (kbd "<")
       (defhydra hydra-xml-gap (:hint nil)
         "
-        Tags  _T_ Title
+        Tags  _a_ Argument
+              _e_ Example
+              _t_ Title
               _<_ < 
         "
-        ("T" (my/insert-tag "Title"))
+        ("a" (my/insert-tag "A"))
+        ("e" (my/insert-env "Example"))
+        ("t" (my/insert-tag "Title"))
         ("<" (insert "<"))
 	))
 	  ))
