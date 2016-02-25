@@ -7866,6 +7866,22 @@ This is a list with the following elements:
     (org-back-to-heading t)
     (buffer-substring (point-at-bol 2) (org-end-of-subtree t))))
 
+(defun org-edit-headline (&optional heading)
+  "Edit the current headline.
+Set it to HEADING when provided."
+  (interactive)
+  (org-with-wide-buffer
+   (org-back-to-heading t)
+   (when (looking-at org-complex-heading-regexp)
+     (let* ((old (match-string-no-properties 4))
+	    (new (org-trim (or heading (read-string "Edit: " old)))))
+       (unless (equal old new)
+	 (if old (replace-match new t t nil 4)
+	   (goto-char (or (match-end 3) (match-end 2) (match-end 1)))
+	   (insert " " new))
+	 (org-set-tags nil t)
+	 (when (looking-at "[ \t]*$") (replace-match "")))))))
+
 (defun org-insert-heading-after-current ()
   "Insert a new heading with same level as current, after current subtree."
   (interactive)
@@ -9102,6 +9118,7 @@ buffer.  It will also recognize item context in multiline items."
 		  org-ctrl-c-minus
 		  org-ctrl-c-star
 		  org-cycle
+		  org-force-cycle-archived
 		  org-forward-heading-same-level
 		  org-insert-heading
 		  org-insert-heading-respect-content
@@ -22843,11 +22860,7 @@ ELEMENT."
 		(let ((cend (org-element-property :contents-end element)))
 		  (and cend (<= cend pos))))
 	   (if (memq type '(footnote-definition item plain-list))
-	       (let ((last (org-element-at-point)))
-		 (org--get-expected-indentation
-		  last
-		  (memq (org-element-type last)
-			'(footnote-definition item plain-list))))
+	       (org--get-expected-indentation (org-element-at-point) t)
 	     (goto-char start)
 	     (org-get-indentation)))
 	  ;; In any other case, indent like the current line.
@@ -24345,7 +24358,7 @@ respect customization of `org-odd-levels-only'."
    (outline-next-visible-heading arg)))
 
 (defun org-previous-visible-heading (arg)
-  "Move to the next visible heading.
+  "Move to the previous visible heading.
 
 This function wraps `outline-previous-visible-heading' with
 `org-with-limited-levels' in order to skip over inline tasks and

@@ -718,20 +718,23 @@
   ;; whole list.
   (should
    (= 4
-      (org-test-with-temp-text "* H\n- A\n  - AA\n"
-	(goto-char (point-max))
+      (org-test-with-temp-text "* H\n- A\n  - AA\n<point>"
 	(let ((org-adapt-indentation t)) (org-indent-line))
 	(org-get-indentation))))
   (should
    (zerop
-    (org-test-with-temp-text "* H\n- A\n  - AA\n\n\n\n"
-      (goto-char (point-max))
+    (org-test-with-temp-text "* H\n- A\n  - AA\n\n\n\n<point>"
       (let ((org-adapt-indentation t)) (org-indent-line))
       (org-get-indentation))))
   (should
    (= 4
-      (org-test-with-temp-text "* H\n- A\n  - \n"
-	(goto-char (point-max))
+      (org-test-with-temp-text "* H\n- A\n  - \n<point>"
+	(let ((org-adapt-indentation t)) (org-indent-line))
+	(org-get-indentation))))
+  (should
+   (= 4
+      (org-test-with-temp-text
+	  "* H\n  - \n    #+BEGIN_SRC emacs-lisp\n  t\n    #+END_SRC\n<point>"
 	(let ((org-adapt-indentation t)) (org-indent-line))
 	(org-get-indentation))))
   ;; Likewise, on a blank line at the end of a footnote definition,
@@ -1530,6 +1533,46 @@ SCHEDULED: <2014-03-04 tue.>"
 	  (org-test-with-temp-text "* H1 :yes:\n* H2 :no:\n* H3 :yes:no:"
 	    (let (org-odd-levels-only)
 	      (org-map-entries #'point "yes&no"))))))
+
+(ert-deftest test-org/edit-headline ()
+  "Test `org-edit-headline' specifications."
+  (should
+   (equal "* B"
+	  (org-test-with-temp-text "* A"
+	    (org-edit-headline "B")
+	    (buffer-string))))
+  ;; Handle empty headings.
+  (should
+   (equal "* "
+	  (org-test-with-temp-text "* A"
+	    (org-edit-headline "")
+	    (buffer-string))))
+  (should
+   (equal "* A"
+	  (org-test-with-temp-text "* "
+	    (org-edit-headline "A")
+	    (buffer-string))))
+  ;; Handle TODO keywords and priority cookies.
+  (should
+   (equal "* TODO B"
+	  (org-test-with-temp-text "* TODO A"
+	    (org-edit-headline "B")
+	    (buffer-string))))
+  (should
+   (equal "* [#A] B"
+	  (org-test-with-temp-text "* [#A] A"
+	    (org-edit-headline "B")
+	    (buffer-string))))
+  (should
+   (equal "* TODO [#A] B"
+	  (org-test-with-temp-text "* TODO [#A] A"
+	    (org-edit-headline "B")
+	    (buffer-string))))
+  ;; Handle tags.
+  (equal "* B :tag:"
+	 (org-test-with-temp-text "* A :tag:"
+	   (let ((org-tags-column 4)) (org-edit-headline "B"))
+	   (buffer-string))))
 
 
 
