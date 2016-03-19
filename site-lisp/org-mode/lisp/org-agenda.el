@@ -10107,8 +10107,9 @@ tag and (if present) the flagging note."
 	(replace-match "\n" t t))
       (goto-char (point-min))
       (select-window win)
-      (message (substitute-command-keys "Flagging note pushed to kill ring.  \
-Press \\[org-agenda-show-the-flagging-note] again to remove tag and note")))))
+      (message "%s" (substitute-command-keys "Flagging note pushed to \
+kill ring.  Press \\[org-agenda-show-the-flagging-note] again to remove \
+tag and note")))))
 
 (defun org-agenda-remove-flag (marker)
   "Remove the FLAGGED tag and any flagging note in the entry."
@@ -10207,7 +10208,7 @@ to override `appt-message-warning-time'."
 	      (wrn (get-text-property 1 'warntime x)))
 	 ;; FIXME: Shall we remove text-properties for the appt text?
 	 ;; (setq evt (set-text-properties 0 (length evt) nil evt))
-	 (when (and ok tod)
+	 (when (and ok tod (not (string-match "\\`DONE\\|CANCELLED" evt)))
 	   (setq tod (concat "00" (number-to-string tod))
 		 tod (when (string-match
 			    "\\([0-9]\\{1,2\\}\\)\\([0-9]\\{2\\}\\)\\'" tod)
