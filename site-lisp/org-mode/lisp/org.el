@@ -17011,7 +17011,7 @@ user."
 			  (string-to-number (format-time-string "%Y"))))
 	    month (string-to-number (match-string 3 ans))
 	    day (string-to-number (match-string 4 ans)))
-      (when (< year 100) (setq year (+ 2000 year)))
+      (setq year (org-small-year-to-year year))
       (setq ans (replace-match (format "%04d-%02d-%02d\\5" year month day)
 			       t nil ans)))
 
@@ -17035,7 +17035,7 @@ user."
 			  (string-to-number (format-time-string "%Y"))))
 	    month (string-to-number (match-string 1 ans))
 	    day (string-to-number (match-string 2 ans)))
-      (when (< year 100) (setq year (+ 2000 year)))
+      (setq year (org-small-year-to-year year))
       (setq ans (replace-match (format "%04d-%02d-%02d\\5" year month day)
 			       t nil ans)))
     ;; Help matching am/pm times, because `parse-time-string' does not do that.
@@ -22880,7 +22880,7 @@ ELEMENT."
 		(let ((cend (org-element-property :contents-end element)))
 		  (and cend (<= cend pos))))
 	   (if (memq type '(footnote-definition item plain-list))
-	       (org--get-expected-indentation (org-element-at-point) t)
+	       (org--get-expected-indentation (org-element-at-point) nil)
 	     (goto-char start)
 	     (org-get-indentation)))
 	  ;; In any other case, indent like the current line.

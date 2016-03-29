@@ -11498,9 +11498,9 @@ enable a few new block-level elements.  These are created using arbitrary
 #+BEGIN and #+END blocks. For instance:
 
 @example
-#+BEGIN_ASIDE
+#+BEGIN_aside
 Lorem ipsum
-#+END_ASIDE
+#+END_aside
 @end example
 
 Will export to:
@@ -11515,11 +11515,11 @@ While this:
 
 @example
 #+ATTR_HTML: :controls controls :width 350
-#+BEGIN_VIDEO
+#+BEGIN_video
 #+HTML: <source src="movie.mp4" type="video/mp4">
 #+HTML: <source src="movie.ogg" type="video/ogg">
 Your browser does not support the video tag.
-#+END_VIDEO
+#+END_video
 @end example
 
 Becomes:
@@ -12237,10 +12237,9 @@ output file resulting from @LaTeX{} processing.  Org will use an
 TikZ (@url{http://sourceforge.net/projects/pgf/}) images, it will become an
 @code{\input} macro wrapped within a @code{tikzpicture} environment.}.
 
-You can specify specify image width or height with, respectively,
-@code{:width} and @code{:height} attributes.  It is also possible to add any
-other option with the @code{:options} attribute, as shown in the following
-example:
+You can specify image width or height with, respectively, @code{:width} and
+@code{:height} attributes.  It is also possible to add any other option with
+the @code{:options} attribute, as shown in the following example:
 
 @example
 #+ATTR_LATEX: :width 5cm :options angle=90
@@ -12296,13 +12295,33 @@ the @LaTeX{} @code{\includegraphics} macro will be commented out.
 @cindex plain lists, in @LaTeX{} export
 
 Plain lists accept two optional attributes: @code{:environment} and
-@code{:options}.  The first one allows the use of a non-standard environment
-(e.g., @samp{inparaenum}).  The second one specifies additional arguments for
-that environment.
+@code{:options}.  The first can be used to specify the environment.  The
+second can be used to specifies additional arguments to the environment.
+Both attributes are illustrated in the following example:
 
 @example
-#+ATTR_LATEX: :environment compactitem :options [$\circ$]
-- you need ``paralist'' package to reproduce this example.
+#+LATEX_HEADER: \usepackage[inline]@{enumitem@}
+Some ways to say "Hello":
+#+ATTR_LATEX: :environment itemize*
+#+ATTR_LATEX: :options [label=@{@}, itemjoin=@{,@}, itemjoin*=@{, and@}]
+- Hola
+- Bonjour
+- Guten Tag.
+@end example
+
+By default, @LaTeX{} only supports four levels of nesting for lists.  If
+deeper nesting is needed, the @samp{enumitem} @LaTeX{} package can be
+employed, as shown in this example:
+
+@example
+#+LATEX_HEADER: \usepackage@{enumitem@}
+#+LATEX_HEADER: \renewlist@{itemize@}@{itemize@}@{9@}
+#+LATEX_HEADER: \setlist[itemize]@{label=$\circ$@}
+- One
+  - Two
+    - Three
+      - Four
+        - Five
 @end example
 
 @subsubheading Source blocks in @LaTeX{} export
