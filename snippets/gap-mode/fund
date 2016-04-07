@@ -6,11 +6,14 @@
 ##
 ##  <#GAPDoc Label="$1">
 ##  <ManSection>
-##  <Func Name="$1" Arg="$3"/>
+##  <Func Name="$1" Arg="$2"/>
 ##
 ##  <Description>
+##
 ##  $4
+##
 ##  </Description>
+##
 ##  </ManSection>
 ##  <#/GAPDoc>
 DeclareGlobalFunction( "$1" );

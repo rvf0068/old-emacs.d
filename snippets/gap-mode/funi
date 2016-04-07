@@ -4,6 +4,6 @@
 # --
 #F  $1( $2 ) 
 ##
-InstallGlobalFunction( $1, function( $3 )
+InstallGlobalFunction( $1, function( $2 )
     $0
 end);
