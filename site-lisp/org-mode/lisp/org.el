@@ -738,7 +738,7 @@ For export specific modules, see also `org-export-backends'."
 (defvar org-export-registered-backends) ; From ox.el.
 (declare-function org-export-derived-backend-p "ox" (backend &rest backends))
 (declare-function org-export-backend-name "ox" (backend))
-(defcustom org-export-backends '(ascii html icalendar latex)
+(defcustom org-export-backends '(ascii html icalendar latex odt)
   "List of export back-ends that should be always available.
 
 If a description starts with <C>, the file is not part of Emacs
@@ -779,8 +779,8 @@ Adding a back-end to this list will also pull the back-end it
 depends on, if any."
   :group 'org
   :group 'org-export
-  :version "24.4"
-  :package-version '(Org . "8.0")
+  :version "25.1"
+  :package-version '(Org . "9.0")
   :initialize 'custom-initialize-set
   :set (lambda (var val)
 	 (if (not (featurep 'ox)) (set-default var val)
@@ -2581,6 +2581,10 @@ taken from the (otherwise obsolete) variable `org-todo-interpretation'."
   "Alist of all groups tags from all current agenda files.")
 (defvar-local org-tag-groups-alist nil)
 (defvar org-agenda-contributing-files nil)
+(defvar-local org-current-tag-alist nil
+  "Alist of all tag groups in current buffer.
+This variable takes into consideration `org-tag-alist',
+`org-tag-persistent-alist' and TAGS keywords in the buffer.")
 (defvar-local org-not-done-keywords nil)
 (defvar-local org-done-keywords nil)
 (defvar-local org-todo-heads nil)
@@ -3446,53 +3450,71 @@ moved to the new date."
   :group 'org)
 
 (defcustom org-tag-alist nil
-  "List of tags allowed in Org-mode files.
-When this list is nil, Org-mode will base TAG input on what is already in the
-buffer.
-The value of this variable is an alist, the car of each entry must be a
-keyword as a string, the cdr may be a character that is used to select
-that tag through the fast-tag-selection interface.
-See the manual for details."
-  :group 'org-tags
-  :type '(repeat
-	  (choice
-	   (cons   (string    :tag "Tag name")
-		   (character :tag "Access char"))
-	   (list :tag "Start radio group"
-		 (const :startgroup)
-		 (option (string :tag "Group description")))
-	   (list :tag "Start tag group, non distinct"
-		 (const :startgrouptag)
-		 (option (string :tag "Group description")))
-	   (list :tag "Group tags delimiter"
-		 (const :grouptags))
-	   (list :tag "End radio group"
-		 (const :endgroup)
-		 (option (string :tag "Group description")))
-	   (list :tag "End tag group, non distinct"
-		 (const :endgrouptag)
-		 (option (string :tag "Group description")))
-	   (const :tag "New line" (:newline)))))
+  "Default tags available in Org files.
 
-(defcustom org-tag-persistent-alist nil
-  "List of tags that will always appear in all Org-mode files.
-This is in addition to any in buffer settings or customizations
-of `org-tag-alist'.
-When this list is nil, Org-mode will base TAG input on `org-tag-alist'.
-The value of this variable is an alist, the car of each entry must be a
-keyword as a string, the cdr may be a character that is used to select
-that tag through the fast-tag-selection interface.
-See the manual for details.
-To disable these tags on a per-file basis, insert anywhere in the file:
-   #+STARTUP: noptag"
+The value of this variable is an alist.  Associations either:
+
+  (TAG)
+  (TAG . SELECT)
+  (SPECIAL)
+
+where TAG is a tag as a string, SELECT is a character, used to
+select that tag through the fast tag selection interface, and
+SPECIAL is one of the following keywords: `:startgroup',
+`:startgrouptag', `:grouptags', `:engroup', `:endgrouptag' or
+`:newline'.  These keywords are used to define a hierarchy of
+tags.  See manual for details.
+
+When this variable is nil, Org mode bases tag input on what is
+already in the buffer.  The value can be overridden locally by
+using a TAGS keyword, e.g.,
+
+  #+TAGS: tag1 tag2
+
+See also `org-tag-persistent-alist' to sidestep this behavior."
   :group 'org-tags
   :type '(repeat
 	  (choice
 	   (cons   (string    :tag "Tag name")
 		   (character :tag "Access char"))
 	   (const :tag "Start radio group" (:startgroup))
+	   (const :tag "Start tag group, non distinct" (:startgrouptag))
 	   (const :tag "Group tags delimiter" (:grouptags))
 	   (const :tag "End radio group" (:endgroup))
+	   (const :tag "End tag group, non distinct" (:endgrouptag))
+	   (const :tag "New line" (:newline)))))
+
+(defcustom org-tag-persistent-alist nil
+  "Tags always available in Org files.
+
+The value of this variable is an alist.  Associations either:
+
+  (TAG)
+  (TAG . SELECT)
+  (SPECIAL)
+
+where TAG is a tag as a string, SELECT is a character, used to
+select that tag through the fast tag selection interface, and
+SPECIAL is one of the following keywords: `:startgroup',
+`:startgrouptag', `:grouptags', `:engroup', `:endgrouptag' or
+`:newline'.  These keywords are used to define a hierarchy of
+tags.  See manual for details.
+
+Unlike to `org-tag-alist', tags defined in this variable do not
+depend on a local TAGS keyword.  Instead, to disable these tags
+on a per-file basis, insert anywhere in the file:
+
+  #+STARTUP: noptag"
+  :group 'org-tags
+  :type '(repeat
+	  (choice
+	   (cons (string    :tag "Tag name")
+		 (character :tag "Access char"))
+	   (const :tag "Start radio group" (:startgroup))
+	   (const :tag "Start tag group, non distinct" (:startgrouptag))
+	   (const :tag "Group tags delimiter" (:grouptags))
+	   (const :tag "End radio group" (:endgroup))
+	   (const :tag "End tag group, non distinct" (:endgrouptag))
 	   (const :tag "New line" (:newline)))))
 
 (defcustom org-complete-tags-always-offer-all-agenda-tags nil
@@ -4901,8 +4923,28 @@ related expressions."
 				'("ARCHIVE" "CATEGORY" "COLUMNS" "CONSTANTS"
 				  "LINK" "OPTIONS" "PRIORITIES" "PROPERTY"
 				  "SEQ_TODO" "STARTUP" "TODO" "TYP_TODO")))))))
-      (org--setup-process-tags
-       (cdr (assq 'tags alist)) (cdr (assq 'filetags alist)))
+      ;; Startup options.  Get this early since it does change
+      ;; behavior for other options (e.g., tags).
+      (let ((startup (cdr (assq 'startup alist))))
+	(dolist (option startup)
+	  (let ((entry (assoc-string option org-startup-options t)))
+	    (when entry
+	      (let ((var (nth 1 entry))
+		    (val (nth 2 entry)))
+		(if (not (nth 3 entry)) (set (make-local-variable var) val)
+		  (unless (listp (symbol-value var))
+		    (set (make-local-variable var) nil))
+		  (add-to-list var val)))))))
+      (setq-local org-file-tags
+		  (mapcar #'org-add-prop-inherited
+			  (cdr (assq 'filetags alist))))
+      (setq org-current-tag-alist
+	    (append org-tag-persistent-alist
+		    (let ((tags (cdr (assq 'tags alist))))
+		      (if tags (org-tag-string-to-alist tags)
+			org-tag-alist))))
+      (setq org-tag-groups-alist
+	    (org-tag-alist-to-groups org-current-tag-alist))
       (unless tags-only
 	;; File properties.
 	(setq-local org-file-properties (cdr (assq 'property alist)))
@@ -4934,17 +4976,6 @@ related expressions."
 	(let ((scripts (assq 'scripts alist)))
 	  (when scripts
 	    (setq-local org-use-sub-superscripts (cdr scripts))))
-	;; Startup options.
-	(let ((startup (cdr (assq 'startup alist))))
-	  (dolist (option startup)
-	    (let ((entry (assoc-string option org-startup-options t)))
-	      (when entry
-		(let ((var (nth 1 entry))
-		      (val (nth 2 entry)))
-		  (if (not (nth 3 entry)) (set (make-local-variable var) val)
-		    (unless (listp (symbol-value var))
-		      (set (make-local-variable var) nil))
-		    (add-to-list var val)))))))
 	;; TODO keywords.
 	(setq-local org-todo-kwd-alist nil)
 	(setq-local org-todo-key-alist nil)
@@ -5120,11 +5151,8 @@ Return value contains the following keys: `archive', `category',
 	      ((equal key "TAGS")
 	       (let ((tag-cell (assq 'tags alist)))
 		 (if tag-cell
-		     (setcdr tag-cell
-			     (append (cdr tag-cell)
-				     '("\\n")
-				     (org-split-string value)))
-		   (push (cons 'tags (org-split-string value)) alist))))
+		     (setcdr tag-cell (concat (cdr tag-cell) "\n" value))
+		   (push (cons 'tags value) alist))))
 	      ((member key '("TODO" "SEQ_TODO" "TYP_TODO"))
 	       (let ((todo (assq 'todo alist))
 		     (value (cons (if (equal key "TYP_TODO") 'type 'sequence)
@@ -5148,67 +5176,93 @@ Return value contains the following keys: `archive', `category',
 				regexp (cons f files) alist)))))))))))))))
   alist)
 
-(defun org--setup-process-tags (tags filetags)
-  "Precompute variables used for tags.
-TAGS is a list of tags and tag group symbols, as strings.
-FILETAGS is a list of tags, as strings."
-  ;; Process the file tags.
-  (setq-local org-file-tags
-	      (mapcar #'org-add-prop-inherited filetags))
-  ;; Provide default tags if no local tags are found.
-  (when (and (not tags) org-tag-alist)
-    (setq tags
-	  (mapcar (lambda (tag)
-		    (cl-case (car tag)
-		      (:startgroup "{")
-		      (:endgroup "}")
-		      (:startgrouptag "[")
-		      (:endgrouptag "]")
-		      (:grouptags ":")
-		      (:newline "\\n")
-		      (otherwise (concat (car tag)
-					 (and (characterp (cdr tag))
-					      (format "(%c)" (cdr tag)))))))
-		  org-tag-alist)))
-  ;; Process the tags.
-  (setq-local org-tag-groups-alist nil)
-  (setq-local org-tag-alist nil)
-  (let (group-flag)
-    (while tags
-      (let ((e (car tags)))
-	(setq tags (cdr tags))
-	(cond
-	 ((equal e "{")
-	  (push '(:startgroup) org-tag-alist)
-	  (when (equal (nth 1 tags) ":") (setq group-flag t)))
-	 ((equal e "}")
-	  (push '(:endgroup) org-tag-alist)
-	  (setq group-flag nil))
-	 ((equal e "[")
-	  (push '(:startgrouptag) org-tag-alist)
-	  (when (equal (nth 1 tags) ":") (setq group-flag t)))
-	 ((equal e "]")
-	  (push '(:endgrouptag) org-tag-alist)
-	  (setq group-flag nil))
-	 ((equal e ":")
-	  (push '(:grouptags) org-tag-alist)
-	  (setq group-flag 'append))
-	 ((equal e "\\n") (push '(:newline) org-tag-alist))
-	 ((string-match
-	   (org-re (concat "\\`\\([[:alnum:]_@#%]+"
-			   "\\|{.+?}\\)" ; regular expression
-			   "\\(?:(\\(.\\))\\)?\\'")) e)
-	  (let ((tag (match-string 1 e))
-		(key (and (match-beginning 2)
-			  (string-to-char (match-string 2 e)))))
-	    (cond ((eq group-flag 'append)
-		   (setcar org-tag-groups-alist
-			   (append (car org-tag-groups-alist) (list tag))))
-		  (group-flag (push (list tag) org-tag-groups-alist)))
-	    ;; Push all tags in groups, no matter if they already exist.
-	    (unless (and (not group-flag) (assoc tag org-tag-alist))
-	      (push (cons tag key) org-tag-alist))))))))
-  (setq org-tag-alist (nreverse org-tag-alist)))
+(defun org-tag-string-to-alist (s)
+  "Return tag alist associated to string S.
+S is a value for TAGS keyword or produced with
+`org-tag-alist-to-string'.  Return value is an alist suitable for
+`org-tag-alist' or `org-tag-persistent-alist'."
+  (let ((lines (mapcar #'split-string (split-string s "\n" t)))
+	(tag-re (concat "\\`\\([[:alnum:]_@#%]+"
+			"\\|{.+?}\\)"	; regular expression
+			"\\(?:(\\(.\\))\\)?\\'"))
+	alist group-flag)
+    (dolist (tokens lines (cdr (nreverse alist)))
+      (push '(:newline) alist)
+      (while tokens
+	(let ((token (pop tokens)))
+	  (pcase token
+	    ("{"
+	     (push '(:startgroup) alist)
+	     (when (equal (nth 1 tokens) ":") (setq group-flag t)))
+	    ("}"
+	     (push '(:endgroup) alist)
+	     (setq group-flag nil))
+	    ("["
+	     (push '(:startgrouptag) alist)
+	     (when (equal (nth 1 tokens) ":") (setq group-flag t)))
+	    ("]"
+	     (push '(:endgrouptag) alist)
+	     (setq group-flag nil))
+	    (":"
+	     (push '(:grouptags) alist))
+	    ((guard (string-match tag-re token))
+	     (let ((tag (match-string 1 token))
+		   (key (and (match-beginning 2)
+			     (string-to-char (match-string 2 token)))))
+	       ;; Push all tags in groups, no matter if they already
+	       ;; appear somewhere else in the list.
+	       (when (or group-flag (not (assoc tag alist)))
+		 (push (cons tag key) alist))))))))))
+
+(defun org-tag-alist-to-string (alist &optional skip-key)
+  "Return tag string associated to ALIST.
+
+ALIST is an alist, as defined in `org-tag-alist' or
+`org-tag-persistent-alist', or produced with
+`org-tag-string-to-alist'.
+
+Return value is a string suitable as a value for \"TAGS\"
+keyword.
+
+When optional argument SKIP-KEY is non-nil, skip selection keys
+next to tags."
+  (mapconcat (lambda (token)
+	       (pcase token
+		 (`(:startgroup) "{")
+		 (`(:endgroup) "}")
+		 (`(:startgrouptag) "[")
+		 (`(:endgrouptag) "]")
+		 (`(:grouptags) ":")
+		 (`(:newline) "\\n")
+		 ((and
+		   (guard (not skip-key))
+		   `(,(and tag (pred stringp)) . ,(and key (pred characterp))))
+		  (format "%s(%c)" tag key))
+		 (`(,(and tag (pred stringp)) . ,_) tag)
+		 (_ (user-error "Invalid tag token: %S" token))))
+	     alist
+	     " "))
+
+(defun org-tag-alist-to-groups (alist)
+  "Return group alist from tag ALIST.
+ALIST is an alist, as defined in `org-tag-alist' or
+`org-tag-persistent-alist', or produced with
+`org-tag-string-to-alist'.  Return value is an alist following
+the pattern (GROUP-TAG TAGS) where GROUP-TAG is the tag, as
+a string, summarizing TAGS, as a list of strings."
+  (let (groups group-status current-group)
+    (dolist (token alist (nreverse groups))
+      (pcase token
+	(`(,(or :startgroup :startgrouptag)) (setq group-status t))
+	(`(,(or :endgroup :endgrouptag))
+	 (when (eq group-status 'append)
+	   (push (nreverse current-group) groups))
+	 (setq group-status nil))
+	(`(:grouptags) (setq group-status 'append))
+	((and `(,tag . ,_) (guard group-status))
+	 (if (eq group-status 'append) (push tag current-group)
+	   (setq current-group (list tag))))
+	(_ nil)))))
 
 (defun org-file-contents (file &optional noerror)
   "Return the contents of FILE, as a string."
@@ -5794,7 +5848,9 @@ by a #."
 (defun org-fontify-meta-lines-and-blocks (limit)
   (condition-case nil
       (org-fontify-meta-lines-and-blocks-1 limit)
-    (error (message "org-mode fontification error"))))
+    (error (message "org-mode fontification error in %S at %d"
+		    (current-buffer)
+		    (line-number-at-pos)))))
 
 (defun org-fontify-meta-lines-and-blocks-1 (limit)
   "Fontify #+ lines and blocks."
@@ -9792,14 +9848,12 @@ active region."
 				 (buffer-file-name (buffer-base-buffer)))))
 	   ;; Add a context search string
 	   (when (org-xor org-context-in-file-links arg)
-	     (let* ((ee (org-element-at-point))
-		    (et (org-element-type ee))
-		    (ev (plist-get (cadr ee) :value))
-		    (ek (plist-get (cadr ee) :key))
-		    (eok (and (stringp ek) (string-match "name" ek))))
+	     (let* ((element (org-element-at-point))
+		    (type (org-element-type element))
+		    (name (org-element-property :name element)))
 	       (setq txt (cond
 			  ((org-at-heading-p) nil)
-			  ((and (eq et 'keyword) eok) ev)
+			  (name)
 			  ((org-region-active-p)
 			   (buffer-substring (region-beginning) (region-end)))))
 	       (when (or (null txt) (string-match "\\S-" txt))
@@ -9808,7 +9862,7 @@ active region."
 			       (condition-case nil
 				   (org-make-org-heading-search-string txt)
 				 (error "")))
-		       desc (or (and (eq et 'keyword) eok ev)
+		       desc (or name
 				(nth 4 (ignore-errors (org-heading-components)))
 				"NONE")))))
 	   (when (string-match "::\\'" cpltxt)
@@ -9841,17 +9895,13 @@ active region."
        (when (consp link) (setq cpltxt (car link) link (cdr link)))
        (setq link (or link cpltxt)
 	     desc (or desc cpltxt))
-       (cond ((equal desc "NONE") (setq desc nil))
-	     ((and desc (string-match org-bracket-link-analytic-regexp desc))
-	      (let ((d0 (match-string 3 desc))
-		    (p0 (match-string 5 desc)))
-		(setq desc
+       (cond ((not desc))
+	     ((equal desc "NONE") (setq desc nil))
+	     (t (setq desc
 		      (replace-regexp-in-string
-		       org-bracket-link-regexp
-		       (concat (or p0 d0)
-			       (if (equal (length (match-string 0 desc))
-					  (length desc)) "*" "")) desc)))))
-
+		       org-bracket-link-analytic-regexp
+		       (lambda (m) (or (match-string 5 m) (match-string 3 m)))
+		       desc))))
        ;; Return the link
        (if (not (and (or (org-called-interactively-p 'any)
 			 executing-kbd-macro)
@@ -14336,16 +14386,15 @@ instead of the agenda files."
   (save-excursion
     (org-uniquify
      (delq nil
-	   (apply 'append
+	   (apply #'append
 		  (mapcar
 		   (lambda (file)
 		     (set-buffer (find-file-noselect file))
-		     (append (org-get-buffer-tags)
-			     (mapcar (lambda (x) (if (stringp (car-safe x))
-						     (list (car-safe x)) nil))
-				     org-tag-alist)))
-		   (if (and files (car files))
-		       files
+		     (mapcar (lambda (x)
+			       (and (stringp (car-safe x))
+				    (list (car-safe x))))
+			     (or org-current-tag-alist (org-get-buffer-tags))))
+		   (if (car-safe files) files
 		     (org-agenda-files))))))))
 
 (defun org-make-tags-matcher (match)
@@ -14907,13 +14956,13 @@ When JUST-ALIGN is non-nil, only align tags."
 		    (let* ((table
 			    (setq
 			     org-last-tags-completion-table
-			     (append
-			      org-tag-persistent-alist
-			      (or org-tag-alist (org-get-buffer-tags))
-			      (and
-			       org-complete-tags-always-offer-all-agenda-tags
-			       (org-global-tags-completion-table
-				(org-agenda-files))))))
+			     (delete-dups
+			      (append
+			       (or org-current-tag-alist (org-get-buffer-tags))
+			       (and
+				org-complete-tags-always-offer-all-agenda-tags
+				(org-global-tags-completion-table
+				 (org-agenda-files)))))))
 			   (current-tags (org-split-string current ":"))
 			   (inherited-tags
 			    (nreverse (nthcdr (length current-tags)
@@ -15796,7 +15845,7 @@ strings."
 
 (defun org-property--local-values (property literal-nil)
   "Return value for PROPERTY in current entry.
-Value is a list whose care is the base value for PROPERTY and cdr
+Value is a list whose car is the base value for PROPERTY and cdr
 a list of accumulated values.  Return nil if neither is found in
 the entry.  Also return nil when PROPERTY is set to \"nil\",
 unless LITERAL-NIL is non-nil."
@@ -17476,18 +17525,19 @@ both scheduled and deadline timestamps."
   (let ((case-fold-search nil)
 	(regexp (org-re-timestamp org-ts-type))
 	(callback
-	 `(lambda ()
-	    (let ((match (match-string 1)))
-	      (and
-	       ,(if (memq org-ts-type '(active inactive all))
-		    '(eq (org-element-type (org-element-context)) 'timestamp)
-		  '(org-at-planning-p))
-	       (not (time-less-p
-		     (org-time-string-to-time match)
-		     (org-time-string-to-time start-date)))
-	       (time-less-p
-		(org-time-string-to-time match)
-		(org-time-string-to-time end-date)))))))
+	 (let ((type org-ts-type))
+	   (lambda ()
+	     (let ((match (match-string 1)))
+	       (and
+		(if (memq type '(active inactive all))
+		    (eq (org-element-type (org-element-context)) 'timestamp)
+		  (org-at-planning-p))
+		(not (time-less-p
+		      (org-time-string-to-time match)
+		      (org-time-string-to-time start-date)))
+		(time-less-p
+		 (org-time-string-to-time match)
+		 (org-time-string-to-time end-date))))))))
     (message "%d entries between %s and %s"
 	     (org-occur regexp nil callback) start-date end-date)))
 
@@ -17964,13 +18014,14 @@ When SUPPRESS-TMP-DELAY is non-nil, suppress delays like \"--2d\"."
 	  (setcar (cdr time0) (+ (nth 1 time0)
 				 (if (> n 0) (- rem) (- dm rem))))))
       (setq time
-	    (encode-time (or (car time0) 0)
-			 (+ (if (eq org-ts-what 'minute) n 0) (nth 1 time0))
-			 (+ (if (eq org-ts-what 'hour) n 0)   (nth 2 time0))
-			 (+ (if (eq org-ts-what 'day) n 0)    (nth 3 time0))
-			 (+ (if (eq org-ts-what 'month) n 0)  (nth 4 time0))
-			 (+ (if (eq org-ts-what 'year) n 0)   (nth 5 time0))
-			 (nthcdr 6 time0)))
+	    (apply #'encode-time
+		   (or (car time0) 0)
+		   (+ (if (eq org-ts-what 'minute) n 0) (nth 1 time0))
+		   (+ (if (eq org-ts-what 'hour) n 0)   (nth 2 time0))
+		   (+ (if (eq org-ts-what 'day) n 0)    (nth 3 time0))
+		   (+ (if (eq org-ts-what 'month) n 0)  (nth 4 time0))
+		   (+ (if (eq org-ts-what 'year) n 0)   (nth 5 time0))
+		   (nthcdr 6 time0)))
       (when (and (member org-ts-what '(hour minute))
 		 extra
 		 (string-match "-\\([012][0-9]\\):\\([0-5][0-9]\\)" extra))
@@ -18687,8 +18738,7 @@ When a buffer is unmodified, it is just killed.  When modified, it is saved
 	    (setq org-tag-alist-for-agenda
 		  (org-uniquify
 		   (append org-tag-alist-for-agenda
-			   org-tag-alist
-			   org-tag-persistent-alist)))
+			   org-current-tag-alist)))
 	    ;; Merge current file's tag groups into global
 	    ;; `org-tag-groups-alist-for-agenda'.
 	    (when org-group-tags
@@ -23672,7 +23722,8 @@ time-range, if possible.
 When optional argument UTC is non-nil, time will be expressed as
 Universal Time."
   (format-time-string
-   format (org-timestamp--to-internal-time timestamp end) utc))
+   format (org-timestamp--to-internal-time timestamp end)
+   (and utc t)))
 
 (defun org-timestamp-split-range (timestamp &optional end)
   "Extract a TIMESTAMP object from a date or time range.
@@ -23953,17 +24004,18 @@ This command will look at the current kill and check if is a single
 subtree, or a series of subtrees[1].  If it passes the test, and if the
 cursor is at the beginning of a line or after the stars of a currently
 empty headline, then the yank is handled specially.  How exactly depends
-on the value of the following variables, both set by default.
+on the value of the following variables.
 
 `org-yank-folded-subtrees'
-    When set, the subtree(s) will be folded after insertion, but only
-    if doing so would now swallow text after the yanked text.
+    By default, this variable is non-nil, which results in subtree(s)
+    being folded after insertion, but only if doing so would now
+    swallow text after the yanked text.
 
 `org-yank-adjusted-subtrees'
-    When set, the subtree will be promoted or demoted in order to
-    fit into the local outline tree structure, which means that the
-    level will be adjusted so that it becomes the smaller one of the
-    two *visible* surrounding headings.
+    When non-nil (the default value is nil), the subtree will be
+    promoted or demoted in order to fit into the local outline tree
+    structure, which means that the level will be adjusted so that it
+    becomes the smaller one of the two *visible* surrounding headings.
 
 Any prefix to this command will cause `yank' to be called directly with
 no special treatment.  In particular, a simple \\[universal-argument] prefix \
