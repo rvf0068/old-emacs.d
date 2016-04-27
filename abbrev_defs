@@ -13,6 +13,8 @@
 
 (define-abbrev-table 'bbdb-mode-abbrev-table '())
 
+(define-abbrev-table 'biblio-selection-mode-abbrev-table '())
+
 (define-abbrev-table 'bibtex-mode-abbrev-table '())
 
 (define-abbrev-table 'bookmark-bmenu-mode-abbrev-table '())
@@ -59,6 +61,8 @@
 
 (define-abbrev-table 'doctex-mode-abbrev-table '())
 
+(define-abbrev-table 'edebug-eval-mode-abbrev-table '())
+
 (define-abbrev-table 'edit-abbrevs-mode-abbrev-table '())
 
 (define-abbrev-table 'ein:notebook-plain-mode-abbrev-table '())
@@ -90,11 +94,7 @@
 
 (define-abbrev-table 'gitignore-mode-abbrev-table '())
 
-(define-abbrev-table 'global-abbrev-table
-  '(
-    ("taht" "that" nil 2)
-    ("teh" "the" nil 1)
-   ))
+(define-abbrev-table 'global-abbrev-table '())
 
 (define-abbrev-table 'gnus-article-edit-mode-abbrev-table '())
 
@@ -220,13 +220,17 @@
     ("ev" "espacio vectorial" nil 0)
     ("iff" "if and only if" nil 0)
     ("li" "linearly independent" nil 0)
+    ("lt" "left transversal" nil 3)
     ("mcd" "máximo común divisor" nil 3)
     ("nc" "número complejo" nil 0)
     ("ncs" "números complejos" nil 1)
+    ("orb" "\\mathrm{Orb}_{G}(x)" nil 2)
     ("pda" "punto de acumulación" nil 2)
+    ("pg" "permutation group" nil 1)
     ("pm" "polinomio mínimo" nil 6)
     ("ssi" "si y solo si" nil 9)
-    ("st" "such that" nil 1)
+    ("ssr" "Schreier-Sims representation" nil 1)
+    ("st" "such that" nil 2)
     ("tos" "totally ordered set" nil 1)
     ("ts" "topological space" nil 1)
    ))
@@ -272,6 +276,8 @@
 (define-abbrev-table 'snippet-mode-abbrev-table '())
 
 (define-abbrev-table 'special-mode-abbrev-table '())
+
+(define-abbrev-table 'speedbar-mode-abbrev-table '())
 
 (define-abbrev-table 'tablist-mode-abbrev-table '())
 

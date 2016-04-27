@@ -2,7 +2,7 @@
 # name: theorem
 # key: thm
 # binding: C-c y t
-# condition: (or (= (current-column) 3) (= (current-column) 0))
+# # condition: (or (= (current-column) 3) (= (current-column) 0))
 # contributor: Rafael Villarroel (rvf0068@gmail.com)
 # --
 #+begin_theorem
