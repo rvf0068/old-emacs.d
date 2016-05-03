@@ -1151,8 +1151,9 @@ effective."
   :tag "Org Reveal Location"
   :group 'org-structure)
 
-(defcustom org-show-context-detail '((isearch . lineage)
+(defcustom org-show-context-detail '((agenda . local)
 				     (bookmark-jump . lineage)
+				     (isearch . lineage)
 				     (default . ancestors))
   "Alist between context and visibility span when revealing a location.
 
@@ -1201,8 +1202,8 @@ make it harder to edit the location of the match.  In such
 a case, use the command `org-reveal' (\\[org-reveal]) to show
 more context."
   :group 'org-reveal-location
-  :version "25.1"
-  :package-version '(Org . "8.3")
+  :version "25.2"
+  :package-version '(Org . "9.0")
   :type '(choice
 	  (const :tag "Canonical" t)
 	  (const :tag "Minimal" nil)
@@ -7177,23 +7178,24 @@ specifying which drawers should not be hidden."
 Otherwise make it visible.  When optional argument ELEMENT is
 a parsed drawer, as returned by `org-element-at-point', hide or
 show that drawer instead."
-  (when (save-excursion
-	  (beginning-of-line)
-	  (org-looking-at-p org-drawer-regexp))
-    (let ((drawer (or element (org-element-at-point))))
-      (when (memq (org-element-type drawer) '(drawer property-drawer))
-	(let ((post (org-element-property :post-affiliated drawer)))
-	  (save-excursion
-	    (outline-flag-region
-	     (progn (goto-char post) (line-end-position))
-	     (progn (goto-char (org-element-property :end drawer))
-		    (skip-chars-backward " \r\t\n")
-		    (line-end-position))
-	     flag))
-	  ;; When the drawer is hidden away, make sure point lies in
-	  ;; a visible part of the buffer.
-	  (when (and flag (> (line-beginning-position) post))
-	    (goto-char post)))))))
+  (let ((drawer (or element
+		    (and (save-excursion
+			   (beginning-of-line)
+			   (org-looking-at-p org-drawer-regexp))
+			 (org-element-at-point)))))
+    (when (memq (org-element-type drawer) '(drawer property-drawer))
+      (let ((post (org-element-property :post-affiliated drawer)))
+	(save-excursion
+	  (outline-flag-region
+	   (progn (goto-char post) (line-end-position))
+	   (progn (goto-char (org-element-property :end drawer))
+		  (skip-chars-backward " \r\t\n")
+		  (line-end-position))
+	   flag))
+	;; When the drawer is hidden away, make sure point lies in
+	;; a visible part of the buffer.
+	(when (and flag (> (line-beginning-position) post))
+	  (goto-char post))))))
 
 (defun org-subtree-end-visible-p ()
   "Is the end of the current subtree visible?"
@@ -9849,7 +9851,6 @@ active region."
 	   ;; Add a context search string
 	   (when (org-xor org-context-in-file-links arg)
 	     (let* ((element (org-element-at-point))
-		    (type (org-element-type element))
 		    (name (org-element-property :name element)))
 	       (setq txt (cond
 			  ((org-at-heading-p) nil)
@@ -13945,28 +13946,33 @@ be shown."
 DETAIL is either nil, `minimal', `local', `ancestors', `lineage',
 `tree', `canonical' or t.  See `org-show-context-detail' for more
 information."
-  (unless (org-before-first-heading-p)
-    ;; Show current heading and possibly its entry, following headline
-    ;; or all children.
-    (if (and (org-at-heading-p) (not (eq detail 'local)))
-	(org-flag-heading nil)
-      (org-show-entry)
+  ;; Show current heading and possibly its entry, following headline
+  ;; or all children.
+  (if (and (org-at-heading-p) (not (eq detail 'local)))
+      (org-flag-heading nil)
+    (org-show-entry)
+    ;; If point is hidden within a drawer or a block, make sure to
+    ;; expose it.
+    (dolist (o (overlays-at (point)))
+      (when (memq (overlay-get o 'invisible) '(org-hide-block outline))
+	(delete-overlay o)))
+    (unless (org-before-first-heading-p)
       (org-with-limited-levels
        (cl-case detail
 	 ((tree canonical t) (org-show-children))
 	 ((nil minimal ancestors))
 	 (t (save-excursion
 	      (outline-next-heading)
-	      (org-flag-heading nil))))))
-    ;; Show all siblings.
-    (when (eq detail 'lineage) (org-show-siblings))
-    ;; Show ancestors, possibly with their children.
-    (when (memq detail '(ancestors lineage tree canonical t))
-      (save-excursion
-	(while (org-up-heading-safe)
-	  (org-flag-heading nil)
-	  (when (memq detail '(canonical t)) (org-show-entry))
-	  (when (memq detail '(tree canonical t)) (org-show-children)))))))
+	      (org-flag-heading nil)))))))
+  ;; Show all siblings.
+  (when (eq detail 'lineage) (org-show-siblings))
+  ;; Show ancestors, possibly with their children.
+  (when (memq detail '(ancestors lineage tree canonical t))
+    (save-excursion
+      (while (org-up-heading-safe)
+	(org-flag-heading nil)
+	(when (memq detail '(canonical t)) (org-show-entry))
+	(when (memq detail '(tree canonical t)) (org-show-children))))))
 
 (defvar org-reveal-start-hook nil
   "Hook run before revealing a location.")
@@ -14953,16 +14959,27 @@ When JUST-ALIGN is non-nil, only align tags."
 		(if just-align current
 		  ;; Get a new set of tags from the user.
 		  (save-excursion
-		    (let* ((table
+		    (let* ((seen)
+			   (table
 			    (setq
 			     org-last-tags-completion-table
-			     (delete-dups
-			      (append
-			       (or org-current-tag-alist (org-get-buffer-tags))
-			       (and
-				org-complete-tags-always-offer-all-agenda-tags
-				(org-global-tags-completion-table
-				 (org-agenda-files)))))))
+			     ;; Uniquify tags in alists, yet preserve
+			     ;; structure (i.e., keywords).
+			     (delq nil
+				   (mapcar
+				    (lambda (pair)
+				      (let ((head (car pair)))
+					(cond ((symbolp head) pair)
+					      ((member head seen) nil)
+					      (t (push head seen)
+						 pair))))
+				    (append
+				     (or org-current-tag-alist
+					 (org-get-buffer-tags))
+				     (and
+				      org-complete-tags-always-offer-all-agenda-tags
+				      (org-global-tags-completion-table
+				       (org-agenda-files))))))))
 			   (current-tags (org-split-string current ":"))
 			   (inherited-tags
 			    (nreverse (nthcdr (length current-tags)
@@ -23832,57 +23849,46 @@ beyond the end of the headline."
 		     (car org-special-ctrl-a/e)
 		   org-special-ctrl-a/e))
 	deactivate-mark	refpos)
-    (if (org-bound-and-true-p visual-line-mode)
-	(beginning-of-visual-line 1)
-      (beginning-of-line 1))
-    (if (and arg (fboundp 'move-beginning-of-line))
-	(call-interactively 'move-beginning-of-line)
-      (unless (bobp)
-	(backward-char 1)
-	(if (org-truely-invisible-p)
-	    (while (and (not (bobp)) (org-truely-invisible-p))
-	      (backward-char 1)
-	      (beginning-of-line 1))
-	  (forward-char 1))))
-    (when special
-      (cond
-       ((and (looking-at org-complex-heading-regexp)
-	     (eq (char-after (match-end 1)) ?\s))
-	(setq refpos (min (1+ (or (match-end 3) (match-end 2) (match-end 1)))
-			  (point-at-eol)))
-	(goto-char
-	 (if (eq special t)
-	     (cond ((> pos refpos) refpos)
-		   ((= pos (point)) refpos)
-		   (t (point)))
-	   (cond ((> pos (point)) (point))
-		 ((not (eq last-command this-command)) (point))
-		 (t refpos)))))
-       ((org-at-item-p)
-	;; Being at an item and not looking at an the item means point
-	;; was previously moved to beginning of a visual line, which
-	;; doesn't contain the item.  Therefore, do nothing special,
-	;; just stay here.
-	(when (looking-at org-list-full-item-re)
-	  ;; Set special position at first white space character after
-	  ;; bullet, and check-box, if any.
-	  (let ((after-bullet
-		 (let ((box (match-end 3)))
-		   (if (not box) (match-end 1)
-		     (let ((after (char-after box)))
-		       (if (and after (= after ? )) (1+ box) box))))))
-	    ;; Special case: Move point to special position when
-	    ;; currently after it or at beginning of line.
-	    (if (eq special t)
-		(when (or (> pos after-bullet) (= (point) pos))
-		  (goto-char after-bullet))
-	      ;; Reversed case: Move point to special position when
-	      ;; point was already at beginning of line and command is
-	      ;; repeated.
-	      (when (and (= (point) pos) (eq last-command this-command))
-		(goto-char after-bullet))))))))
-    (org-no-warnings
-     (and (featurep 'xemacs) (setq zmacs-region-stays t))))
+    (call-interactively (if (org-bound-and-true-p visual-line-mode)
+			    #'beginning-of-visual-line
+			  #'move-beginning-of-line))
+    (cond
+     ((or arg (not special)))
+     ((and (looking-at org-complex-heading-regexp)
+	   (eq (char-after (match-end 1)) ?\s))
+      (setq refpos (min (1+ (or (match-end 3) (match-end 2) (match-end 1)))
+			(point-at-eol)))
+      (goto-char
+       (if (eq special t)
+	   (cond ((> pos refpos) refpos)
+		 ((= pos (point)) refpos)
+		 (t (point)))
+	 (cond ((> pos (point)) (point))
+	       ((not (eq last-command this-command)) (point))
+	       (t refpos)))))
+     ((org-at-item-p)
+      ;; Being at an item and not looking at an the item means point
+      ;; was previously moved to beginning of a visual line, which
+      ;; doesn't contain the item.  Therefore, do nothing special,
+      ;; just stay here.
+      (when (looking-at org-list-full-item-re)
+	;; Set special position at first white space character after
+	;; bullet, and check-box, if any.
+	(let ((after-bullet
+	       (let ((box (match-end 3)))
+		 (if (not box) (match-end 1)
+		   (let ((after (char-after box)))
+		     (if (and after (= after ? )) (1+ box) box))))))
+	  ;; Special case: Move point to special position when
+	  ;; currently after it or at beginning of line.
+	  (if (eq special t)
+	      (when (or (> pos after-bullet) (= (point) pos))
+		(goto-char after-bullet))
+	    ;; Reversed case: Move point to special position when
+	    ;; point was already at beginning of line and command is
+	    ;; repeated.
+	    (when (and (= (point) pos) (eq last-command this-command))
+	      (goto-char after-bullet))))))))
   (setq disable-point-adjustment
         (or (not (invisible-p (point)))
             (not (invisible-p (max (point-min) (1- (point))))))))
