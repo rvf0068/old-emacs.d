@@ -77,6 +77,7 @@
 	     '(("onlyenv"   "O" "\\begin{onlyenv}%a"     "\\end{onlyenv}")
 	       ("corollary" "r" "\\begin{corollary}%a%U" "\\end{corollary}")
 	       ("lemma"     "l" "\\begin{lemma}%a%U"     "\\end{lemma}")
+	       ("proposition"     "P" "\\begin{proposition}%a%U"     "\\end{proposition}")
 	       )))
 
 ;; GAP suport is included in the listings package
@@ -273,7 +274,7 @@ When called twice, replace the previously inserted \\(\\) by one $."
 ;; filters for beamer export
 (defun my-beamer-replacement (contents backend info)
   (when (eq backend 'beamer)
-    (replace-regexp-in-string "\\\\usepackage\\[margin=2.5cm\\]{geometry}\n\\|\\\\usepackage\\[colorlinks=true, linkcolor=blue\\]{hyperref}\n\\|\\\\usepackage\\[libertine,timesmathacc\\]{newtxmath}\n\\|\\[:B_corollary:\\]\\|\\[:B_lemma:\\]\\|\\[:B_definition:\\]\\|\\[:B_theorem:\\]\\|:B\\\\(_{\\\\text{theorem}}\\\\):\\|:B\\\\(_{\\\\text{block}}\\\\):BMCOL:" "" contents)
+    (replace-regexp-in-string "\\\\usepackage\\[margin=2.5cm\\]{geometry}\n\\|\\\\usepackage\\[colorlinks=true, linkcolor=blue\\]{hyperref}\n\\|\\\\usepackage\\[libertine,timesmathacc\\]{newtxmath}\n\\|\\[:B_corollary:\\]\\|\\[:B_proposition:\\]\\|\\[:B_lemma:\\]\\|\\[:B_definition:\\]\\|\\[:B_theorem:\\]\\|:B\\\\(_{\\\\text{theorem}}\\\\):\\|:B\\\\(_{\\\\text{block}}\\\\):BMCOL:" "" contents)
     ))
 
 (add-to-list 'org-export-filter-final-output-functions
