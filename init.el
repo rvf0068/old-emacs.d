@@ -158,7 +158,7 @@
 
 (load "~/.emacs.d/rvf-programming.el")
 
-(if (or (equal system-name "lahp") (equal system-name "dell") (equal system-name "HP-14"))
+(if (or (equal system-name "hp") (equal system-name "dell") (equal system-name "HP-14"))
     (load "~/.emacs.d/rvf-personal.el")
   )
 
@@ -173,7 +173,7 @@
 
 (diary)
 
-(if (or (equal system-name "lahp") (equal system-name "HP-14"))
+(if (or (equal system-name "hp") (equal system-name "HP-14"))
     (display-battery-mode)
   )
 
