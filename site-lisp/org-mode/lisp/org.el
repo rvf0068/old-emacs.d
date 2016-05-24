@@ -109,15 +109,17 @@ sure that we are at the beginning of the line.")
   "Matches a headline, putting stars and text into groups.
 Stars are put in group 1 and the trimmed body in group 2.")
 
-(declare-function calendar-check-holidays "holidays" (&optional date))
+(declare-function calendar-check-holidays "holidays" (date))
 (declare-function cdlatex-environment "ext:cdlatex" (environment item))
+(declare-function isearch-no-upper-case-p "isearch" (string regexp-flag))
 (declare-function org-add-archive-files "org-archive" (files))
 (declare-function org-agenda-entry-get-agenda-timestamp "org-agenda" (pom))
-(declare-function org-agenda-list "org-agenda" (&optional arg start-day span))
+(declare-function org-agenda-list "org-agenda"
+		  (&optional arg start-day span with-hour))
 (declare-function org-agenda-redo "org-agenda" (&optional all))
-(declare-function org-babel-do-in-edit-buffer "ob-core" (&rest body))
+(declare-function org-babel-do-in-edit-buffer "ob-core" (&rest body) t)
 (declare-function org-babel-tangle-file "ob-tangle" (file &optional target-file lang))
-(declare-function org-beamer-mode "ox-beamer" ())
+(declare-function org-beamer-mode "ox-beamer" (&optional prefix) t)
 (declare-function org-clock-get-last-clock-out-time "org-clock" ())
 (declare-function org-clock-out "org-clock" (&optional switch-to-state fail-quietly at-time))
 (declare-function org-clock-remove-overlays "org-clock" (&optional beg end noremove))
@@ -133,7 +135,7 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-element-contents "org-element" (element))
 (declare-function org-element-context "org-element" (&optional element))
 (declare-function org-element-copy "org-element" (datum))
-(declare-function org-element-interpret-data "org-element" (data &optional parent))
+(declare-function org-element-interpret-data "org-element" (data))
 (declare-function org-element-lineage "org-element" (blob &optional types with-self))
 (declare-function org-element-nested-p "org-element" (elem-a elem-b))
 (declare-function org-element-parse-buffer "org-element" (&optional granularity visible-only))
@@ -737,7 +739,7 @@ For export specific modules, see also `org-export-backends'."
 
 (defvar org-export-registered-backends) ; From ox.el.
 (declare-function org-export-derived-backend-p "ox" (backend &rest backends))
-(declare-function org-export-backend-name "ox" (backend))
+(declare-function org-export-backend-name "ox" (backend) t)
 (defcustom org-export-backends '(ascii html icalendar latex odt)
   "List of export back-ends that should be always available.
 
@@ -1676,6 +1678,16 @@ The highlights created by `org-toggle-latex-fragment' always need
   :group 'org-time
   :type 'boolean)
 
+(defcustom org-occur-case-fold-search t
+  "Non-nil means `org-occur' should be case-insensitive.
+If set to `smart' the search will be case-insensitive only if it
+doesn't specify any upper case character."
+  :group 'org-sparse-trees
+  :version "25.1"
+  :type '(choice
+	  (const :tag "Case-sensitive" nil)
+	  (const :tag "Case-insensitive" t)
+	  (const :tag "Case-insensitive for lower case searches only" 'smart)))
 
 (defcustom org-occur-hook '(org-first-headline-recenter)
   "Hook that is run after `org-occur' has constructed a sparse tree.
@@ -3979,27 +3991,122 @@ When using LaTeXML set this option to
 	  (const :tag "None" nil)
 	  (string :tag "\nShell command")))
 
-(defcustom org-latex-create-formula-image-program 'dvipng
-  "Program to convert LaTeX fragments with.
+(define-obsolete-variable-alias
+  'org-latex-create-formula-image-program
+  'org-preview-latex-default-process "25.1")
 
-dvipng          Process the LaTeX fragments to dvi file, then convert
-                dvi files to png files using dvipng.
-                This will also include processing of non-math environments.
-imagemagick     Convert the LaTeX fragments to pdf files and use imagemagick
-                to convert pdf files to png files"
+(defcustom org-preview-latex-default-process 'dvipng
+  "The default process to convert LaTeX fragments to image files.
+All available processes and theirs documents can be found in
+`org-preview-latex-process-alist', which see."
   :group 'org-latex
-  :version "24.1"
-  :type '(choice
-	  (const :tag "dvipng" dvipng)
-	  (const :tag "imagemagick" imagemagick)))
+  :version "25.2"
+  :package-version '(Org . "9.0")
+  :type 'symbol)
 
-(defcustom org-latex-preview-ltxpng-directory "ltxpng/"
+(defcustom org-preview-latex-process-alist
+  '((dvipng
+     :programs ("latex" "dvipng" "gs")
+     :description "dvi > png"
+     :message "you need to install programs: latex, dvipng and ghostscript."
+     :image-input-type "dvi"
+     :image-output-type "png"
+     :image-size-adjust (1.0 . 1.0)
+     :latex-compiler ("latex -interaction nonstopmode -output-directory %o %f")
+     :image-converter ("dvipng -fg %F -bg %B -D %D -T tight -o %b.png %f"))
+    (dvisvgm
+     :programs ("latex" "dvisvgm" "gs")
+     :description "dvi > svg"
+     :message "you need to install programs: latex, dvisvgm and ghostscript."
+     :use-xcolor t
+     :image-input-type "dvi"
+     :image-output-type "svg"
+     :image-size-adjust (1.7 . 1.5)
+     :latex-compiler ("latex -interaction nonstopmode -output-directory %o %f")
+     :image-converter ("dvisvgm %f -n -b min -c %S -o %b.svg"))
+    (imagemagick
+     :programs ("latex" "convert" "gs")
+     :description "pdf > png"
+     :message
+     "you need to install programs: latex, imagemagick and ghostscript."
+     :use-xcolor t
+     :image-input-type "pdf"
+     :image-output-type "png"
+     :image-size-adjust (1.0 . 1.0)
+     :latex-compiler ("latex -interaction nonstopmode -output-directory %o %f")
+     :image-converter
+     ("convert -density %S -trim -antialias %f -quality 100 %b.png")))
+  "Definitions of external processes for LaTeX previewing.
+Org mode can use some external commands to generate TeX snippet's images for
+previewing or inserting into HTML files, e.g., \"dvipng\".  This variable tells
+`org-create-formula-image' how to call them.
+
+The value is an alist with the pattern (NAME . PROPERTIES).  NAME is a symbol.
+PROPERTIES accepts the following attributes:
+
+  :programs           list of strings, required programs.
+  :description        string, describe the process.
+  :message            string, message it when required programs cannot be found.
+  :image-input-type   string, input file type of image converter (e.g., \"dvi\").
+  :image-output-type  string, output file type of image converter (e.g., \"png\").
+  :use-xcolor         boolean, when non-nil, LaTeX \"xcolor\" macro is used to
+                      deal with background and foreground color of image.
+                      Otherwise, dvipng style background and foregroud color
+                      format are generated.  You may then refer to them in
+                      command options with \"%F\" and \"%B\".
+  :image-size-adjust  cons of numbers, the car element is used to adjust LaTeX
+                      image size showed in buffer and the cdr element is for
+                      HTML file.  This option is only useful for process
+                      developers, users should use variable
+                      `org-format-latex-options' instead.
+  :post-clean         list of strings, files matched are to be cleaned up once
+                      the image is generated.  When nil, the files with \".dvi\",
+                      \".xdv\", \".pdf\", \".tex\", \".aux\", \".log\", \".svg\",
+                      \".png\", \".jpg\", \".jpeg\" or \".out\" extension will
+                      be cleaned up.
+  :latex-header       list of strings, the LaTeX header of the snippet file.
+                      When nil, the fallback value is used instead, which is
+                      controlled by `org-format-latex-header',
+                      `org-latex-default-packages-alist' and
+                      `org-latex-packages-alist', which see.
+  :latex-compiler     list of LaTeX commands, as strings.  Each of them is given
+                      to the shell.  Place-holders \"%t\", \"%b\" and \"%o\" are
+                      replaced with values defined below.
+  :image-converter    list of image converter commands strings.  Each of them is
+                      given to the shell and supports any of the following
+                      place-holders defined below.
+
+Place-holders used by `:image-converter' and `:latex-compiler':
+
+  %i    input file name.
+  %b    base name of input file.
+  %o    base directory of input file.
+
+Place-holders only used by `:image-converter':
+
+  %F    foreground of image
+  %B    background of image
+  %D    dpi, which is used to adjust image size by some processing commands.
+  %S    the image size scale ratio, which is used to adjust image size by some
+        processing commands."
+  :group 'org-latex
+  :version "25.2"
+  :package-version '(Org . "9.0")
+  :type '(alist :tag "LaTeX to image backends"
+		:value-type (plist)))
+
+(define-obsolete-variable-alias
+ 'org-latex-preview-ltxpng-directory
+ 'org-preview-latex-image-directory "25.1")
+
+(defcustom org-preview-latex-image-directory "ltximg/"
   "Path to store latex preview images.
 A relative path here creates many directories relative to the
 processed org files paths.  An absolute path puts all preview
 images at the same place."
   :group 'org-latex
-  :version "24.3"
+  :version "25.1"
+  :package-version '(Org . "9.0")
   :type 'string)
 
 (defun org-format-latex-mathml-available-p ()
@@ -4416,7 +4523,8 @@ This is needed for font-lock setup.")
 		  (&optional localp no-error-if-not-filep))
 (declare-function iswitchb-read-buffer
 		  "iswitchb"
-		  (prompt &optional default require-match start matches-set))
+		  (prompt &optional
+			  default require-match _predicate start matches-set))
 (declare-function org-agenda-change-all-lines
 		  "org-agenda"
 		  (newhead hdmarker &optional fixface just-this))
@@ -4426,7 +4534,7 @@ This is needed for font-lock setup.")
 (declare-function org-agenda-copy-local-variable "org-agenda" (var))
 (declare-function org-agenda-format-item
 		  "org-agenda"
-		  (extra txt &optional level category tags dotime noprefix
+		  (extra txt &optional level category tags dotime
 			 remove-re habitp))
 (declare-function org-agenda-maybe-redo "org-agenda" ())
 (declare-function org-agenda-new-marker "org-agenda" (&optional pos))
@@ -7204,9 +7312,11 @@ show that drawer instead."
 
 (defun org-first-headline-recenter ()
   "Move cursor to the first headline and recenter the headline."
-  (goto-char (point-min))
-  (when (re-search-forward (concat "^\\(" org-outline-regexp "\\)") nil t)
-    (set-window-start (selected-window) (point-at-bol))))
+  (let ((window (get-buffer-window)))
+    (when window
+      (goto-char (point-min))
+      (when (re-search-forward (concat "^\\(" org-outline-regexp "\\)") nil t)
+	(set-window-start window (line-beginning-position))))))
 
 ;;; Saving and restoring visibility
 
@@ -10552,11 +10662,18 @@ This is saved in case the need arises to restore it.")
 
 ;;;###autoload
 (defun org-open-at-point-global ()
-  "Follow a link like Org-mode does.
-This command can be called in any mode to follow a link that has
-Org-mode syntax."
+  "Follow a link or time-stamp like Org mode does.
+This command can be called in any mode to follow an external link
+or a time-stamp that has Org mode syntax.  Its behavior is
+undefined when called on internal links (e.g., fuzzy links).
+Raise an error when there is nothing to follow.  "
   (interactive)
-  (org-run-like-in-org-mode 'org-open-at-point))
+  (cond ((org-in-regexp org-any-link-re)
+	 (org-open-link-from-string (match-string-no-properties 0)))
+	((or (org-in-regexp org-ts-regexp-both nil t)
+	     (org-in-regexp org-tsr-regexp-both nil t))
+	 (org-follow-timestamp-link))
+	(t (user-error "No link found"))))
 
 ;;;###autoload
 (defun org-open-link-from-string (s &optional arg reference-buffer)
@@ -10633,12 +10750,7 @@ link in a property drawer line."
 	 ;; Exception: open timestamps and links in properties
 	 ;; drawers, keywords and comments.
 	 ((memq type '(comment comment-block keyword node-property))
-	  (cond ((org-in-regexp org-any-link-re)
-		 (org-open-link-from-string (match-string-no-properties 0)))
-		((or (org-in-regexp org-ts-regexp-both nil t)
-		     (org-in-regexp org-tsr-regexp-both nil t))
-		 (org-follow-timestamp-link))
-		(t (user-error "No link found"))))
+	  (call-interactively #'org-open-at-point-global))
 	 ;; On a headline or an inlinetask, but not on a timestamp,
 	 ;; a link, a footnote reference or on tags.
 	 ((and (memq type '(headline inlinetask))
@@ -12239,8 +12351,7 @@ This function can be used in a hook."
 
 ;;;; Completion
 
-(declare-function org-export-backend-name "org-export" (cl-x))
-(declare-function org-export-backend-options "org-export" (cl-x))
+(declare-function org-export-backend-options "ox" (cl-x) t)
 (defun org-get-export-keywords ()
   "Return a list of all currently understood export keywords.
 Export keywords include options, block names, attributes and
@@ -13866,14 +13977,18 @@ as well.")
 
 (defun org-occur (regexp &optional keep-previous callback)
   "Make a compact tree which shows all matches of REGEXP.
-The tree will show the lines where the regexp matches, and all higher
-headlines above the match.  It will also show the heading after the match,
-to make sure editing the matching entry is easy.
-If KEEP-PREVIOUS is non-nil, highlighting and exposing done by a previous
-call to `org-occur' will be kept, to allow stacking of calls to this
-command.
-If CALLBACK is non-nil, it is a function which is called to confirm
-that the match should indeed be shown."
+
+The tree will show the lines where the regexp matches, and any other context
+defined in `org-show-context-detail', which see.
+
+When optional argument KEEP-PREVIOUS is non-nil, highlighting and exposing
+done by a previous call to `org-occur' will be kept, to allow stacking of
+calls to this command.
+
+Optional argument CALLBACK can be a function of no argument.  In this case,
+it is called with point at the end of the match, match data being set
+accordingly.  Current match is shown only if the return value is non-nil.
+The function must neither move point nor alter narrowing."
   (interactive "sRegexp: \nP")
   (when (equal regexp "")
     (user-error "Regexp cannot be empty"))
@@ -13883,18 +13998,20 @@ that the match should indeed be shown."
   (let ((cnt 0))
     (save-excursion
       (goto-char (point-min))
-      (when (or (not keep-previous)          ; do not want to keep
-		(not org-occur-highlights))  ; no previous matches
+      (when (or (not keep-previous)	    ; do not want to keep
+		(not org-occur-highlights)) ; no previous matches
 	;; hide everything
 	(org-overview))
-      (while (re-search-forward regexp nil t)
-	(backward-char) ;; FIXME: Match timestamps at the end of a headline
-	(when (or (not callback)
-		  (save-match-data (funcall callback)))
-	  (setq cnt (1+ cnt))
-	  (when org-highlight-sparse-tree-matches
-	    (org-highlight-new-match (match-beginning 0) (match-end 0)))
-	  (org-show-context 'occur-tree))))
+      (let ((case-fold-search (if (eq org-occur-case-fold-search 'smart)
+				  (isearch-no-upper-case-p regexp t)
+				org-occur-case-fold-search)))
+	(while (re-search-forward regexp nil t)
+	  (when (or (not callback)
+		    (save-match-data (funcall callback)))
+	    (setq cnt (1+ cnt))
+	    (when org-highlight-sparse-tree-matches
+	      (org-highlight-new-match (match-beginning 0) (match-end 0)))
+	    (org-show-context 'occur-tree)))))
     (when org-remove-highlights-with-change
       (org-add-hook 'before-change-functions 'org-remove-occur-highlights
 		    nil 'local))
@@ -17507,7 +17624,10 @@ both scheduled and deadline timestamps."
 	  (lambda ()
 	    (let ((match (match-string 1)))
 	      (and (if (memq ts-type '(active inactive all))
-		       (eq (org-element-type (org-element-context)) 'timestamp)
+		       (eq (org-element-type (save-excursion
+					       (backward-char)
+					       (org-element-context)))
+			   'timestamp)
 		     (org-at-planning-p))
 		   (time-less-p
 		    (org-time-string-to-time match)
@@ -17526,7 +17646,10 @@ both scheduled and deadline timestamps."
 	  (lambda ()
 	    (let ((match (match-string 1)))
 	      (and (if (memq ts-type '(active inactive all))
-		       (eq (org-element-type (org-element-context)) 'timestamp)
+		       (eq (org-element-type (save-excursion
+					       (backward-char)
+					       (org-element-context)))
+			   'timestamp)
 		     (org-at-planning-p))
 		   (not (time-less-p
 			 (org-time-string-to-time match)
@@ -17547,7 +17670,10 @@ both scheduled and deadline timestamps."
 	     (let ((match (match-string 1)))
 	       (and
 		(if (memq type '(active inactive all))
-		    (eq (org-element-type (org-element-context)) 'timestamp)
+		    (eq (org-element-type (save-excursion
+					    (backward-char)
+					    (org-element-context)))
+			'timestamp)
 		  (org-at-planning-p))
 		(not (time-less-p
 		      (org-time-string-to-time match)
@@ -18982,9 +19108,12 @@ looks only before point, not after."
     (org-in-regexp
      "\\\\[a-zA-Z]+\\*?\\(\\(\\[[^][\n{}]*\\]\\)\\|\\({[^{}\n]*}\\)\\)*")))
 
-(defun org--format-latex-make-overlay (beg end image)
-  "Build an overlay between BEG and END using IMAGE file."
-  (let ((ov (make-overlay beg end)))
+(defun org--format-latex-make-overlay (beg end image &optional imagetype)
+  "Build an overlay between BEG and END using IMAGE file.
+Argument IMAGETYPE is the extension of the displayed image,
+as a string.  It defaults to \"png\"."
+  (let ((ov (make-overlay beg end))
+	(imagetype (or (intern imagetype) 'png)))
     (overlay-put ov 'org-overlay-type 'org-latex-overlay)
     (overlay-put ov 'evaporate t)
     (overlay-put ov
@@ -18994,10 +19123,10 @@ looks only before point, not after."
     (if (featurep 'xemacs)
 	(progn
 	  (overlay-put ov 'invisible t)
-	  (overlay-put ov 'end-glyph (make-glyph (vector 'png :file image))))
+	  (overlay-put ov 'end-glyph (make-glyph (vector imagetype :file image))))
       (overlay-put ov
 		   'display
-		   (list 'image :type 'png :file image :ascent 'center)))))
+		   (list 'image :type imagetype :file image :ascent 'center)))))
 
 (defun org--list-latex-overlays (&optional beg end)
   "List all Org LaTeX overlays in current buffer.
@@ -19078,14 +19207,13 @@ for all fragments in the buffer."
 		   (narrow-to-region beg end))))))
 	    (let ((file (buffer-file-name (buffer-base-buffer))))
 	      (org-format-latex
-	       (concat org-latex-preview-ltxpng-directory "org-ltxpng")
+	       (concat org-preview-latex-image-directory "org-ltximg")
 	       ;; Emacs cannot overlay images from remote hosts.
 	       ;; Create it in `temporary-file-directory' instead.
 	       (if (or (not file) (file-remote-p file))
 		   temporary-file-directory
 		 default-directory)
-	       'overlays msg 'forbuffer
-	       org-latex-create-formula-image-program)))
+	       'overlays msg 'forbuffer org-preview-latex-default-process)))
 	  ;; Work around a bug that doesn't restore window's start
 	  ;; when widening back the buffer.
 	  (set-window-start nil window-start)
@@ -19125,8 +19253,8 @@ Some of the options can be changed using the variable
 			   (goto-char (org-element-property :end context))
 			   (skip-chars-backward " \r\t\n")
 			   (point))))
-		(cl-case processing-type
-		  (mathjax
+		(cond
+		  ((eq processing-type 'mathjax)
 		   ;; Prepare for MathJax processing.
 		   (if (not (string-match "\\`\\$\\$?" value))
 		       (goto-char end)
@@ -19134,11 +19262,13 @@ Some of the options can be changed using the variable
 		     (if (string= (match-string 0 value) "$$")
 			 (insert "\\[" (substring value 2 -2) "\\]")
 		       (insert "\\(" (substring value 1 -1) "\\)"))))
-		  ((dvipng imagemagick)
+		  ((assq processing-type org-preview-latex-process-alist)
 		   ;; Process to an image.
 		   (cl-incf cnt)
 		   (goto-char beg)
-		   (let* ((face (face-at-point))
+		   (let* ((processing-info
+			   (cdr (assq processing-type org-preview-latex-process-alist)))
+			  (face (face-at-point))
 			  ;; Get the colors from the face at point.
 			  (fg
 			   (let ((color (plist-get org-format-latex-options
@@ -19158,9 +19288,10 @@ Some of the options can be changed using the variable
 					     org-latex-packages-alist
 					     org-format-latex-options
 					     forbuffer value fg bg))))
+			  (imagetype (or (plist-get processing-info :image-output-type) "png"))
 			  (absprefix (expand-file-name prefix dir))
-			  (linkfile (format "%s_%s.png" prefix hash))
-			  (movefile (format "%s_%s.png" absprefix hash))
+			  (linkfile (format "%s_%s.%s" prefix hash imagetype))
+			  (movefile (format "%s_%s.%s" absprefix hash imagetype))
 			  (sep (and block-type "\n\n"))
 			  (link (concat sep "[[file:" linkfile "]]" sep))
 			  (options
@@ -19182,7 +19313,7 @@ Some of the options can be changed using the variable
 			     (when (eq (overlay-get o 'org-overlay-type)
 				       'org-latex-overlay)
 			       (delete-overlay o)))
-			   (org--format-latex-make-overlay beg end movefile)
+			   (org--format-latex-make-overlay beg end movefile imagetype)
 			   (goto-char end))
 		       (delete-region beg end)
 		       (insert
@@ -19191,7 +19322,7 @@ Some of the options can be changed using the variable
 				  (replace-regexp-in-string "\"" "" value)
 				  'org-latex-src-embed-type
 				  (if block-type 'paragraph 'character)))))))
-		  (mathml
+		  ((eq processing-type 'mathml)
 		   ;; Process to MathML.
 		   (unless (org-format-latex-mathml-available-p)
 		     (user-error "LaTeX to MathML converter not configured"))
@@ -19201,8 +19332,8 @@ Some of the options can be changed using the variable
 		   (delete-region beg end)
 		   (insert (org-format-latex-as-mathml
 			    value block-type prefix dir)))
-		  (otherwise
-		   (error "Unknown conversion type %s for LaTeX fragments"
+		  (t
+		   (error "Unknown conversion process %s for LaTeX fragments"
 			  processing-type)))))))))))
 
 (defun org-create-math-formula (latex-frag &optional mathml-file)
@@ -19299,31 +19430,6 @@ inspection."
       ;; Failed conversion.  Return the LaTeX fragment verbatim
       latex-frag)))
 
-(defun org-create-formula-image (string tofile options buffer &optional type)
-  "Create an image from LaTeX source using dvipng or convert.
-This function calls either `org-create-formula-image-with-dvipng'
-or `org-create-formula-image-with-imagemagick' depending on the
-value of `org-latex-create-formula-image-program' or on the value
-of the optional TYPE variable.
-
-Note: ultimately these two function should be combined as they
-share a good deal of logic."
-  (org-check-external-command
-   "latex" "needed to convert LaTeX fragments to images")
-  (funcall
-   (cl-case (or type org-latex-create-formula-image-program)
-     (dvipng
-      (org-check-external-command
-       "dvipng" "needed to convert LaTeX fragments to images")
-      #'org-create-formula-image-with-dvipng)
-     (imagemagick
-      (org-check-external-command
-       "convert" "you need to install imagemagick")
-      #'org-create-formula-image-with-imagemagick)
-     (t (error
-         "Invalid value of `org-latex-create-formula-image-program'")))
-   string tofile options buffer))
-
 (declare-function org-export-get-backend "ox" (name))
 (declare-function org-export--get-global-options "ox" (&optional backend))
 (declare-function org-export--get-inbuffer-options "ox" (&optional backend))
@@ -19354,133 +19460,105 @@ horizontal and vertical directions."
 		(/ (display-mm-height) 25.4)))
     (error "Attempt to calculate the dpi of a non-graphic display")))
 
-;; This function borrows from Ganesh Swami's latex2png.el
-(defun org-create-formula-image-with-dvipng (string tofile options buffer)
-  "This calls dvipng."
-  (require 'ox-latex)
-  (let* ((tmpdir (if (featurep 'xemacs)
-		     (temp-directory)
-		   temporary-file-directory))
+(defun org-create-formula-image
+    (string tofile options buffer &optional processing-type)
+  "Create an image from LaTeX source using external processes.
+
+The LaTeX STRING is saved to a temporary LaTeX file, then
+converted to an image file by process PROCESSING-TYPE defined in
+`org-preview-latex-process-alist'.  A nil value defaults to
+`org-preview-latex-default-process'.
+
+The generated image file is eventually moved to TOFILE.
+
+The OPTIONS argument controls the size, foreground color and
+background color of the generated image.
+
+When BUFFER non-nil, this function is used for LaTeX previewing.
+Otherwise, it is used to deal with LaTeX snippets showed in
+a HTML file."
+  (let* ((processing-type (or processing-type
+			      org-preview-latex-default-process))
+	 (processing-info
+	  (cdr (assq processing-type org-preview-latex-process-alist)))
+	 (programs (plist-get processing-info :programs))
+	 (error-message (or (plist-get processing-info :message) ""))
+	 (use-xcolor (plist-get processing-info :use-xcolor))
+	 (image-input-type (plist-get processing-info :image-input-type))
+	 (image-output-type (plist-get processing-info :image-output-type))
+	 (post-clean (or (plist-get processing-info :post-clean)
+			 '(".dvi" ".xdv" ".pdf" ".tex" ".aux" ".log"
+			   ".svg" ".png" ".jpg" ".jpeg" ".out")))
+	 (latex-header (or (plist-get processing-info :latex-header)
+			   (org-create-formula--latex-header)))
+	 (latex-compiler (plist-get processing-info :latex-compiler))
+	 (image-converter (plist-get processing-info :image-converter))
+	 (tmpdir temporary-file-directory)
 	 (texfilebase (make-temp-name
 		       (expand-file-name "orgtex" tmpdir)))
 	 (texfile (concat texfilebase ".tex"))
-	 (dvifile (concat texfilebase ".dvi"))
-	 (pngfile (concat texfilebase ".png"))
-	 (scale (or (plist-get options (if buffer :scale :html-scale)) 1.0))
-	 ;; This assumes that the display has the same pixel width in
-	 ;; the horizontal and vertical directions
-	 (dpi (number-to-string (* scale (if buffer (org--get-display-dpi) 120))))
+	 (font-height (face-attribute 'default :height nil))
+	 (image-size-adjust (or (plist-get processing-info :image-size-adjust)
+				'(1.0 . 1.0)))
+	 (scale (* (if buffer (car image-size-adjust) (cdr image-size-adjust))
+		   (or (plist-get options (if buffer :scale :html-scale)) 1.0)))
+	 (dpi (* scale (floor (if buffer font-height 140.0))))
 	 (fg (or (plist-get options (if buffer :foreground :html-foreground))
 		 "Black"))
 	 (bg (or (plist-get options (if buffer :background :html-background))
-		 "Transparent")))
-    (if (eq fg 'default) (setq fg (org-dvipng-color :foreground))
-      (unless (string= fg "Transparent") (setq fg (org-dvipng-color-format fg))))
-    (if (eq bg 'default) (setq bg (org-dvipng-color :background))
-      (unless (string= bg "Transparent") (setq bg (org-dvipng-color-format bg))))
-    (let ((latex-header (org-create-formula--latex-header)))
+		 "Transparent"))
+	 (log-buf (get-buffer-create "*Org Preview LaTeX Output*"))
+	 (resize-mini-windows nil)) ;Fix Emacs flicker when creating image.
+    (dolist (program programs)
+      (org-check-external-command program error-message))
+    (if use-xcolor
+	(progn (if (eq fg 'default)
+		   (setq fg (org-latex-color :foreground))
+		 (setq fg (org-latex-color-format fg)))
+	       (if (eq bg 'default)
+		   (setq bg (org-latex-color :background))
+		 (setq bg (org-latex-color-format
+			   (if (string= bg "Transparent") "white" bg))))
+	       (with-temp-file texfile
+		 (insert latex-header)
+		 (insert "\n\\begin{document}\n"
+			 "\\definecolor{fg}{rgb}{" fg "}\n"
+			 "\\definecolor{bg}{rgb}{" bg "}\n"
+			 "\n\\pagecolor{bg}\n"
+			 "\n{\\color{fg}\n"
+			 string
+			 "\n}\n"
+			 "\n\\end{document}\n")))
+      (if (eq fg 'default)
+	  (setq fg (org-dvipng-color :foreground))
+	(unless (string= fg "Transparent")
+	  (setq fg (org-dvipng-color-format fg))))
+      (if (eq bg 'default)
+	  (setq bg (org-dvipng-color :background))
+	(unless (string= bg "Transparent")
+	  (setq bg (org-dvipng-color-format bg))))
       (with-temp-file texfile
 	(insert latex-header)
 	(insert "\n\\begin{document}\n" string "\n\\end{document}\n")))
-    (let ((dir default-directory))
-      (ignore-errors
-	(cd tmpdir)
-	(call-process "latex" nil nil nil texfile))
-      (cd dir))
-    (if (not (file-exists-p dvifile))
-	(progn (message "Failed to create dvi file from %s" texfile) nil)
-      (ignore-errors
-	(if (featurep 'xemacs)
-	    (call-process "dvipng" nil nil nil
-			  "-fg" fg "-bg" bg
-			  "-T" "tight"
-			  "-o" pngfile
-			  dvifile)
-	  (call-process "dvipng" nil nil nil
-			"-fg" fg "-bg" bg
-			"-D" dpi
-			;;"-x" scale "-y" scale
-			"-T" "tight"
-			"-o" pngfile
-			dvifile)))
-      (if (not (file-exists-p pngfile))
-	  (if org-format-latex-signal-error
-	      (error "Failed to create png file from %s" texfile)
-	    (message "Failed to create png file from %s" texfile)
-	    nil)
-	;; Use the requested file name and clean up
-	(copy-file pngfile tofile 'replace)
-	(dolist (e '(".dvi" ".tex" ".aux" ".log" ".png" ".out"))
-	  (when (file-exists-p (concat texfilebase e))
-	    (delete-file (concat texfilebase e))))
-	pngfile))))
 
-(declare-function org-latex-compile "ox-latex" (texfile &optional snippet))
-(defun org-create-formula-image-with-imagemagick (string tofile options buffer)
-  "This calls convert, which is included into imagemagick."
-  (require 'ox-latex)
-  (let* ((tmpdir (if (featurep 'xemacs)
-		     (temp-directory)
-		   temporary-file-directory))
-	 (texfilebase (make-temp-name
-		       (expand-file-name "orgtex" tmpdir)))
-	 (texfile (concat texfilebase ".tex"))
-	 (pdffile (concat texfilebase ".pdf"))
-	 (pngfile (concat texfilebase ".png"))
-	 (scale (or (plist-get options (if buffer :scale :html-scale)) 1.0))
-	 (dpi (number-to-string (* scale (if buffer (org--get-display-dpi) 120))))
-	 (fg (or (plist-get options (if buffer :foreground :html-foreground))
-		 "black"))
-	 (bg (or (plist-get options (if buffer :background :html-background))
-		 "white")))
-    (if (eq fg 'default) (setq fg (org-latex-color :foreground))
-      (setq fg (org-latex-color-format fg)))
-    (if (eq bg 'default) (setq bg (org-latex-color :background))
-      (setq bg (org-latex-color-format
-		(if (string= bg "Transparent") "white" bg))))
-    (let ((latex-header (org-create-formula--latex-header)))
-      (with-temp-file texfile
-	(insert latex-header)
-	(insert "\n\\begin{document}\n"
-		"\\definecolor{fg}{rgb}{" fg "}\n"
-		"\\definecolor{bg}{rgb}{" bg "}\n"
-		"\n\\pagecolor{bg}\n"
-		"\n{\\color{fg}\n"
-		string
-		"\n}\n"
-		"\n\\end{document}\n")))
-    (org-latex-compile texfile t)
-    (if (not (file-exists-p pdffile))
-	(progn (message "Failed to create pdf file from %s" texfile) nil)
-      (ignore-errors
-	(if (featurep 'xemacs)
-	    (call-process "convert" nil nil nil
-			  "-density" "96"
-			  "-trim"
-			  "-antialias"
-			  pdffile
-			  "-quality" "100"
-			  ;; "-sharpen" "0x1.0"
-			  pngfile)
-	  (call-process "convert" nil nil nil
-			"-density" dpi
-			"-trim"
-			"-antialias"
-			pdffile
-			"-quality" "100"
-			;; "-sharpen" "0x1.0"
-			pngfile)))
-      (if (not (file-exists-p pngfile))
-	  (if org-format-latex-signal-error
-	      (error "Failed to create png file from %s" texfile)
-	    (message "Failed to create png file from %s" texfile)
-	    nil)
-	;; Use the requested file name and clean up
-	(copy-file pngfile tofile 'replace)
-	(dolist (e '(".pdf" ".tex" ".aux" ".log" ".png"))
-	  (when (file-exists-p (concat texfilebase e))
-	    (delete-file (concat texfilebase e))))
-	pngfile))))
+    (let* ((err-msg (format "Please adjust '%s' part of \
+`org-preview-latex-process-alist'."
+			    processing-type))
+	   (image-input-file
+	    (org-compile-file
+	     texfile latex-compiler image-input-type err-msg log-buf))
+	   (image-output-file
+	    (org-compile-file
+	     image-input-file image-converter image-output-type err-msg log-buf
+	     `((?F . ,(shell-quote-argument fg))
+	       (?B . ,(shell-quote-argument bg))
+	       (?D . ,(shell-quote-argument (format "%s" dpi)))
+	       (?S . ,(shell-quote-argument (format "%s" (/ dpi 140.0))))))))
+      (copy-file image-output-file tofile 'replace)
+      (dolist (e post-clean)
+	(when (file-exists-p (concat texfilebase e))
+	  (delete-file (concat texfilebase e))))
+      image-output-file)))
 
 (defun org-splice-latex-header (tpl def-pkg pkg snippets-p &optional extra)
   "Fill a LaTeX header template TPL.
@@ -22837,6 +22915,73 @@ hierarchy of headlines by UP levels before marking the subtree."
       (call-interactively 'org-mark-element)
     (org-mark-element)))
 
+(defun org-file-newer-than-p (file time)
+  "Non-nil if FILE is newer than TIME.
+FILE is a filename, as a string, TIME is a list of integers, as
+returned by, e.g., `current-time'."
+  (and (file-exists-p file)
+       ;; Only compare times up to whole seconds as some file-systems
+       ;; (e.g. HFS+) do not retain any finer granularity.  As
+       ;; a consequence, make sure we return non-nil when the two
+       ;; times are equal.
+       (not (time-less-p (cl-subseq (nth 5 (file-attributes file)) 0 2)
+			 (cl-subseq time 0 2)))))
+
+(defun org-compile-file (source process ext &optional err-msg log-buf spec)
+  "Compile a SOURCE file using PROCESS.
+
+PROCESS is either a function or a list of shell commands, as
+strings.  EXT is a file extension, without the leading dot, as
+a string.  It is used to check if the process actually succeeded.
+
+PROCESS must create a file with the same base name and directory
+as SOURCE, but ending with EXT.  The function then returns its
+filename.  Otherwise, it raises an error.  The error message can
+then be refined by providing string ERR-MSG, which is appended to
+the standard message.
+
+If PROCESS is a function, it is called with a single argument:
+the SOURCE file.
+
+If it is a list of commands, each of them is called using
+`shell-command'.  By default, in each command, %b, %f and %o are
+replaced, respectively, with SOURCE base name, SOURCE full name
+and SOURCE directory.  It is possible, however, to use more
+place-holders by specifying them in optional argument SPEC, as an
+alist following the pattern (CHARACTER . REPLACEMENT-STRING).
+
+When PROCESS is a list of commands, optional argument LOG-BUF can
+be set to a buffer or a buffer name.  `shell-command' then uses
+it for output.
+
+`default-directory' is set to SOURCE directory during the whole
+process."
+  (let* ((base-name (file-name-sans-extension (file-name-nondirectory source)))
+	 (full-name (file-truename source))
+	 (out-dir (file-name-directory source))
+	 ;; Properly set working directory for compilation.
+	 (default-directory (if (file-name-absolute-p source)
+				(file-name-directory full-name)
+			      default-directory))
+	 (time (current-time))
+	 (err-msg (if (stringp err-msg) (concat ".  " err-msg) "")))
+    (save-window-excursion
+      (pcase process
+        ((pred functionp) (funcall process (shell-quote-argument source)))
+        ((pred consp)
+         (let ((log-buf (and log-buf (get-buffer-create log-buf)))
+               (spec (append spec
+			     `((?b . ,(shell-quote-argument base-name))
+			       (?f . ,(shell-quote-argument full-name))
+			       (?o . ,(shell-quote-argument out-dir))))))
+           (dolist (command process)
+             (shell-command (format-spec command spec) log-buf))))
+        (_ (error "No valid command to process %S%s" source err-msg)))
+      ;; Check for process failure.
+      (let ((output (concat out-dir base-name "." ext)))
+	(unless (org-file-newer-than-p output time)
+	  (error (format "File %S wasn't produced%s" output err-msg)))
+	output))))
 
 ;;; Indentation
 

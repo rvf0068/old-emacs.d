@@ -53,15 +53,17 @@
 (declare-function org-element-property "org-element" (property element))
 (declare-function org-element-type "org-element" (element))
 
-(declare-function org-export-create-backend "org-export" (&rest rest))
-(declare-function org-export-data-with-backend "org-export" (arg1 arg2 arg3))
-(declare-function org-export-filter-apply-functions "org-export" (&optional filters value info))
-(declare-function org-export-first-sibling-p "org-export" (blob info))
-(declare-function org-export-get-backend "org-export" (name))
-(declare-function org-export-get-environment "org-export" (&optional arg1 arg2 arg3))
-(declare-function org-export-install-filters "org-export" (info))
-(declare-function org-export-table-has-special-column-p "org-export" (table))
-(declare-function org-export-table-row-is-special-p "org-export" (table-row info))
+(declare-function org-export-create-backend "ox" (&rest rest) t)
+(declare-function org-export-data-with-backend "ox" (data backend info))
+(declare-function org-export-filter-apply-functions "ox"
+		  (filters value info))
+(declare-function org-export-first-sibling-p "ox" (blob info))
+(declare-function org-export-get-backend "ox" (name))
+(declare-function org-export-get-environment "ox"
+		  (&optional backend subtreep ext-plist))
+(declare-function org-export-install-filters "ox" (info))
+(declare-function org-export-table-has-special-column-p "ox" (table))
+(declare-function org-export-table-row-is-special-p "ox" (table-row info))
 
 (declare-function calc-eval "calc" (str &optional separator &rest args))
 
@@ -4379,21 +4381,21 @@ to execute outside of tables."
 	    cmd (orgtbl-make-binding fun nfunc key))
       (org-defkey orgtbl-mode-map key cmd))
 
-    ;; Special treatment needed for TAB and RET
+    ;; Special treatment needed for TAB, RET and DEL
     (org-defkey orgtbl-mode-map [(return)]
 		(orgtbl-make-binding 'orgtbl-ret 100 [(return)] "\C-m"))
     (org-defkey orgtbl-mode-map "\C-m"
 		(orgtbl-make-binding 'orgtbl-ret 101 "\C-m" [(return)]))
-
     (org-defkey orgtbl-mode-map [(tab)]
 		(orgtbl-make-binding 'orgtbl-tab 102 [(tab)] "\C-i"))
     (org-defkey orgtbl-mode-map "\C-i"
 		(orgtbl-make-binding 'orgtbl-tab 103 "\C-i" [(tab)]))
-
     (org-defkey orgtbl-mode-map [(shift tab)]
 		(orgtbl-make-binding 'org-table-previous-field 104
 				     [(shift tab)] [(tab)] "\C-i"))
-
+    (org-defkey orgtbl-mode-map [backspace]
+		(orgtbl-make-binding 'org-delete-backward-char 109
+				     [backspace] (kbd "DEL")))
 
     (unless (featurep 'xemacs)
       (org-defkey orgtbl-mode-map [S-iso-lefttab]
@@ -4562,11 +4564,9 @@ overwritten, and the table is not marked as requiring realignment."
 		 (org-table-blank-field))
 	    t)
 	   (eq N 1)
-	   (looking-at "[^|\n]*  +|"))
+	   (looking-at "[^|\n]* \\( \\)|"))
       (let (org-table-may-need-update)
-	(goto-char (1- (match-end 0)))
-	(org-delete-backward-char 1)
-	(goto-char (match-beginning 0))
+	(delete-region (match-beginning 1) (match-end 1))
 	(self-insert-command N))
     (setq org-table-may-need-update t)
     (let* (orgtbl-mode

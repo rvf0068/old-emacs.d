@@ -32,7 +32,7 @@
   (require 'cl))
 (require 'org)
 
-(declare-function calendar-iso-to-absolute "cal-iso" (&optional date))
+(declare-function calendar-iso-to-absolute "cal-iso" (date))
 (declare-function notifications-notify "notifications" (&rest params))
 (declare-function org-pop-to-buffer-same-window "org-compat" (&optional buffer-or-name norecord label))
 (declare-function org-element-property "org-element" (property element))
@@ -564,7 +564,9 @@ of a different task.")
 (defun org-clock-drawer-name ()
   "Return clock drawer's name for current entry, or nil."
   (let ((drawer (org-clock-into-drawer)))
-    (cond ((integerp drawer) (org-log-into-drawer))
+    (cond ((integerp drawer)
+	   (let ((log-drawer (org-log-into-drawer)))
+	     (if (stringp log-drawer) log-drawer "LOGBOOK")))
 	  ((stringp drawer) drawer)
 	  (t nil))))
 
@@ -680,7 +682,7 @@ If not, show simply the clocked time like 01:50."
 			  'face 'org-mode-line-clock)))
 	  (format clockstr work-done-str))
       (org-propertize (concat "[" (org-minutes-to-clocksum-string clocked-time)
-			      (format " (%s)" org-clock-heading) "]")
+			      "]" (format " (%s)" org-clock-heading))
 		      'face 'org-mode-line-clock))))
 
 (defun org-clock-get-last-clock-out-time ()
@@ -1513,9 +1515,9 @@ line and position cursor in that line."
 	 ;; When a clock drawer needs to be created because of the
 	 ;; number of clock items or simply if it is missing, collect
 	 ;; all clocks in the section and wrap them within the drawer.
-	 ((or drawer
-	      (and (wholenump org-clock-into-drawer)
-		   (>= (1+ count) org-clock-into-drawer)))
+	 ((if (wholenump org-clock-into-drawer)
+	      (>= (1+ count) org-clock-into-drawer)
+	    drawer)
 	  ;; Skip planning line and property drawer, if any.
 	  (org-end-of-meta-data)
 	  (let ((beg (point)))

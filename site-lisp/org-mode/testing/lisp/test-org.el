@@ -2062,7 +2062,7 @@ drops support for Emacs 24.1 and 24.2."
   "Does `org-open-at-point' open link in a keyword line?"
   (should
    (org-test-with-temp-text
-       "#+KEYWORD: <point>[[info:emacs#Top]]"
+       "<<top>>\n#+KEYWORD: <point>[[top]]"
      (org-open-at-point) t)))
 
 (ert-deftest test-org/open-at-point-in-property ()
@@ -2071,7 +2071,7 @@ drops support for Emacs 24.1 and 24.2."
    (org-test-with-temp-text
        "* Headline
 :PROPERTIES:
-:URL: <point>[[info:emacs#Top]]
+:URL: <point>[[*Headline]]
 :END:"
      (org-open-at-point) t)))
 
@@ -2079,27 +2079,15 @@ drops support for Emacs 24.1 and 24.2."
   "Does `org-open-at-point' open link in a commented line?"
   (should
    (org-test-with-temp-text
-    "# <point>[[info:emacs#Top]]"
+    "<<top>>\n# <point>[[top]]"
     (org-open-at-point) t)))
-
-(ert-deftest test-org/open-at-point/info ()
-  "Test `org-open-at-point' on info links."
-  (should
-   (org-test-with-temp-text
-    "<point>[[info:emacs#Top]]"
-    (org-open-at-point)
-    (and (switch-to-buffer "*info*")
-	 (prog1
-	     (looking-at "\nThe Emacs Editor")
-	   (kill-buffer))))))
 
 (ert-deftest test-org/open-at-point/inline-image ()
   "Test `org-open-at-point' on nested links."
   (should
-   (org-test-with-temp-text "[[info:org#Top][info:<point>emacs#Top]]"
+   (org-test-with-temp-text "<<top>>\n[[top][file:<point>unicorn.jpg]]"
      (org-open-at-point)
-     (prog1 (with-current-buffer "*info*" (looking-at "\nOrg Mode Manual"))
-       (kill-buffer "*info*")))))
+     (bobp))))
 
 (ert-deftest test-org/open-at-point/radio-target ()
   "Test `org-open-at-point' on radio targets."
@@ -4317,6 +4305,52 @@ Paragraph<point>"
      (org-match-sparse-tree t "tag")
      (search-forward "H2")
      (org-invisible-p2))))
+
+(ert-deftest test-org/occur ()
+  "Test `org-occur' specifications."
+  ;; Count number of matches.
+  (should
+   (= 1
+      (org-test-with-temp-text "* H\nA\n* H2"
+	(org-occur "A"))))
+  (should
+   (= 2
+      (org-test-with-temp-text "* H\nA\n* H2\nA"
+	(org-occur "A"))))
+  ;; Test CALLBACK optional argument.
+  (should
+   (= 0
+      (org-test-with-temp-text "* H\nA\n* H2"
+	(org-occur "A" nil (lambda () (equal (org-get-heading) "H2"))))))
+  (should
+   (= 1
+      (org-test-with-temp-text "* H\nA\n* H2\nA"
+	(org-occur "A" nil (lambda () (equal (org-get-heading) "H2"))))))
+  ;; Case-fold searches according to `org-occur-case-fold-search'.
+  (should
+   (= 2
+      (org-test-with-temp-text "Aa"
+	(let ((org-occur-case-fold-search t)) (org-occur "A")))))
+  (should
+   (= 2
+      (org-test-with-temp-text "Aa"
+	(let ((org-occur-case-fold-search t)) (org-occur "a")))))
+  (should
+   (= 1
+      (org-test-with-temp-text "Aa"
+	(let ((org-occur-case-fold-search nil)) (org-occur "A")))))
+  (should
+   (= 1
+      (org-test-with-temp-text "Aa"
+	(let ((org-occur-case-fold-search nil)) (org-occur "a")))))
+  (should
+   (= 1
+      (org-test-with-temp-text "Aa"
+	(let ((org-occur-case-fold-search 'smart)) (org-occur "A")))))
+  (should
+   (= 2
+      (org-test-with-temp-text "Aa"
+	(let ((org-occur-case-fold-search 'smart)) (org-occur "a"))))))
 
 
 ;;; Tags
