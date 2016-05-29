@@ -1,0 +1,9 @@
+#contributor : Rafael Villarroel <rvf0068@gmail.com>
+#name : installation of a variable
+#key: vali
+# --
+#V  $1
+##
+InstallValue( $1, 
+    $0
+);

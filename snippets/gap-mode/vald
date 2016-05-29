@@ -1,19 +1,20 @@
 #contributor : Rafael Villarroel <rvf0068@gmail.com>
-#name : function declaration
-#key: fund
+#name : declaration of a variable
+#key: vald
 # --
-#F  $1( $2 )
+#V  $1
 ##
 ##  <#GAPDoc Label="$1">
 ##  <ManSection>
-##  <Func Name="$1" Arg="$2"/>
+##  <Var Name="$1"/>
 ##
 ##  <Description>
 ##
-##  $3
+##  $2
 ##
 ##  </Description>
 ##
 ##  </ManSection>
 ##  <#/GAPDoc>
-DeclareGlobalFunction( "$1" );
+DeclareGlobalVariable( "$1",
+   "$2");

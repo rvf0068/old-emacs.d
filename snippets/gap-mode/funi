@@ -2,7 +2,7 @@
 #name : function installation
 #key: funi
 # --
-#F  $1( $2 ) 
+#F  $1( $2 )
 ##
 InstallGlobalFunction( $1, function( $2 )
     $0
