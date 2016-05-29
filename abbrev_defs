@@ -130,7 +130,11 @@
 
 (define-abbrev-table 'gitignore-mode-abbrev-table '())
 
-(define-abbrev-table 'global-abbrev-table '())
+(define-abbrev-table 'global-abbrev-table
+  '(
+    ("taht" "that" nil 2)
+    ("teh" "the" nil 1)
+   ))
 
 (define-abbrev-table 'gnus-article-edit-mode-abbrev-table '())
 
