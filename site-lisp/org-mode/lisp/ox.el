@@ -1405,7 +1405,7 @@ for export.  Return options as a plist."
 		 (cons "TITLE"
 		       (or (org-entry-get (point) "EXPORT_TITLE" 'selective)
 			   (progn (looking-at org-complex-heading-regexp)
-				  (org-match-string-no-properties 4))))))
+				  (match-string-no-properties 4))))))
 	 ;; Look for both general keywords and back-end specific
 	 ;; options, with priority given to the latter.
 	 (options (append (and backend (org-export-get-all-options backend))
@@ -2675,7 +2675,7 @@ the document.  Narrowing, if any, is ignored."
 				   end)
 			       (progn
 				 (forward-line -1)
-				 (or (org-looking-at-p "^[ \t]*$")
+				 (or (looking-at-p "^[ \t]*$")
 				     (org-with-limited-levels
 				      (org-at-heading-p)))))))))
 	      (delete-region start end)
@@ -3386,7 +3386,7 @@ Return a string of lines to be included in the format expected by
 		 (memq (org-element-type element) '(headline inlinetask)))
 	;; Skip planning line and property-drawer.
 	(goto-char (point-min))
-	(when (org-looking-at-p org-planning-line-re) (forward-line))
+	(when (looking-at-p org-planning-line-re) (forward-line))
 	(when (looking-at org-property-drawer-re) (goto-char (match-end 0)))
 	(unless (bolp) (forward-line))
 	(narrow-to-region (point) (point-max))))
@@ -4148,9 +4148,7 @@ error if no block contains REF."
 	      (when (re-search-backward ref-re nil t)
 		(cond
 		 ((org-element-property :use-labels el) ref)
-		 ((eq (org-element-property :number-lines el) 'continued)
-		  (+ (org-export-get-loc el info) (line-number-at-pos)))
-		 (t (line-number-at-pos)))))))
+		 (t (+ (or (org-export-get-loc el info) 0) (line-number-at-pos))))))))
 	info 'first-match)
       (signal 'org-link-broken (list ref))))
 
@@ -4452,32 +4450,34 @@ objects of the same type."
 ;; code in a format suitable for plain text or verbatim output.
 
 (defun org-export-get-loc (element info)
-  "Return accumulated lines of code up to ELEMENT.
+  "Return count of lines of code before ELEMENT.
 
-INFO is the plist used as a communication channel.
+ELEMENT is an example-block or src-block element.  INFO is the
+plist used as a communication channel.
 
-ELEMENT is excluded from count."
-  (let ((loc 0))
-    (org-element-map (plist-get info :parse-tree)
-	`(src-block example-block ,(org-element-type element))
-      (lambda (el)
-	(cond
-	 ;; ELEMENT is reached: Quit the loop.
-	 ((eq el element))
-	 ;; Only count lines from src-block and example-block elements
-	 ;; with a "+n" or "-n" switch.  A "-n" switch resets counter.
-	 ((not (memq (org-element-type el) '(src-block example-block))) nil)
-	 ((let ((linums (org-element-property :number-lines el)))
-	    (when linums
-	      ;; Accumulate locs or reset them.
-	      (let ((lines (org-count-lines
-			    (org-trim (org-element-property :value el)))))
-		(setq loc (if (eq linums 'new) lines (+ loc lines))))))
-	  ;; Return nil to stay in the loop.
-	  nil)))
-      info 'first-match)
-    ;; Return value.
-    loc))
+Count includes every line of code in example-block or src-block
+with a \"+n\" or \"-n\" switch before block.  Return nil if
+ELEMENT doesn't allow line numbering."
+  (pcase (org-element-property :number-lines element)
+    (`(new . ,n) n)
+    (`(continued . ,n)
+     (let ((loc 0))
+       (org-element-map (plist-get info :parse-tree) '(src-block example-block)
+	 (lambda (el)
+	   ;; ELEMENT is reached: Quit loop and return locs.
+	   (if (eq el element) (+ loc n)
+	     ;; Only count lines from src-block and example-block
+	     ;; elements with a "+n" or "-n" switch.
+	     (let ((linum (org-element-property :number-lines el)))
+	       (when linum
+		 (let ((lines (org-count-lines
+			       (org-trim (org-element-property :value el)))))
+		   ;; Accumulate locs or reset them.
+		   (pcase linum
+		     (`(new . ,n) (setq loc (+ n lines)))
+		     (`(continued . ,n) (cl-incf loc (+ n lines)))))))
+	     nil))		      ;Return nil to stay in the loop.
+	 info 'first-match)))))
 
 (defun org-export-unravel-code (element)
   "Clean source code and extract references out of it.
@@ -4573,9 +4573,7 @@ code."
       (let* ((refs (and (org-element-property :retain-labels element)
 			(cdr code-info)))
 	     ;; Handle line numbering.
-	     (num-start (cl-case (org-element-property :number-lines element)
-			  (continued (org-export-get-loc element info))
-			  (new 0)))
+	     (num-start (org-export-get-loc element info))
 	     (num-fmt
 	      (and num-start
 		   (format "%%%ds  "
@@ -6215,7 +6213,7 @@ files or buffers, only the display.
 	header-line-format
 	'(:eval
 	  (format "  %-12s | %6s | %s" "Back-End" "Age" "Source")))
-  (org-add-hook 'post-command-hook 'org-export-stack-refresh nil t)
+  (add-hook 'post-command-hook 'org-export-stack-refresh nil t)
   (setq-local revert-buffer-function
 	      'org-export-stack-refresh))
 
@@ -6331,12 +6329,12 @@ back to standard interface."
 	    ;; on the first key, if any.  A nil value means KEY will
 	    ;; only be activated at first level.
 	    (if (or (eq access-key t) (eq access-key first-key))
-		(org-propertize key 'face 'org-warning)
+		(propertize key 'face 'org-warning)
 	      key)))
 	 (fontify-value
 	  (lambda (value)
 	    ;; Fontify VALUE string.
-	    (org-propertize value 'face 'font-lock-variable-name-face)))
+	    (propertize value 'face 'font-lock-variable-name-face)))
 	 ;; Prepare menu entries by extracting them from registered
 	 ;; back-ends and sorting them by access key and by ordinal,
 	 ;; if any.

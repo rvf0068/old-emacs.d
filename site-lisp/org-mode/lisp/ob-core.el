@@ -23,8 +23,6 @@
 ;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
 
 ;;; Code:
-(eval-when-compile
-  (require 'cl))
 (require 'cl-lib)
 (require 'ob-eval)
 (require 'org-macs)
@@ -73,8 +71,6 @@
 (declare-function org-uniquify "org" (list))
 (declare-function org-current-level "org" ())
 (declare-function org-table-import "org-table" (file arg))
-(declare-function org-add-hook "org-compat"
-		  (hook function &optional append local))
 (declare-function org-table-align "org-table" ())
 (declare-function org-table-end "org-table" (&optional table-type))
 (declare-function orgtbl-to-generic "org-table" (table params))
@@ -1407,8 +1403,8 @@ portions of results lines."
 (add-hook 'org-tab-first-hook 'org-babel-hide-result-toggle-maybe)
 ;; Remove overlays when changing major mode
 (add-hook 'org-mode-hook
-	  (lambda () (org-add-hook 'change-major-mode-hook
-				   'org-babel-show-result-all 'append 'local)))
+	  (lambda () (add-hook 'change-major-mode-hook
+			  'org-babel-show-result-all 'append 'local)))
 
 (defvar org-file-properties)
 (defun org-babel-params-from-properties (&optional lang)
@@ -1730,7 +1726,7 @@ to `org-babel-named-src-block-regexp'."
     (let ((re (org-babel-named-src-block-regexp-for-name))
 	  names)
       (while (ignore-errors (org-next-block 1 nil re))
-	(push (org-match-string-no-properties 9) names))
+	(push (match-string-no-properties 9) names))
       names)))
 
 ;;;###autoload
@@ -2537,7 +2533,7 @@ parameters when merging lists."
      (lambda (plist)
        (mapc
 	(lambda (pair)
-	  (case (car pair)
+	  (cl-case (car pair)
 	    (:var
 	     (let ((name (if (listp (cdr pair))
 			     (cadr pair)
@@ -2566,7 +2562,7 @@ parameters when merging lists."
 					      ; for replace vars
 		       (prog1 (setf (cddr (nth variable-index vars))
 				    (concat (symbol-name name) "=" (cdr pair)))
-			 (incf variable-index)))
+			 (cl-incf variable-index)))
 		   (error "Variable \"%s\" must be assigned a default value"
 			  (cdr pair))))))
 	    (:results
@@ -2661,7 +2657,7 @@ CONTEXT may be one of :tangle, :export or :eval."
 			(if (member (car as) bs)
 			    (car as)
 			  (funcall intersect (cdr as) bs))))))
-    (funcall intersect (case context
+    (funcall intersect (cl-case context
 			 (:tangle '("yes" "tangle" "no-export" "strip-export"))
 			 (:eval   '("yes" "no-export" "strip-export" "eval"))
 			 (:export '("yes")))
@@ -2832,7 +2828,7 @@ block but are passed literally to the \"example-block\"."
 	       ;; the character was (because one layer of quoting will
 	       ;; be stripped by `org-babel-read').
 	       (t (append (list ch ?\\ ?\\) out))))
-	  (case ch
+	  (cl-case ch
 	    (?\[ (if (or in-double in-single)
 		     (cons ?\[ out)
 		   (cons ?\( out)))
