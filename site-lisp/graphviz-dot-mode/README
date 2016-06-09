@@ -1,0 +1,14 @@
+graphviz-dot-mode.el
+
+Emacs mode for the DOT language.
+
+See http://ppareit.github.com/graphviz-dot-mode
+
+-----
+
+So far, this forks 
+
+- redefines the bindings of the form C-c letter, which are "reserved
+  for users". See for example
+  http://www.gnu.org/software/emacs/manual/html_node/elisp/Key-Binding-Conventions.html
+- removes the bindings to comment and uncomment, since M-; is enough.

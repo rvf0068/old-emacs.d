@@ -125,6 +125,9 @@
 (global-set-key (kbd "M-X") 'smex-major-mode-commands)
 (global-set-key (kbd "C-c C-c M-x") 'execute-extended-command)
 
+;; graphviz-dot-mode
+(require 'graphviz-dot-mode)
+
 (load "~/.emacs.d/rvf-settings.el")
 
 ;; this is needed since LaTeX-mode has not been loaded (being an ELPA package)
