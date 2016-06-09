@@ -29,6 +29,7 @@
     deferred
     ess
     gap-mode
+    google-this
     helm
     helm-bibtex
     magit

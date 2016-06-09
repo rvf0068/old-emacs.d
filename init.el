@@ -128,6 +128,9 @@
 ;; graphviz-dot-mode
 (require 'graphviz-dot-mode)
 
+;; google-this https://github.com/Malabarba/emacs-google-this/
+(google-this-mode 1)
+
 (load "~/.emacs.d/rvf-settings.el")
 
 ;; this is needed since LaTeX-mode has not been loaded (being an ELPA package)
