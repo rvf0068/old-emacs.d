@@ -1604,12 +1604,12 @@ e^{i\\pi}+1=0
    (equal
     "127.0.0.1"
     (org-test-with-temp-text "[[http://orgmode.org]]"
-      (flet ((link-translate (type path) (cons type "127.0.0.1")))
-	(let ((org-link-translation-function 'link-translate))
-	  (org-element-property
-	   :path
-	   (org-element-map (org-element-parse-buffer) 'link
-	     'identity nil t)))))))
+      (let ((org-link-translation-function
+	     (lambda (type _) (cons type "127.0.0.1"))))
+	(org-element-property
+	 :path
+	 (org-element-map (org-element-parse-buffer) 'link
+	   #'identity nil t))))))
   ;; ... id link.
   (should
    (equal

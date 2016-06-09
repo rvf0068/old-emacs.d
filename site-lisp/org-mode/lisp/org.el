@@ -7942,20 +7942,21 @@ When NO-TAGS is non-nil, don't include tags.
 When NO-TODO is non-nil, don't include TODO keywords."
   (save-excursion
     (org-back-to-heading t)
-    (cond
-     ((and no-tags no-todo)
-      (looking-at org-complex-heading-regexp)
-      (match-string 4))
-     (no-tags
-      (looking-at (concat org-outline-regexp
-			  "\\(.*?\\)"
-			  "\\(?:[ \t]+:[[:alnum:]:_@#%]+:\\)?[ \t]*$"))
-      (match-string 1))
-     (no-todo
-      (looking-at org-todo-line-regexp)
-      (match-string 3))
-     (t (looking-at org-heading-regexp)
-	(match-string 2)))))
+    (let ((case-fold-search nil))
+      (cond
+       ((and no-tags no-todo)
+	(looking-at org-complex-heading-regexp)
+	(match-string 4))
+       (no-tags
+	(looking-at (concat org-outline-regexp
+			    "\\(.*?\\)"
+			    "\\(?:[ \t]+:[[:alnum:]:_@#%]+:\\)?[ \t]*$"))
+	(match-string 1))
+       (no-todo
+	(looking-at org-todo-line-regexp)
+	(match-string 3))
+       (t (looking-at org-heading-regexp)
+	  (match-string 2))))))
 
 (defvar orgstruct-mode)   ; defined below
 
@@ -8003,7 +8004,8 @@ Set it to HEADING when provided."
    (org-back-to-heading t)
    (when (looking-at org-complex-heading-regexp)
      (let* ((old (match-string-no-properties 4))
-	    (new (org-trim (or heading (save-match-data (read-string "Edit: " old))))))
+	    (new (save-match-data
+		   (org-trim (or heading (read-string "Edit: " old))))))
        (unless (equal old new)
 	 (if old (replace-match new t t nil 4)
 	   (goto-char (or (match-end 3) (match-end 2) (match-end 1)))
@@ -14935,7 +14937,7 @@ If ONOFF is `on' or `off', don't toggle but set to this state."
     (if	(and (looking-at ".*?\\([ \t]+\\)\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")
 	     (< pos (match-beginning 2)))
 	(progn
-	  (setq tags-l (- (match-end 2) (match-beginning 2)))
+	  (setq tags-l (string-width (match-string 2)))
 	  (goto-char (match-beginning 1))
 	  (insert " ")
 	  (delete-region (point) (1+ (match-beginning 2)))
@@ -17475,10 +17477,10 @@ If SECONDS is non-nil, return the difference in seconds."
     (- (funcall fdiff (org-time-string-to-time timestamp-string))
        (funcall fdiff (current-time)))))
 
-(defun org-deadline-close (timestamp-string &optional ndays)
+(defun org-deadline-close-p (timestamp-string &optional ndays)
   "Is the time in TIMESTAMP-STRING close to the current date?"
   (setq ndays (or ndays (org-get-wdays timestamp-string)))
-  (and (< (org-time-stamp-to-now timestamp-string) ndays)
+  (and (<= (org-time-stamp-to-now timestamp-string) ndays)
        (not (org-entry-is-done-p))))
 
 (defun org-get-wdays (ts &optional delay zero-delay)
@@ -17531,7 +17533,7 @@ days.  If the prefix is a raw \\[universal-argument] prefix, all deadlines are s
 	 (case-fold-search nil)
 	 (regexp (concat "\\<" org-deadline-string " *<\\([^>]+\\)>"))
 	 (callback
-	  (lambda () (org-deadline-close (match-string 1) org-warn-days))))
+	  (lambda () (org-deadline-close-p (match-string 1) org-warn-days))))
     (message "%d deadlines past-due or due within %d days"
 	     (org-occur regexp nil callback)
 	     org-warn-days)))
@@ -22883,9 +22885,9 @@ If PROCESS is a function, it is called with a single argument:
 the SOURCE file.
 
 If it is a list of commands, each of them is called using
-`shell-command'.  By default, in each command, %b, %f and %o are
-replaced, respectively, with SOURCE base name, SOURCE full name
-and SOURCE directory.  It is possible, however, to use more
+`shell-command'.  By default, in each command, %b, %f, %F and %o
+are replaced with, respectively, SOURCE base name, name, full
+name and directory.  It is possible, however, to use more
 place-holders by specifying them in optional argument SPEC, as an
 alist following the pattern (CHARACTER . REPLACEMENT-STRING).
 
@@ -22895,13 +22897,12 @@ it for output.
 
 `default-directory' is set to SOURCE directory during the whole
 process."
-  (let* ((base-name (file-name-sans-extension (file-name-nondirectory source)))
+  (let* ((source-name (file-name-nondirectory source))
+	 (base-name (file-name-sans-extension source-name))
 	 (full-name (file-truename source))
 	 (out-dir (file-name-directory source))
 	 ;; Properly set working directory for compilation.
-	 (default-directory (if (file-name-absolute-p source)
-				(file-name-directory full-name)
-			      default-directory))
+	 (default-directory (file-name-directory full-name))
 	 (time (current-time))
 	 (err-msg (if (stringp err-msg) (concat ".  " err-msg) "")))
     (save-window-excursion
@@ -22911,7 +22912,8 @@ process."
          (let ((log-buf (and log-buf (get-buffer-create log-buf)))
                (spec (append spec
 			     `((?b . ,(shell-quote-argument base-name))
-			       (?f . ,(shell-quote-argument full-name))
+			       (?f . ,(shell-quote-argument source-name))
+			       (?F . ,(shell-quote-argument full-name))
 			       (?o . ,(shell-quote-argument out-dir))))))
            (dolist (command process)
              (shell-command (format-spec command spec) log-buf))))
@@ -25031,7 +25033,8 @@ when non-nil, is a regexp matching keywords names."
   "Produce the index for Imenu."
   (dolist (x org-imenu-markers) (move-marker x nil))
   (setq org-imenu-markers nil)
-  (let* ((n org-imenu-depth)
+  (let* ((case-fold-search nil)
+	 (n org-imenu-depth)
 	 (re (concat "^" (org-get-limited-outline-regexp)))
 	 (subs (make-vector (1+ n) nil))
 	 (last-level 0)
