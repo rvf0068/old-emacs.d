@@ -85,8 +85,6 @@
 
 (add-to-list 'org-src-lang-modes '("dot" . graphviz-dot))
 
-
-
 ;; from the info documentation
 (defun yas/org-very-safe-expand ()
   (let ((yas/fallback-behavior 'return-nil)) (yas/expand)))

@@ -288,8 +288,8 @@
 
 ;; ltx-help
 
-(load "/usr/local/texlive/2015/texmf-dist/doc/latex/latex2e-help-texinfo/ltx-help.el")
-(push "/usr/local/texlive/2015/texmf-dist/doc/info/" Info-directory-list)
+(load "/usr/local/texlive/2016/texmf-dist/doc/latex/latex2e-help-texinfo/ltx-help.el")
+(push "/usr/local/texlive/2016/texmf-dist/doc/info/" Info-directory-list)
 
 (define-key help-map "\C-l" 'latex-help)
 
