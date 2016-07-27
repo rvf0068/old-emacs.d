@@ -1191,6 +1191,18 @@
 	    (goto-char (point-max))
 	    (let ((org-insert-heading-respect-content nil)) (org-insert-heading))
 	    (buffer-string))))
+  ;; Preserve list visibility when inserting an item.
+  (should
+   (equal
+    '(outline outline)
+    (org-test-with-temp-text "- A\n  - B\n- C\n  - D"
+      (let ((org-cycle-include-plain-lists t))
+	(org-cycle)
+	(forward-line 2)
+	(org-cycle)
+	(let ((org-insert-heading-respect-content nil)) (org-insert-heading))
+	(list (get-char-property (line-beginning-position 0) 'invisible)
+	      (get-char-property (line-end-position 2) 'invisible))))))
   ;; When called with two universal arguments, insert a new headline
   ;; at the end of the grandparent subtree.
   (should
@@ -2124,19 +2136,6 @@ http://article.gmane.org/gmane.emacs.orgmode/21459/"
     "http://some.host.com/form?&id=blah%2Bblah25"
     (org-link-unescape
      (org-link-escape "http://some.host.com/form?&id=blah%2Bblah25")))))
-
-(ert-deftest test-org/org-link-escape-chars-browser ()
-  "Test of the constant `org-link-escape-chars-browser'.
-See there why this test is a candidate to be removed once Org
-drops support for Emacs 24.1 and 24.2."
-  (should
-   (string=
-    (concat "http://lists.gnu.org/archive/cgi-bin/namazu.cgi?query="
-	    "%22Release%208.2%22&idxname=emacs-orgmode")
-    (org-link-escape-browser ; Do not replace with `url-encode-url',
-			     ; see docstring above.
-     (concat "http://lists.gnu.org/archive/cgi-bin/namazu.cgi?query="
-	     "\"Release 8.2\"&idxname=emacs-orgmode")))))
 
 ;;;; Open at point
 
@@ -4508,6 +4507,13 @@ Paragraph<point>"
 		  (indent-tabs-mode nil))
 	     (org-fix-tags-on-the-fly))
 	    (buffer-string)))))
+
+(ert-deftest test-org/tags-at ()
+  (should
+   (equal '("foo" "bar")
+	  (org-test-with-temp-text
+	   "* T<point>est :foo:bar:"
+	   (org-get-tags-at)))))
 
 
 ;;; Timestamps API

@@ -73,8 +73,6 @@
 (require 'org)
 
 (declare-function message-make-fqdn "message" ())
-(declare-function org-pop-to-buffer-same-window
-		  "org-compat" (&optional buffer-or-name norecord label))
 
 ;;; Customization
 
@@ -83,8 +81,6 @@
   :tag "Org ID"
   :group 'org)
 
-(define-obsolete-variable-alias
-  'org-link-to-org-use-id 'org-id-link-to-org-use-id "24.3")
 (defcustom org-id-link-to-org-use-id nil
   "Non-nil means storing a link to an Org file will use entry IDs.
 \\<org-mode-map>\
@@ -295,7 +291,7 @@ Move the cursor to that entry in that buffer."
   (let ((m (org-id-find id 'marker)))
     (unless m
       (error "Cannot find entry with ID \"%s\"" id))
-    (org-pop-to-buffer-same-window (marker-buffer m))
+    (pop-to-buffer-same-window (marker-buffer m))
     (goto-char m)
     (move-marker m nil)
     (org-show-context)))
@@ -679,7 +675,7 @@ optional argument MARKERP, return the position as a new marker."
     (move-marker m nil)
     (org-show-context)))
 
-(org-add-link-type "id" 'org-id-open)
+(org-link-set-parameters "id" :follow #'org-id-open)
 
 (provide 'org-id)
 

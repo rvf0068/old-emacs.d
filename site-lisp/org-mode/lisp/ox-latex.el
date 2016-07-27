@@ -127,6 +127,7 @@
     (:latex-image-default-height nil nil org-latex-image-default-height)
     (:latex-image-default-option nil nil org-latex-image-default-option)
     (:latex-image-default-width nil nil org-latex-image-default-width)
+    (:latex-images-centered nil nil org-latex-images-centered)
     (:latex-inactive-timestamp-format nil nil org-latex-inactive-timestamp-format)
     (:latex-inline-image-rules nil nil org-latex-inline-image-rules)
     (:latex-link-with-unknown-path-format nil nil org-latex-link-with-unknown-path-format)
@@ -621,8 +622,6 @@ precedence over this variable."
   :package-version '(Org . "8.3")
   :type '(choice (const :tag "No template" nil)
 		 (string :tag "Format string")))
-(define-obsolete-variable-alias
-  'org-latex-with-hyperref 'org-latex-hyperref-template "25.1")
 
 ;;;; Headline
 
@@ -682,6 +681,14 @@ The function result will be used in the section format string."
 
 
 ;;;; Links
+
+(defcustom org-latex-images-centered t
+  "When non-nil, images are centered."
+  :group 'org-export-latex
+  :version "25.1"
+  :package-version '(Org . "9.0")
+  :type 'boolean
+  :safe #'booleanp)
 
 (defcustom org-latex-image-default-option ""
   "Default option for images."
@@ -1253,7 +1260,7 @@ Eventually, if FULL is non-nil, wrap label within \"\\label{}\"."
 			   (headline "sec:")
 			   (table "tab:")
 			   (latex-environment
-			    (and (org-string-match-p
+			    (and (string-match-p
 				  org-latex-math-environments-re
 				  (org-element-property :value datum))
 				 "eq:"))
@@ -1453,9 +1460,10 @@ OPTIONS is an alist where the key is the options keyword as
 a string, and the value a list containing the keyword value, or
 nil."
   (mapconcat (lambda (pair)
-	       (concat (first pair)
-		       (when (> (length (second pair)) 0)
-			 (concat "=" (second pair)))))
+	       (pcase-let ((`(,keyword ,value) pair))
+		 (concat keyword
+			 (and (> (length value) 0)
+			      (concat "=" value)))))
 	     options
 	     ","))
 
@@ -1926,7 +1934,8 @@ holding contextual information."
 		    (format "\\begin{%s}\n" (if numberedp 'enumerate 'itemize)))
 		  ;; Itemize headline
 		  "\\item"
-		  (and full-text (org-string-match-p "\\`[ \t]*\\[" full-text)
+		  (and full-text
+		       (string-match-p "\\`[ \t]*\\[" full-text)
 		       "\\relax")
 		  " " full-text "\n"
 		  headline-label
@@ -1963,8 +1972,8 @@ holding contextual information."
 		    (lambda (k)
 		      (and (equal (org-element-property :key k) "TOC")
 			   (let ((v (org-element-property :value k)))
-			     (and (org-string-match-p "\\<headlines\\>" v)
-				  (org-string-match-p "\\<local\\>" v)
+			     (and (string-match-p "\\<headlines\\>" v)
+				  (string-match-p "\\<local\\>" v)
 				  (format "\\stopcontents[level-%d]" level)))))
 		    info t)))))
 	  (if (and opt-title
@@ -2152,7 +2161,7 @@ contextual information."
 	     ;; unless the brackets comes from an initial export
 	     ;; snippet (i.e. it is inserted willingly by the user).
 	     ((and contents
-		   (org-string-match-p "\\`[ \t]*\\[" contents)
+		   (string-match-p "\\`[ \t]*\\[" contents)
 		   (not (let ((e (car (org-element-contents item))))
 			  (and (eq (org-element-type e) 'paragraph)
 			       (let ((o (car (org-element-contents e))))
@@ -2184,8 +2193,8 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
      ((string= key "TOC")
       (let ((case-fold-search t))
 	(cond
-	 ((org-string-match-p "\\<headlines\\>" value)
-	  (let* ((localp (org-string-match-p "\\<local\\>" value))
+	 ((string-match-p "\\<headlines\\>" value)
+	  (let* ((localp (string-match-p "\\<local\\>" value))
 		 (parent (org-element-lineage keyword '(headline)))
 		 (level (if (not (and localp parent)) 0
 			  (org-export-get-relative-level parent info)))
@@ -2201,8 +2210,8 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 \\printcontents[level-%d]{}{0}{%s}"
 			level level (or depth ""))
 	      (concat depth (and depth "\n") "\\tableofcontents"))))
-	 ((org-string-match-p "\\<tables\\>" value) "\\listoftables")
-	 ((org-string-match-p "\\<listings\\>" value)
+	 ((string-match-p "\\<tables\\>" value) "\\listoftables")
+	 ((string-match-p "\\<listings\\>" value)
 	  (cl-case (plist-get info :latex-listings)
 	    ((nil) "\\listoffigures")
 	    (minted "\\listoflistings")
@@ -2269,13 +2278,12 @@ used as a communication channel."
 		  (cond ((string= float "wrap") 'wrap)
 			((string= float "sideways") 'sideways)
 			((string= float "multicolumn") 'multicolumn)
+			((and (plist-member attr :float) (not float)) 'nonfloat)
 			((or float
 			     (org-element-property :caption parent)
 			     (org-string-nw-p (plist-get attr :caption)))
-			 (if (and (plist-member attr :float) (not float))
-			     'nonfloat
-			   'figure))
-			((and (not float) (plist-member attr :float)) nil))))
+			 'figure)
+			(t 'nonfloat))))
 	 (placement
 	  (let ((place (plist-get attr :placement)))
 	    (cond
@@ -2284,6 +2292,9 @@ used as a communication channel."
 	     ((eq float 'figure)
 	      (format "[%s]" (plist-get info :latex-default-figure-position)))
 	     (t ""))))
+	 (center
+	  (if (plist-member attr :center) (plist-get attr :center)
+	    (plist-get info :latex-images-centered)))
 	 (comment-include (if (plist-get attr :comment-include) "%" ""))
 	 ;; It is possible to specify width and height in the
 	 ;; ATTR_LATEX line, and also via default variables.
@@ -2328,14 +2339,14 @@ used as a communication channel."
       (let ((search-option (org-element-property :search-option link)))
         (when (and search-option
                    (equal filetype "pdf")
-                   (org-string-match-p "\\`[0-9]+\\'" search-option)
-                   (not (org-string-match-p "page=" options)))
+                   (string-match-p "\\`[0-9]+\\'" search-option)
+                   (not (string-match-p "page=" options)))
           (setq options (concat options ",page=" search-option))))
       (setq image-code
 	    (format "\\includegraphics%s{%s}"
 		    (cond ((not (org-string-nw-p options)) "")
-			  ((= (aref options 0) ?,)
-			   (format "[%s]"(substring options 1)))
+			  ((string-prefix-p "," options)
+			   (format "[%s]" (substring options 1)))
 			  (t (format "[%s]" options)))
 		    path))
       (when (equal filetype "svg")
@@ -2348,46 +2359,53 @@ used as a communication channel."
 						   image-code
 						   nil t))))
     ;; Return proper string, depending on FLOAT.
-    (cl-case float
-      (wrap (format "\\begin{wrapfigure}%s
-%s\\centering
+    (pcase float
+      (`wrap (format "\\begin{wrapfigure}%s
+%s%s
 %s%s
 %s\\end{wrapfigure}"
-		    placement
-		    (if caption-above-p caption "")
-		    comment-include image-code
-		    (if caption-above-p "" caption)))
-      (sideways (format "\\begin{sidewaysfigure}
-%s\\centering
+		     placement
+		     (if caption-above-p caption "")
+		     (if center "\\centering" "")
+		     comment-include image-code
+		     (if caption-above-p "" caption)))
+      (`sideways (format "\\begin{sidewaysfigure}
+%s%s
 %s%s
 %s\\end{sidewaysfigure}"
-			(if caption-above-p caption "")
-			comment-include image-code
-			(if caption-above-p "" caption)))
-      (multicolumn (format "\\begin{figure*}%s
-%s\\centering
+			 (if caption-above-p caption "")
+			 (if center "\\centering" "")
+			 comment-include image-code
+			 (if caption-above-p "" caption)))
+      (`multicolumn (format "\\begin{figure*}%s
+%s%s
 %s%s
 %s\\end{figure*}"
-			   placement
-			   (if caption-above-p caption "")
-			   comment-include image-code
-			   (if caption-above-p "" caption)))
-      (figure (format "\\begin{figure}%s
-%s\\centering
+			    placement
+			    (if caption-above-p caption "")
+			    (if center "\\centering" "")
+			    comment-include image-code
+			    (if caption-above-p "" caption)))
+      (`figure (format "\\begin{figure}%s
+%s%s
 %s%s
 %s\\end{figure}"
-		      placement
-		      (if caption-above-p caption "")
-		      comment-include image-code
-		      (if caption-above-p "" caption)))
-      (nonfloat
+		       placement
+		       (if caption-above-p caption "")
+		       (if center "\\centering" "")
+		       comment-include image-code
+		       (if caption-above-p "" caption)))
+      ((guard center)
        (format "\\begin{center}
 %s%s
 %s\\end{center}"
 	       (if caption-above-p caption "")
 	       image-code
 	       (if caption-above-p "" caption)))
-      (otherwise image-code))))
+      (_
+       (concat (if caption-above-p caption "")
+	       image-code
+	       (if caption-above-p caption ""))))))
 
 (defun org-latex-link (link desc info)
   "Transcode a LINK object from Org to LaTeX.
@@ -2816,7 +2834,7 @@ contextual information."
        (custom-env
 	(let ((caption-str (org-latex--caption/label-string src-block info))
               (formatted-src (org-export-format-code-default src-block info)))
-          (if (org-string-match-p "\\`[a-zA-Z0-9]+\\'" custom-env)
+          (if (string-match-p "\\`[a-zA-Z0-9]+\\'" custom-env)
 	      (format "\\begin{%s}\n%s\\end{%s}\n"
 		      custom-env
 		      (concat (and caption-above-p caption-str)

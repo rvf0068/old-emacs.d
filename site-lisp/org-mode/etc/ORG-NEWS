@@ -104,10 +104,39 @@ is straightforward.  For example
 becomes
 
 : ("pdf" . (lambda (file link) (foo)))
-
 *** The ~{{{modification-time}}}~ macro can obtain time via =vc=
 The modification time will be determined via =vc.el= if the second
 argument is non-nil.  See the manual for details.
+*** Preparation and completion functions in publishing projects change signature
+Preparation and completion functions are now called with an argument,
+which is the project property list.  It used to be dynamically scoped
+through the ~project-plist~ variable.
+*** Old Babel header properties are no longer supported
+Using header arguments as property names is no longer possible.  As
+such, the following
+
+#+BEGIN_EXAMPLE
+,* Headline
+:PROPERTIES:
+:exports: code
+:var: a=1 b=2
+:var+: c=3
+:END:
+#+END_EXAMPLE
+
+should be written instead
+
+#+BEGIN_EXAMPLE
+,* Headline
+:PROPERTIES:
+:header-args: :exports code
+:header-args: :var a=1 b=2
+:header-args+: :var c=3
+:END:
+#+END_EXAMPLE
+
+Please note that, however, old properties were defined at the source
+block definition.  Current ones are defined where the block is called.
 ** New features
 *** New org-protocol key=value syntax
 
@@ -175,7 +204,15 @@ point for the SRC/EXAMPLE block.
     (message "This is line 32")
   ,#+END_SRC
 #+END_SRC
-
+**** Allow toggling center for images in LaTeX export
+With the global variable ~org-latex-images-centered~ or the local
+attribute ~:center~ it is now possible to center an image in LaTeX
+export.
+**** Default CSS class ~org-svg~ for SVG images in HTML export
+SVG images exported in HTML are now by default assigned a CSS class
+~org-svg~ if no CSS class is specified with the ~:class~ attribute. By
+default, the CSS styling of class ~org-svg~ specifies an image width
+of 90\thinsp{}% of the container the image.
 *** Babel
 **** Support for SLY in Lisp blocks
 See ~org-babel-lisp-eval-fn~ to activate it.
@@ -210,6 +247,26 @@ mandatory):
  :database <database>
  :dbpassword <secret>
 #+END_EXAMPLE
+**** Improved support to Microsoft SQL Server via ~sqlcmd~
+=ob-sql= library removes support to the ~msosql~ engine which uses the
+deprecated ~osql~ command line tool, and replaces it with ~mssql~
+engine which uses the ~sqlcmd~ command line tool.  Use with properties
+like this:
+
+#+BEGIN_EXAMPLE
+  :engine mssql
+  :dbhost <host.com>
+  :dbuser <username>
+  :dbpassword <secret>
+  :database <database>
+#+END_EXAMPLE
+
+If you want to use the *trusted connection* feature, omit *both* the
+=dbuser= and =dbpassword= properties and add =cmdline -E= to the
+properties.
+
+If your Emacs is running in a Cygwin environment, the =ob-sql= library
+can pass the converted path to the =sqlcmd= tool.
 **** Support for additional plantuml output formats
 The support for output formats of [[http://plantuml.com/][plantuml]] has been extended to now
 include:
@@ -279,7 +336,7 @@ an :indent parameter, much like the one in the clock table.
 On the other hand, stars no longer appear in an ITEM field.
 *** Columns view
 **** ~org-columns~ accepts a prefix argument
-When called with a prefix argument, ~org-columns~ apply to the whole
+pWhen called with a prefix argument, ~org-columns~ apply to the whole
 buffer unconditionally.
 **** New variable : ~org-agenda-view-columns-initially~
 The variable used to be a ~defvar~, it is now a ~defcustom~.
@@ -301,6 +358,12 @@ sensitive.  Otherwise, it is case insensitive.
 *** More robust repeated =ox-latex= footnote handling
 Repeated footnotes are now numbered by referring to a label in the
 first footnote.
+*** The ~org-block~ face is inherited by ~src-blocks~
+This works also when =org-src-fontify-natively= is non-nil.  It is also
+possible to specify per-languages faces.  See the manual for details.
+*** Links are now customizable
+Links can now have custom colors, tooltips, keymaps, display behavior,
+etc... Links are now centralized in ~org-link-parameters~.
 ** New functions
 *** ~org-next-line-empty-p~
 It replaces the deprecated ~next~ argument to ~org-previous-line-empty-p~.
@@ -314,7 +377,8 @@ Use ~org-agenda-filter-by-tag~ instead.
 Use ~org-agenda-today-p~ instead.
 *** ~org-babel-get-header~ is removed.
 Use ~org-babel--get-vars~ or ~assq~ instead, as applicable.
-
+*** ~org-babel-trim~ is deprecated.
+Use ~org-trim~ instead.
 *** ~org-element-remove-indentation~ is deprecated.
 Use ~org-remove-indentation~ instead.
 *** ~org-image-file-name-regexp~ is deprecated
@@ -357,6 +421,7 @@ plain list.
 *** ~fixltx2e~ is removed from ~org-latex-default-packages-alist~
 fixltx2e is obsolete, see LaTeX News 22.
 ** Miscellaneous
+*** Allow multiple receiver locations in radio tables and lists
 *** Allow angular links within link descriptions
 It is now allowed to write, e.g.,
 ~[[http:orgmode.org][<file:unicorn.png>]]~ as an equivalent to
@@ -400,6 +465,11 @@ called with 6 parameters.
 *** =ITEM= special property returns headline without stars
 *** Rename ~org-insert-columns-dblock~ into ~org-columns-insert-dblock~
 The previous name is, for the time being, kept as an obsolete alias.
+*** ~org-trim~ can preserve leading indentation.
+When setting a new optional argument to a non-nil value, ~org-trim~
+preserves leading indentation while removing blank lines at the
+beginning of the string.  The behavior is identical for white space at
+the end of the string.
 *** Function ~org-info-export~ changes.
 HTML links created from certain info links now point to =gnu.org= URL's rather
 than just to local files. For example info links such as =info:emacs#List
@@ -414,6 +484,19 @@ Thus the new behavior is to generate this HTML link instead:
 : <a href="http://www.gnu.org/software/emacs/manual/html_mono/emacs.html#List-Buffers">emacs#List Buffers</a>
 
 All emacs related info links are similarly translated plus few other =gnu.org= manuals.
+*** Repeaters with a ~++~ interval and a time can be shifted to later today
+Previously, if a recurring task had a timestamp of
+~<2016-01-01 Fri 20:00 ++1d>~ and was completed on =2016-01-02= at
+=08:00=, the task would skip =2016-01-02= and would be rescheduled for
+=2016-01-03=.  Timestamps with ~++~ cookies and a specific time will
+now shift to the first possible future occurrence, even if the
+occurrence is later the same day the task is completed.  (Timestamps
+already in the future are still shifted one time further into the
+future.)
+*** ~file+emacs~ and ~file+sys~ link types are deprecated
+They are still supported in Org 9.0 but will eventually be removed in
+a later release.  Use ~file~ link type along with universal arguments
+to force opening it in either Emacs or with system application.
 * Version 8.3
 
 ** Incompatible changes

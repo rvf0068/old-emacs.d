@@ -55,8 +55,6 @@
 		  (date &optional keep-restriction))
 (declare-function org-decrypt-entry "org-crypt" ())
 (declare-function org-encrypt-entry "org-crypt" ())
-(declare-function org-pop-to-buffer-same-window "org-compat"
-		  (&optional buffer-or-name norecord label))
 (declare-function org-table-analyze "org-table" ())
 (declare-function org-table-goto-line "org-table" (N))
 
@@ -956,7 +954,9 @@ Store them in the capture property list."
 			       (not org-time-was-given))
 			   (not (= (time-to-days prompt-time) (org-today))))
 		      ;; Use 00:00 when no time is given for another date than today?
-		      (apply 'encode-time (append '(0 0 0) (cdddr (decode-time prompt-time)))))
+		      (apply #'encode-time
+			     (append '(0 0 0)
+				     (cl-cdddr (decode-time prompt-time)))))
 		     ((string-match "\\([^ ]+\\)--?[^ ]+[ ]+\\(.*\\)" org-read-date-final-answer)
 		      ;; Replace any time range by its start
 		      (apply 'encode-time
@@ -1004,16 +1004,13 @@ Store them in the capture property list."
 
 (defun org-capture-expand-file (file)
   "Expand functions and symbols for FILE.
-When FILE is a function, call it.  When it is a form, evaluate
-it.  When it is a variable, retrieve the value.  When it is
-a string, return it.  However, if it is the empty string, return
-`org-default-notes-file' instead."
+When FILE is a function, call it.  When it is a variable,
+retrieve its value.  When it is the empty string, return
+`org-default-notes-file'.  In any other case, return FILE as-is."
   (cond
    ((equal file "") org-default-notes-file)
-   ((org-string-nw-p file) file)
    ((functionp file) (funcall file))
    ((and (symbolp file) (boundp file)) (symbol-value file))
-   ((consp file) (eval file))
    (t file)))
 
 (defun org-capture-target-buffer (file)
@@ -1407,7 +1404,7 @@ The user is queried for the template."
     (unless entry (error "No capture template selected"))
     (org-capture-set-plist entry)
     (org-capture-set-target-location)
-    (org-pop-to-buffer-same-window (org-capture-get :buffer))
+    (pop-to-buffer-same-window (org-capture-get :buffer))
     (goto-char (org-capture-get :pos))))
 
 (defun org-capture-get-indirect-buffer (&optional buffer prefix)
@@ -1417,7 +1414,7 @@ Use PREFIX as a prefix for the name of the indirect buffer."
   (let ((n 1) (base (buffer-name buffer)) bname)
     (setq bname (concat prefix "-" base))
     (while (buffer-live-p (get-buffer bname))
-      (setq bname (concat prefix "-" (number-to-string (incf n)) "-" base)))
+      (setq bname (concat prefix "-" (number-to-string (cl-incf n)) "-" base)))
     (condition-case nil
         (make-indirect-buffer buffer bname 'clone)
       (error
@@ -1472,7 +1469,7 @@ only the bare key is returned."
 	    (cond
 	     ((and (= 2 (length (car tbl))) (= (length (caar tbl)) 1))
 	      ;; This is a description on this level
-	      (setq dkey (caar tbl) ddesc (cadar tbl))
+	      (setq dkey (caar tbl) ddesc (cl-cadar tbl))
 	      (pop tbl)
 	      (push dkey des-keys)
 	      (push dkey allowed-keys)

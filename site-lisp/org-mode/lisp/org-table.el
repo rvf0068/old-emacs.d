@@ -689,7 +689,7 @@ extension of the given file name, and finally on the variable
 		   (or (car (delq nil
 				  (mapcar
 				   (lambda (f)
-				     (and (org-string-match-p fileext f) f))
+				     (and (string-match-p fileext f) f))
 				   formats)))
 		       org-table-export-default-format)
 		   t t) t t)))
@@ -756,7 +756,7 @@ When nil, simply write \"#ERROR\" in corrupted fields.")
             ;; Table's rows.  Separators are replaced by nil.  Trailing
             ;; spaces are also removed.
             (lines (mapcar (lambda (l)
-                             (and (not (org-string-match-p "\\`[ \t]*|-" l))
+                             (and (not (string-match-p "\\`[ \t]*|-" l))
                                   (let ((l (org-trim l)))
                                     (remove-text-properties
                                      0 (length l) '(display t org-cwidth t) l)
@@ -833,7 +833,7 @@ edit.  Full value is:\n"
                  (unless (equal x "")
                    (setq frac
                          (/ (+ (* frac cnt)
-                               (if (org-string-match-p org-table-number-regexp x)
+                               (if (string-match-p org-table-number-regexp x)
                                    1
                                  0))
                             (cl-incf cnt)))))
@@ -1234,7 +1234,7 @@ Return t when the line exists, nil if it does not exist."
   "Blank the current table field or active region."
   (interactive)
   (org-table-check-inside-data-field)
-  (if (and (org-called-interactively-p 'any) (org-region-active-p))
+  (if (and (called-interactively-p 'any) (org-region-active-p))
       (let (org-table-clip)
 	(org-table-cut-region (region-beginning) (region-end)))
     (skip-chars-backward "^|")
@@ -1313,12 +1313,12 @@ is always the old value."
 (defun org-table-current-column ()
   "Find out which column we are in."
   (interactive)
-  (when (org-called-interactively-p 'any) (org-table-check-inside-data-field))
+  (when (called-interactively-p 'any) (org-table-check-inside-data-field))
   (save-excursion
     (let ((column 0) (pos (point)))
       (beginning-of-line)
       (while (search-forward "|" pos t) (cl-incf column))
-      (when (org-called-interactively-p 'interactive)
+      (when (called-interactively-p 'interactive)
 	(message "In table column %d" column))
       column)))
 
@@ -1327,7 +1327,7 @@ is always the old value."
   "Find out what table data line we are in.
 Only data lines count for this."
   (interactive)
-  (when (org-called-interactively-p 'any)
+  (when (called-interactively-p 'any)
     (org-table-check-inside-data-field))
   (save-excursion
     (let ((c 0)
@@ -1336,7 +1336,7 @@ Only data lines count for this."
       (while (<= (point) pos)
 	(when (looking-at org-table-dataline-regexp) (cl-incf c))
 	(forward-line))
-      (when (org-called-interactively-p 'any)
+      (when (called-interactively-p 'any)
 	(message "This is table line %d" c))
       c)))
 
@@ -1678,7 +1678,7 @@ numeric compare based on the type of the first key in the table."
   ;; Set appropriate case sensitivity and column used for sorting.
   (let ((column (let ((c (org-table-current-column)))
 		  (cond ((> c 0) c)
-			((org-called-interactively-p 'any)
+			((called-interactively-p 'any)
 			 (read-number "Use column N for sorting: "))
 			(t 1))))
 	(sorting-type
@@ -1726,7 +1726,7 @@ numeric compare based on the type of the first key in the table."
 			 (t 0))))
 		((?f ?F)
 		 (or getkey-func
-		     (and (org-called-interactively-p 'any)
+		     (and (called-interactively-p 'any)
 			  (intern
 			   (completing-read "Sort using function: "
 					    obarray #'fboundp t)))
@@ -2138,7 +2138,7 @@ If NLAST is a number, only the NLAST fields will actually be summed."
 			   s diff)
 		     (format "%.0f:%02.0f:%02.0f" h m s))))
 	(kill-new sres)
-	(when (org-called-interactively-p 'interactive)
+	(when (called-interactively-p 'interactive)
 	    (message "%s" (substitute-command-keys
 			   (format "Sum of %d items: %-20s     \
 \(\\[yank] will insert result into buffer)" (length numbers) sres))))
@@ -2313,7 +2313,7 @@ LOCATION is a buffer position, consider the formulas there."
 		       (cond
 			((not (match-end 2)) m)
 			;; Is it a column reference?
-			((org-string-match-p "\\`$\\([0-9]+\\|[<>]+\\)\\'" m) m)
+			((string-match-p "\\`$\\([0-9]+\\|[<>]+\\)\\'" m) m)
 			;; Since named columns are not possible in
 			;; LHS, assume this is a named field.
 			(t (match-string 2 string)))))
@@ -2380,11 +2380,8 @@ If yes, store the formula and apply it."
       (when (string-match "^:?=\\(.*[^=]\\)$" field)
 	(setq named (equal (string-to-char field) ?:)
 	      eq (match-string 1 field))
-	(if (or (fboundp 'calc-eval)
-		(equal (substring eq 0 (min 2 (length eq))) "'("))
-	    (org-table-eval-formula (if named '(4) nil)
-				    (org-table-formula-from-user eq))
-	  (user-error "Calc does not seem to be installed, and is needed to evaluate the formula"))))))
+	(org-table-eval-formula (and named '(4))
+				(org-table-formula-from-user eq))))))
 
 (defvar org-recalc-commands nil
   "List of commands triggering the recalculation of a line.
@@ -2466,7 +2463,7 @@ of the new mark."
     (when l1 (set-marker l1 nil))
     (when l2 (set-marker l2 nil))
     (set-marker l nil)
-    (when (org-called-interactively-p 'interactive)
+    (when (called-interactively-p 'interactive)
       (message "%s" (cdr (assoc newchar org-recalc-marks))))))
 
 ;;;###autoload
@@ -2849,20 +2846,23 @@ not overwrite the stored one.  SUPPRESS-ANALYSIS prevents any call to
 		  ev (if duration (org-table-time-seconds-to-string
 				   (string-to-number ev)
 				   duration-output-format) ev))
-	  (or (fboundp 'calc-eval)
-	      (user-error "Calc does not seem to be installed, and is needed to evaluate the formula"))
-	  ;; Use <...> time-stamps so that Calc can handle them
-	  (while (string-match (concat "\\[" org-ts-regexp1 "\\]") form)
-	    (setq form (replace-match "<\\1>" nil nil form)))
-	  ;; I18n-ize local time-stamps by setting (system-time-locale "C")
-	  (when (string-match org-ts-regexp2 form)
-	    (let* ((ts (match-string 0 form))
-		   (tsp (apply 'encode-time (save-match-data (org-parse-time-string ts))))
-		   (system-time-locale "C")
-		   (tf (or (and (save-match-data (string-match "[0-9]\\{1,2\\}:[0-9]\\{2\\}" ts))
-				(cdr org-time-stamp-formats))
-			   (car org-time-stamp-formats))))
-	      (setq form (replace-match (format-time-string tf tsp) t t form))))
+
+	  ;; Use <...> time-stamps so that Calc can handle them.
+	  (setq form
+		(replace-regexp-in-string org-ts-regexp-inactive "<\\1>" form))
+	  ;; Internationalize local time-stamps by setting locale to
+	  ;; "C".
+	  (setq form
+		(replace-regexp-in-string
+		 org-ts-regexp
+		 (lambda (ts)
+		   (let ((system-time-locale "C"))
+		     (format-time-string
+		      (org-time-stamp-format
+		       (string-match-p "[0-9]\\{1,2\\}:[0-9]\\{2\\}" ts))
+		      (apply #'encode-time
+			     (save-match-data (org-parse-time-string ts))))))
+		 form t t))
 
 	  (setq ev (if (and duration (string-match "^[0-9]+:[0-9]+\\(?::[0-9]+\\)?$" form))
 		       form
@@ -2890,7 +2890,7 @@ $1->    %s\n" orig formula form0 form))
 			     (if fmt (format fmt (string-to-number ev)) ev)))))
 	  (setq bw (get-buffer-window "*Substitution History*"))
 	  (org-fit-window-to-buffer bw)
-	  (unless (and (org-called-interactively-p 'any) (not ndown))
+	  (unless (and (called-interactively-p 'any) (not ndown))
 	    (unless (let (inhibit-redisplay)
 		      (y-or-n-p "Debugging Formula.  Continue to next? "))
 	      (org-table-align)
@@ -2926,7 +2926,7 @@ When CORNERS-ONLY is set, only return the corners of the range as
 a list (line1 column1 line2 column2) where line1 and line2 are
 line numbers relative to beginning of table, or TBEG, and column1
 and column2 are table column numbers."
-  (let* ((desc (if (org-string-match-p "\\`\\$[0-9]+\\.\\.\\$[0-9]+\\'" desc)
+  (let* ((desc (if (string-match-p "\\`\\$[0-9]+\\.\\.\\$[0-9]+\\'" desc)
 		   (replace-regexp-in-string "\\$" "@0$" desc)
 		 desc))
 	 (col (or col (org-table-current-column)))
@@ -3170,7 +3170,7 @@ existing formula for column %s"
 				      new))
 			new))
 		     (t old-lhs)))))
-	     (if (org-string-match-p "\\`\\$[0-9]+\\'" lhs)
+	     (if (string-match-p "\\`\\$[0-9]+\\'" lhs)
 		 (push (cons lhs rhs) eqlcol)
 	       (push (cons lhs rhs) eqlfield))))
 	 (setq eqlcol (nreverse eqlcol))
@@ -3383,13 +3383,13 @@ function assumes the table is already analyzed (i.e., using
       (let ((lhs (car e))
 	    (rhs (cdr e)))
 	(cond
-	 ((org-string-match-p "\\`@-?[-+0-9]+\\$-?[0-9]+\\'" lhs)
+	 ((string-match-p "\\`@-?[-+0-9]+\\$-?[0-9]+\\'" lhs)
 	  ;; This just refers to one fixed field.
 	  (push e res))
-	 ((org-string-match-p "\\`[a-zA-Z][_a-zA-Z0-9]*\\'" lhs)
+	 ((string-match-p "\\`[a-zA-Z][_a-zA-Z0-9]*\\'" lhs)
 	  ;; This just refers to one fixed named field.
 	  (push e res))
-	 ((org-string-match-p "\\`\\$[0-9]+\\'" lhs)
+	 ((string-match-p "\\`\\$[0-9]+\\'" lhs)
 	  ;; Column formulas are treated specially and are not
 	  ;; expanded.
 	  (push e res))
@@ -3445,7 +3445,7 @@ borders of the table using the @< @> $< $> makers."
   "Replace $const with values in string F."
   (let ((start 0)
 	(pp (/= (string-to-char f) ?'))
-	(duration (org-string-match-p ";.*[Tt].*\\'" f))
+	(duration (string-match-p ";.*[Tt].*\\'" f))
 	(new (replace-regexp-in-string	; Check for column names.
 	      org-table-column-name-regexp
 	      (lambda (m)
@@ -3728,7 +3728,7 @@ minutes or seconds."
 		 (format "%.1f" (/ (float secs0) 60)))
 		((eq output-format 'seconds)
 		 (format "%d" secs0))
-		(t (org-format-seconds "%.2h:%.2m:%.2s" secs0)))))
+		(t (format-seconds "%.2h:%.2m:%.2s" secs0)))))
     (if (< secs 0) (concat "-" res) res)))
 
 (defun org-table-fedit-convert-buffer (function)
@@ -3988,10 +3988,10 @@ When LOCAL is non-nil, show references for the table at point."
 	(when dest
 	  (setq name (substring dest 1))
 	  (cond
-	   ((org-string-match-p "\\`\\$[a-zA-Z][a-zA-Z0-9]*" dest)
+	   ((string-match-p "\\`\\$[a-zA-Z][a-zA-Z0-9]*" dest)
 	    (org-table-goto-field dest))
-	   ((org-string-match-p "\\`@\\([1-9][0-9]*\\)\\$\\([1-9][0-9]*\\)\\'"
-				dest)
+	   ((string-match-p "\\`@\\([1-9][0-9]*\\)\\$\\([1-9][0-9]*\\)\\'"
+			    dest)
 	    (org-table-goto-field dest))
 	   (t (org-table-goto-column (string-to-number name))))
 	  (move-marker pos (point))
@@ -4609,20 +4609,24 @@ a radio table."
 	  (beginning-of-line 0)))
       rtn)))
 
-(defun orgtbl-send-replace-tbl (name txt)
-  "Find and replace table NAME with TXT."
+(defun orgtbl-send-replace-tbl (name text)
+  "Find and replace table NAME with TEXT."
   (save-excursion
     (goto-char (point-min))
-    (unless (re-search-forward
-	     (concat "BEGIN +RECEIVE +ORGTBL +" name "\\([ \t]\\|$\\)") nil t)
-      (user-error "Don't know where to insert translated table"))
-    (let ((beg (line-beginning-position 2)))
-      (unless (re-search-forward
-	       (concat "END +RECEIVE +ORGTBL +" name) nil t)
-	(user-error "Cannot find end of insertion region"))
-      (beginning-of-line)
-      (delete-region beg (point)))
-    (insert txt "\n")))
+    (let* ((location-flag nil)
+	   (name (regexp-quote name))
+	   (begin-re (format "BEGIN +RECEIVE +ORGTBL +%s\\([ \t]\\|$\\)" name))
+	   (end-re (format "END +RECEIVE +ORGTBL +%s\\([ \t]\\|$\\)" name)))
+      (while (re-search-forward begin-re nil t)
+	(unless location-flag (setq location-flag t))
+	(let ((beg (line-beginning-position 2)))
+	  (unless (re-search-forward end-re nil t)
+	    (user-error "Cannot find end of receiver location at %d" beg))
+	  (beginning-of-line)
+	  (delete-region beg (point))
+	  (insert text "\n")))
+      (unless location-flag
+	(user-error "No valid receiver location found in the buffer")))))
 
 ;;;###autoload
 (defun org-table-to-lisp (&optional txt)
@@ -4647,7 +4651,7 @@ for this table."
   (catch 'exit
     (unless (org-at-table-p) (user-error "Not at a table"))
     ;; when non-interactive, we assume align has just happened.
-    (when (org-called-interactively-p 'any) (org-table-align))
+    (when (called-interactively-p 'any) (org-table-align))
     (let ((dests (orgtbl-gather-send-defs))
 	  (table (org-table-to-lisp
 		  (buffer-substring-no-properties (org-table-begin)
@@ -5193,7 +5197,7 @@ supported.  It is also possible to use the following one:
 	   params)))
 	(columns (let ((w (plist-get params :columns)))
 		   (cond ((not w) nil)
-			 ((org-string-match-p "{\\|@columnfractions " w) w)
+			 ((string-match-p "{\\|@columnfractions " w) w)
 			 (t (concat "@columnfractions " w))))))
     (if (not columns) output
       (replace-regexp-in-string
@@ -5434,7 +5438,7 @@ distinguished from a plain table name or ID."
        (save-match-data
 	 (let ((eq (org-table-formula-handle-first/last-rc (match-string 1 m))))
 	   (org-table-get-range
-	    (if (org-string-match-p "\\`\\$[0-9]+\\'" eq)
+	    (if (string-match-p "\\`\\$[0-9]+\\'" eq)
 		(concat "@0" eq)
 	      eq)))))
      form t t 1)))

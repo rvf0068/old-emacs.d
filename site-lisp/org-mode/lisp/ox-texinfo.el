@@ -25,7 +25,7 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl))
+(require 'cl-lib)
 (require 'ox)
 
 (defvar orgtbl-exp-regexp)
@@ -426,9 +426,9 @@ Return new tree."
   "Return a character not used in string S.
 This is used to choose a separator for constructs like \\verb."
   (let ((ll "~,./?;':\"|!@#%^&-_=+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ<>()[]{}"))
-    (loop for c across ll
-	  when (not (string-match (regexp-quote (char-to-string c)) s))
-	  return (char-to-string c))))
+    (cl-loop for c across ll
+	     when (not (string-match (regexp-quote (char-to-string c)) s))
+	     return (char-to-string c))))
 
 (defun org-texinfo--text-markup (text markup _info)
   "Format TEXT depending on MARKUP text markup.
@@ -548,7 +548,7 @@ holding export options."
 		     (name (symbol-name (or org-texinfo-coding-system
 					    buffer-file-coding-system))))
 		 (dolist (system org-texinfo-supported-coding-systems "UTF-8")
-		   (when (org-string-match-p (regexp-quote system) name)
+		   (when (string-match-p (regexp-quote system) name)
 		     (throw 'coding-system system))))))
 	    (language (plist-get info :language))
 	    (case-fold-search nil))
@@ -585,7 +585,7 @@ holding export options."
 		 (let ((dirdesc
 			(let ((desc (plist-get info :texinfo-dirdesc)))
 			  (cond ((not desc) nil)
-				((org-string-match-p "\\.$" desc) desc)
+				((string-match-p "\\.$" desc) desc)
 				(t (concat desc "."))))))
 		   (if dirdesc (format "%-23s %s" dirtitle dirdesc) dirtitle))
 		 "\n"
@@ -916,10 +916,10 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
      ((string= key "TINDEX") (format "@tindex %s" value))
      ((string= key "VINDEX") (format "@vindex %s" value))
      ((string= key "TOC")
-      (cond ((org-string-match-p "\\<tables\\>" value)
+      (cond ((string-match-p "\\<tables\\>" value)
 	     (concat "@listoffloats "
 		     (org-export-translate "Table" :utf-8 info)))
-	    ((org-string-match-p "\\<listings\\>" value)
+	    ((string-match-p "\\<listings\\>" value)
 	     (concat "@listoffloats "
 		     (org-export-translate "Listing" :utf-8 info))))))))
 
@@ -962,15 +962,15 @@ INFO is a plist holding contextual information.  See
 	     (if (equal type "fuzzy")
 		 (org-export-resolve-fuzzy-link link info)
 	       (org-export-resolve-id-link link info))))
-	(case (org-element-type destination)
-	  ((nil)
+	(pcase (org-element-type destination)
+	  (`nil
 	   (format org-texinfo-link-with-unknown-path-format
 		   (org-texinfo--sanitize-content path)))
 	  ;; Id link points to an external file.
-	  (plain-text
+	  (`plain-text
 	   (if desc (format "@uref{file://%s,%s}" destination desc)
 	     (format "@uref{file://%s}" destination)))
-	  (headline
+	  (`headline
 	   (format "@ref{%s,%s}"
 		   (org-texinfo--get-node destination info)
 		   (cond
@@ -981,7 +981,7 @@ INFO is a plist holding contextual information.  See
 		      (org-export-get-headline-number destination info) "."))
 		    (t (org-export-data
 			(org-element-property :title destination) info)))))
-	  (otherwise
+	  (_
 	   (format "@ref{%s,,%s}"
 		   (org-texinfo--get-node destination info)
 		   (cond
@@ -1307,8 +1307,8 @@ as a communication channel."
   "Transcode a SRC-BLOCK element from Org to Texinfo.
 CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
-  (let* ((lisp (org-string-match-p "lisp"
-				   (org-element-property :language src-block)))
+  (let* ((lisp (string-match-p "lisp"
+			       (org-element-property :language src-block)))
 	 (code (org-texinfo--sanitize-content
 		(org-export-format-code-default src-block info)))
 	 (value (format
@@ -1400,7 +1400,7 @@ a communication channel."
 	      (let ((w (- (org-element-property :contents-end cell)
 			  (org-element-property :contents-begin cell))))
 		(aset widths idx (max w (aref widths idx))))
-	      (incf idx))
+	      (cl-incf idx))
 	    info)))
       info)
     (format "{%s}" (mapconcat (lambda (w) (make-string w ?a)) widths "} {"))))
@@ -1457,12 +1457,12 @@ CONTENTS is nil.  INFO is a plist holding contextual
 information."
   (let ((value (org-texinfo-plain-text
 		(org-timestamp-translate timestamp) info)))
-    (case (org-element-property :type timestamp)
-      ((active active-range)
+    (pcase (org-element-property :type timestamp)
+      ((or `active `active-range)
        (format (plist-get info :texinfo-active-timestamp-format) value))
-      ((inactive inactive-range)
+      ((or `inactive `inactive-range)
        (format (plist-get info :texinfo-inactive-timestamp-format) value))
-      (t (format (plist-get info :texinfo-diary-timestamp-format) value)))))
+      (_ (format (plist-get info :texinfo-diary-timestamp-format) value)))))
 
 ;;;; Underline
 

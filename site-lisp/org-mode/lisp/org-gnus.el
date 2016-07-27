@@ -1,4 +1,4 @@
-;;; org-gnus.el --- Support for links to Gnus groups and messages from within Org-mode
+;;; org-gnus.el --- Support for Links to Gnus Groups and Messages -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
 
@@ -44,7 +44,7 @@
 
 ;; Customization variables
 
-(org-defvaralias 'org-usenet-links-prefer-google 'org-gnus-prefer-web-links)
+(defvaralias 'org-usenet-links-prefer-google 'org-gnus-prefer-web-links)
 
 (defcustom org-gnus-prefer-web-links nil
   "If non-nil, `org-store-link' creates web links to Google groups or Gmane.
@@ -74,8 +74,7 @@ this variable to t."
   :type 'boolean)
 
 ;; Install the link type
-(org-add-link-type "gnus" 'org-gnus-open)
-(add-hook 'org-store-link-functions 'org-gnus-store-link)
+(org-link-set-parameters "gnus" :follow #'org-gnus-open :store #'org-gnus-store-link)
 
 ;; Implementation
 

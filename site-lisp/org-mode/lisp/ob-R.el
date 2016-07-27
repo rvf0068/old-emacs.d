@@ -27,8 +27,9 @@
 ;; Org-Babel support for evaluating R code
 
 ;;; Code:
-(require 'ob)
+
 (require 'cl-lib)
+(require 'ob)
 
 (declare-function orgtbl-to-tsv "org-table" (table params))
 (declare-function R "ext:essd-r" (&optional start-args))
@@ -37,7 +38,6 @@
 (declare-function ess-eval-buffer "ext:ess-inf" (vis))
 (declare-function ess-wait-for-process "ext:ess-inf"
 		  (&optional proc sec-prompt wait force-redisplay))
-(declare-function org-number-sequence "org-compat" (from &optional to inc))
 
 (defconst org-babel-header-args:R
   '((width		 . :any)
@@ -221,7 +221,7 @@ This function is called by `org-babel-execute-src-block'."
 	       (cdr (nth i vars))
 	       (cdr (nth i (cdr (assoc :colname-names params))))
 	       (cdr (nth i (cdr (assoc :rowname-names params)))))))
-      (org-number-sequence 0 (1- (length vars)))))))
+      (number-sequence 0 (1- (length vars)))))))
 
 (defun org-babel-R-quote-tsv-field (s)
   "Quote field S for export to R."
@@ -377,12 +377,12 @@ Has four %s escapes to be filled in:
      body result-type result-params column-names-p row-names-p)))
 
 (defun org-babel-R-evaluate-external-process
-  (body result-type result-params column-names-p row-names-p)
+    (body result-type result-params column-names-p row-names-p)
   "Evaluate BODY in external R process.
 If RESULT-TYPE equals `output' then return standard output as a
 string.  If RESULT-TYPE equals `value' then return the value of the
 last statement in BODY, as elisp."
-  (case result-type
+  (cl-case result-type
     (value
      (let ((tmp-file (org-babel-temp-file "R-")))
        (org-babel-eval org-babel-R-command
@@ -405,12 +405,12 @@ last statement in BODY, as elisp."
 (defvar ess-eval-visibly-p)
 
 (defun org-babel-R-evaluate-session
-  (session body result-type result-params column-names-p row-names-p)
+    (session body result-type result-params column-names-p row-names-p)
   "Evaluate BODY in SESSION.
 If RESULT-TYPE equals `output' then return standard output as a
 string.  If RESULT-TYPE equals `value' then return the value of the
 last statement in BODY, as elisp."
-  (case result-type
+  (cl-case result-type
     (value
      (with-temp-buffer
        (insert (org-babel-chomp body))

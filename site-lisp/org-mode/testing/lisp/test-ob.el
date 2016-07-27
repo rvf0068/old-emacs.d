@@ -136,15 +136,14 @@ should still return the link."
 
 * elisp forms in header arguments
   :PROPERTIES:
-  :var:      prop = (* 7 6)
+  :header-args: :var prop = (* 7 6)
   :END:
 #+begin_src emacs-lisp
   prop
 #+end_src"
     (goto-char (point-min))
     (org-babel-next-src-block)
-    (let ((info (org-babel-get-src-block-info)))
-      (should (= 42 (org-babel-execute-src-block))))))
+    (should (= 42 (org-babel-execute-src-block)))))
 
 (ert-deftest test-ob/simple-named-code-block ()
   "Test that simple named code blocks can be evaluated."
@@ -183,17 +182,13 @@ should still return the link."
 
 #+headers: :var letters='(a b c d e f g)
 #+begin_src emacs-lisp :var numbers='(1 2 3 4 5 6 7)
-  (require 'cl)
-  (defalias 'my-map (if (org-version-check \"24.2.50\" \"cl\" :predicate)
-                        'cl-map
-                      'map))
-  (my-map 'list #'list numbers letters)
+  (require 'cl-lib)
+  (cl-map 'list #'list numbers letters)
 #+end_src"
-
     (org-babel-next-src-block)
     (let ((results (org-babel-execute-src-block)))
-      (should(equal 'a (cadr (assoc 1 results))))
-      (should(equal 'd (cadr (assoc 4 results)))))))
+      (should (eq 'a (cadr (assoc 1 results))))
+      (should (eq 'd (cadr (assoc 4 results)))))))
 
 (ert-deftest test-ob/parse-header-args ()
   (org-test-with-temp-text-in-file "
@@ -207,7 +202,7 @@ should still return the link."
 	   (params (nth 2 info)))
       (message "%S" params)
       (should (equal "example-lang" (nth 0 info)))
-      (should (string= "the body" (org-babel-trim (nth 1 info))))
+      (should (string= "the body" (org-trim (nth 1 info))))
       (should-not (member '(:session\ \ \ \ ) params))
       (should (equal '(:session) (assoc :session params)))
       (should (equal '(:result-type . output) (assoc :result-type params)))
@@ -1696,6 +1691,48 @@ echo \"$data\"
       (let ((org-babel-results-keyword "RESULTS"))
 	(goto-char (org-babel-where-is-src-block-result t nil "bbbb")))
       (org-trim (buffer-substring-no-properties (point) (point-max)))))))
+
+(ert-deftest test-ob/goto-named-src-block ()
+    "Test interactive use of `org-babel-goto-named-src-block'."
+    (org-test-with-temp-text-in-file
+		"
+#+NAME: abc
+#+BEGIN_SRC emacs-lisp :results value
+(1+ 1)
+#+END_SRC
+#+CALL: abc( lorem() ) :results raw :wrap EXAMPLE
+#+BEGIN_SRC emacs-lisp
+<<abc>>
+#+END_SRC
+abc
+#+RESULTS: abc
+: 2
+"
+       ;; non-existent name
+       (should-not
+         (execute-kbd-macro  "\M-xorg-babel-goto-named-src-block\nno-name\n"))
+       ;; correct name
+       (execute-kbd-macro  "\M-xorg-babel-goto-named-src-block\nabc\n")
+       (should  (= 14 (point)))
+       ;; call line   - autocompletion
+       (forward-line 3)
+       (execute-kbd-macro  "\M-xorg-babel-goto-named-src-block\n\n")
+       (should  (= 14 (point)))
+       ;; noweb reference  - autocompletion
+       (forward-line 5)
+       (execute-kbd-macro  "\M-xorg-babel-goto-named-src-block\n\n")
+       (should  (= 14 (point)))
+       ;; at symbol  - autocompletion
+       (forward-line 7)
+       (execute-kbd-macro  "\M-xorg-babel-goto-named-src-block\n\n")
+       (should  (= 14 (point)))
+       ;; in results  - autocompletion
+       (forward-line 8)
+       (execute-kbd-macro  "\M-xorg-babel-goto-named-src-block\n\n")
+       (should  (= 14 (point)))
+       (forward-line 9)
+       (execute-kbd-macro  "\M-xorg-babel-goto-named-src-block\n\n")
+       (should  (= 14 (point)))))
 
 (provide 'test-ob)
 

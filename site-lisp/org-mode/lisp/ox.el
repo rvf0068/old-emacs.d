@@ -78,8 +78,7 @@
 
 (declare-function org-publish "ox-publish" (project &optional force async))
 (declare-function org-publish-all "ox-publish" (&optional force async))
-(declare-function
- org-publish-current-file "ox-publish" (&optional force async))
+(declare-function org-publish-current-file "ox-publish" (&optional force async))
 (declare-function org-publish-current-project "ox-publish"
 		  (&optional force async))
 
@@ -2713,7 +2712,21 @@ from tree."
 		    ;; Move into secondary string, if any.
 		    (dolist (p (cdr (assq type
 					  org-element-secondary-value-alist)))
-		      (mapc walk-data (org-element-property p data)))))))))
+		      (mapc walk-data (org-element-property p data))))))))
+	   (definitions
+	     ;; Collect definitions before possibly pruning them so as
+	     ;; to avoid parsing them again if they are required.
+	     (org-element-map data '(footnote-definition footnote-reference)
+	       (lambda (f)
+		 (cond
+		  ((eq (org-element-type f) 'footnote-definition) f)
+		  ((eq (org-element-property :type f) 'standard) nil)
+		  (t (let ((label (org-element-property :label f)))
+		       (when label	;Skip anonymous references.
+			 (apply
+			  #'org-element-create
+			  'footnote-definition `(:label ,label :post-blank 1)
+			  (org-element-contents f))))))))))
     ;; If a select tag is active, also ignore the section before the
     ;; first headline, if any.
     (when selected
@@ -2722,15 +2735,155 @@ from tree."
 	  (org-element-extract-element first-element))))
     ;; Prune tree and communication channel.
     (funcall walk-data data)
-    (dolist (entry
-	     (append
-	      ;; Priority is given to back-end specific options.
-	      (org-export-get-all-options (plist-get info :back-end))
-	      org-export-options-alist))
+    (dolist (entry (append
+		    ;; Priority is given to back-end specific options.
+		    (org-export-get-all-options (plist-get info :back-end))
+		    org-export-options-alist))
       (when (eq (nth 4 entry) 'parse)
 	(funcall walk-data (plist-get info (car entry)))))
+    (let ((missing (org-export--missing-definitions data definitions)))
+      (funcall walk-data missing)
+      (org-export--install-footnote-definitions missing data))
     ;; Eventually set `:ignore-list'.
     (plist-put info :ignore-list ignore)))
+
+(defun org-export--missing-definitions (tree definitions)
+  "List footnote definitions missing from TREE.
+Missing definitions are searched within DEFINITIONS, which is
+a list of footnote definitions or in the widened buffer."
+  (let* ((list-labels
+	  (lambda (data)
+	    ;; List all footnote labels encountered in DATA.  Inline
+	    ;; footnote references are ignored.
+	    (org-element-map data 'footnote-reference
+	      (lambda (reference)
+		(and (eq (org-element-property :type reference) 'standard)
+		     (org-element-property :label reference))))))
+	 defined undefined missing-definitions)
+    ;; Partition DIRECT-REFERENCES between DEFINED and UNDEFINED
+    ;; references.
+    (let ((known-definitions
+	   (org-element-map tree '(footnote-reference footnote-definition)
+	     (lambda (f)
+	       (and (or (eq (org-element-type f) 'footnote-definition)
+			(eq (org-element-property :type f) 'inline))
+		    (org-element-property :label f)))))
+	  seen)
+      (dolist (l (funcall list-labels tree))
+	(cond ((member l seen))
+	      ((member l known-definitions) (push l defined))
+	      (t (push l undefined)))))
+    ;; Complete MISSING-DEFINITIONS by finding the definition of every
+    ;; undefined label, first by looking into DEFINITIONS, then by
+    ;; searching the widened buffer.  This is a recursive process
+    ;; since definitions found can themselves contain an undefined
+    ;; reference.
+    (while undefined
+      (let* ((label (pop undefined))
+	     (definition
+	       (cond
+		((cl-some
+		  (lambda (d) (and (equal (org-element-property :label d) label)
+			      d))
+		  definitions))
+		((pcase (org-footnote-get-definition label)
+		   (`(,_ ,beg . ,_)
+		    (org-with-wide-buffer
+		     (goto-char beg)
+		     (let ((datum (org-element-context)))
+		       (if (eq (org-element-type datum) 'footnote-reference)
+			   datum
+			 ;; Parse definition with contents.
+			 (save-restriction
+			   (narrow-to-region
+			    (org-element-property :begin datum)
+			    (org-element-property :end datum))
+			   (org-element-map (org-element-parse-buffer)
+			       'footnote-definition #'identity nil t))))))
+		   (_ nil)))
+		(t (user-error "Definition not found for footnote %s" label)))))
+	(push label defined)
+	(push definition missing-definitions)
+	;; Look for footnote references within DEFINITION, since
+	;; we may need to also find their definition.
+	(dolist (l (funcall list-labels definition))
+	  (unless (or (member l defined)    ;Known label
+		      (member l undefined)) ;Processed later
+	    (push l undefined)))))
+    ;; MISSING-DEFINITIONS may contain footnote references with inline
+    ;; definitions.  Make sure those are changed into real footnote
+    ;; definitions.
+    (mapcar (lambda (d)
+	      (if (eq (org-element-type d) 'footnote-definition) d
+		(let ((label (org-element-property :label d)))
+		  (apply #'org-element-create
+			 'footnote-definition `(:label ,label :post-blank 1)
+			 (org-element-contents d)))))
+	    missing-definitions)))
+
+(defun org-export--install-footnote-definitions (definitions tree)
+  "Install footnote definitions in tree.
+
+DEFINITIONS is the list of footnote definitions to install.  TREE
+is the parse tree.
+
+If there is a footnote section in TREE, definitions found are
+appended to it.  If `org-footnote-section' is non-nil, a new
+footnote section containing all definitions is inserted in TREE.
+Otherwise, definitions are appended at the end of the section
+containing their first reference."
+  (cond
+   ((null definitions))
+   ;; If there is a footnote section, insert definitions there.
+   ((let ((footnote-section
+	   (org-element-map tree 'headline
+	     (lambda (h) (and (org-element-property :footnote-section-p h) h))
+	     nil t)))
+      (and footnote-section
+	   (apply #'org-element-adopt-elements
+		  footnote-section
+		  (nreverse definitions)))))
+   ;; If there should be a footnote section, create one containing all
+   ;; the definitions at the end of the tree.
+   (org-footnote-section
+    (org-element-adopt-elements
+     tree
+     (org-element-create 'headline
+			 (list :footnote-section-p t
+			       :level 1
+			       :title org-footnote-section)
+			 (apply #'org-element-create
+				'section
+				nil
+				(nreverse definitions)))))
+   ;; Otherwise add each definition at the end of the section where it
+   ;; is first referenced.
+   (t
+    (letrec ((seen nil)
+	     (insert-definitions
+	      (lambda (data)
+		;; Insert footnote definitions in the same section as
+		;; their first reference in DATA.
+		(org-element-map data 'footnote-reference
+		  (lambda (reference)
+		    (when (eq (org-element-property :type reference) 'standard)
+		      (let ((label (org-element-property :label reference)))
+			(unless (member label seen)
+			  (push label seen)
+			  (let ((definition
+				  (cl-some
+				   (lambda (d)
+				     (and (equal (org-element-property :label d)
+						 label)
+					  d))
+				   definitions)))
+			    (org-element-adopt-elements
+			     (org-element-lineage reference '(section))
+			     definition)
+			    ;; Also insert definitions for nested
+			    ;; references, if any.
+			    (funcall insert-definitions definition))))))))))
+      (funcall insert-definitions tree)))))
 
 (defun org-export--remove-uninterpreted-data (data info)
   "Change uninterpreted elements back into Org syntax.
@@ -2815,131 +2968,6 @@ returned by the function."
   ;; Return modified parse tree.
   data)
 
-(defun org-export--merge-external-footnote-definitions (tree)
-  "Insert footnote definitions outside parsing scope in TREE.
-
-If there is a footnote section in TREE, definitions found are
-appended to it.  If `org-footnote-section' is non-nil, a new
-footnote section containing all definitions is inserted in TREE.
-Otherwise, definitions are appended at the end of the section
-containing their first reference.
-
-Only definitions actually referred to within TREE, directly or
-not, are considered."
-  (let* ((collect-labels
-	  (lambda (data)
-	    (org-element-map data 'footnote-reference
-	      (lambda (f)
-		(and (eq (org-element-property :type f) 'standard)
-		     (org-element-property :label f))))))
-	 (referenced-labels (funcall collect-labels tree)))
-    (when referenced-labels
-      (let* ((definitions)
-	     (push-definition
-	      (lambda (datum)
-		(cl-case (org-element-type datum)
-		  (footnote-definition
-		   (push (save-restriction
-			   (narrow-to-region (org-element-property :begin datum)
-					     (org-element-property :end datum))
-			   (org-element-map (org-element-parse-buffer)
-			       'footnote-definition #'identity nil t))
-			 definitions))
-		  (footnote-reference
-		   (let ((label (org-element-property :label datum))
-			 (cbeg (org-element-property :contents-begin datum)))
-		     (when (and label cbeg
-				(eq (org-element-property :type datum) 'inline))
-		       (push
-			(apply #'org-element-create
-			       'footnote-definition
-			       (list :label label :post-blank 1)
-			       (org-element-parse-secondary-string
-				(buffer-substring
-				 cbeg (org-element-property :contents-end datum))
-				(org-element-restriction 'footnote-reference)))
-			definitions))))))))
-	;; Collect all out of scope definitions.
-	(save-excursion
-	  (goto-char (point-min))
-	  (org-with-wide-buffer
-	   (while (re-search-backward org-footnote-re nil t)
-	     (funcall push-definition (org-element-context))))
-	  (goto-char (point-max))
-	  (org-with-wide-buffer
-	   (while (re-search-forward org-footnote-re nil t)
-	     (funcall push-definition (org-element-context)))))
-	;; Filter out definitions referenced neither in the original
-	;; tree nor in the external definitions.
-	(let* ((directly-referenced
-		(cl-remove-if-not
-		 (lambda (d)
-		   (member (org-element-property :label d) referenced-labels))
-		 definitions))
-	       (all-labels
-		(append (funcall collect-labels directly-referenced)
-			referenced-labels)))
-	  (setq definitions
-		(cl-remove-if-not
-		 (lambda (d)
-		   (member (org-element-property :label d) all-labels))
-		 definitions)))
-	;; Install definitions in subtree.
-	(cond
-	 ((null definitions))
-	 ;; If there is a footnote section, insert them here.
-	 ((let ((footnote-section
-		 (org-element-map tree 'headline
-		   (lambda (h)
-		     (and (org-element-property :footnote-section-p h) h))
-		   nil t)))
-	    (and footnote-section
-		 (apply #'org-element-adopt-elements (nreverse definitions)))))
-	 ;; If there should be a footnote section, create one containing
-	 ;; all the definitions at the end of the tree.
-	 (org-footnote-section
-	  (org-element-adopt-elements
-	   tree
-	   (org-element-create 'headline
-			       (list :footnote-section-p t
-				     :level 1
-				     :title org-footnote-section)
-			       (apply #'org-element-create
-				      'section
-				      nil
-				      (nreverse definitions)))))
-	 ;; Otherwise add each definition at the end of the section where
-	 ;; it is first referenced.
-	 (t
-	  (letrec ((seen nil)
-		   (insert-definitions
-		    (lambda (data)
-		      ;; Insert definitions in the same section as
-		      ;; their first reference in DATA.
-		      (org-element-map data 'footnote-reference
-			(lambda (f)
-			  (when (eq (org-element-property :type f) 'standard)
-			    (let ((label (org-element-property :label f)))
-			      (unless (member label seen)
-				(push label seen)
-				(let ((definition
-					(catch 'found
-					  (dolist (d definitions)
-					    (when (equal
-						   (org-element-property :label
-									 d)
-						   label)
-					      (setq definitions
-						    (delete d definitions))
-					      (throw 'found d))))))
-				  (when definition
-				    (org-element-adopt-elements
-				     (org-element-lineage f '(section))
-				     definition)
-				    (funcall insert-definitions
-					     definition)))))))))))
-	    (funcall insert-definitions tree))))))))
-
 ;;;###autoload
 (defun org-export-as
     (backend &optional subtreep visible-only body-only ext-plist)
@@ -3014,7 +3042,7 @@ Return code as a string."
 	 (org-set-regexps-and-options)
 	 (org-update-radio-target-regexp)
 	 (when org-export-babel-evaluate
-	   (org-export-execute-babel-code)
+	   (org-babel-exp-process-buffer)
 	   (org-set-regexps-and-options)
 	   (org-update-radio-target-regexp))
 	 ;; Run last hook with current back-end's name as argument.
@@ -3064,8 +3092,6 @@ Return code as a string."
 	  parsed-keywords)
 	 ;; Parse buffer.
 	 (setq tree (org-element-parse-buffer nil visible-only))
-	 ;; Merge footnote definitions outside scope into parse tree.
-	 (org-export--merge-external-footnote-definitions tree)
 	 ;; Prune tree from non-exported elements and transform
 	 ;; uninterpreted elements or objects in both parse tree and
 	 ;; communication channel.
@@ -3552,14 +3578,6 @@ the included document."
 	(set-marker marker-max nil)))
     (org-element-normalize-string (buffer-string))))
 
-(defun org-export-execute-babel-code ()
-  "Execute every Babel code in the visible part of current buffer."
-  ;; Get a pristine copy of current buffer so Babel references can be
-  ;; properly resolved.
-  (let ((reference (org-export-copy-buffer)))
-    (unwind-protect (org-babel-exp-process-buffer reference)
-      (kill-buffer reference))))
-
 (defun org-export--copy-to-kill-ring-p ()
   "Return a non-nil value when output should be added to the kill ring.
 See also `org-export-copy-to-kill-ring'."
@@ -3711,16 +3729,28 @@ definition can be found, raise an error."
 		       (let ((hash (make-hash-table :test #'equal)))
 			 (plist-put info :footnote-definition-cache hash)
 			 hash))))
-	(or (gethash label cache)
-	    (puthash label
-		     (org-element-map (plist-get info :parse-tree)
-			 '(footnote-definition footnote-reference)
-		       (lambda (f)
-			 (and (equal (org-element-property :label f) label)
-			      (org-element-contents f)))
-		       info t)
-		     cache)
-	    (error "Definition not found for footnote %s" label))))))
+	(or
+	 (gethash label cache)
+	 (puthash label
+		  (org-element-map (plist-get info :parse-tree)
+		      '(footnote-definition footnote-reference)
+		    (lambda (f)
+		      (cond
+		       ;; Skip any footnote with a different label.
+		       ;; Also skip any standard footnote reference
+		       ;; with the same label since those cannot
+		       ;; contain a definition.
+		       ((not (equal (org-element-property :label f) label)) nil)
+		       ((eq (org-element-property :type f) 'standard) nil)
+		       ((org-element-contents f))
+		       ;; Even if the contents are empty, we can not
+		       ;; return nil since that would eventually raise
+		       ;; the error.  Instead, return the equivalent
+		       ;; empty string.
+		       (t "")))
+		    info t)
+		  cache)
+	 (error "Definition not found for footnote %s" label))))))
 
 (defun org-export--footnote-reference-map
     (function data info &optional body-first)
@@ -4043,7 +4073,7 @@ meant to be translated with `org-export-data' or alike."
 ;;;; For Links
 ;;
 ;; `org-export-custom-protocol-maybe' handles custom protocol defined
-;; with `org-add-link-type', which see.
+;; in `org-link-parameters'.
 ;;
 ;; `org-export-get-coderef-format' returns an appropriate format
 ;; string for coderefs.
@@ -4086,7 +4116,7 @@ The function ignores links with an implicit type (e.g.,
   (let ((type (org-element-property :type link)))
     (unless (or (member type '("coderef" "custom-id" "fuzzy" "radio"))
 		(not backend))
-      (let ((protocol (nth 2 (assoc type org-link-protocols))))
+      (let ((protocol (org-link-get-parameter type :export)))
 	(and (functionp protocol)
 	     (funcall protocol
 		      (org-link-unescape (org-element-property :path link))
@@ -4121,8 +4151,8 @@ This only applies to links without a description."
 	 (catch 'exit
 	   (dolist (rule (or rules org-export-default-inline-image-rule))
 	     (and (string= (org-element-property :type link) (car rule))
-		  (org-string-match-p (cdr rule)
-				      (org-element-property :path link))
+		  (string-match-p (cdr rule)
+				  (org-element-property :path link))
 		  (throw 'exit t)))))))
 
 (defun org-export-resolve-coderef (ref info)
@@ -4305,7 +4335,7 @@ has type \"radio\"."
 
 (defun org-export-file-uri (filename)
   "Return file URI associated to FILENAME."
-  (cond ((org-string-match-p "\\`//" filename) (concat "file:" filename))
+  (cond ((string-match-p "\\`//" filename) (concat "file:" filename))
 	((not (file-name-absolute-p filename)) filename)
 	((org-file-remote-p filename) (concat "file:/" filename))
 	(t (concat "file://" (expand-file-name filename)))))
@@ -4348,7 +4378,7 @@ REFERENCE is a number representing a reference, as returned by
 DATUM is either an element or an object.  INFO is the current
 export state, as a plist.
 
-This functions checks `:crossrefs' property in INFO for search
+This function checks `:crossrefs' property in INFO for search
 cells matching DATUM before creating a new reference.  Returned
 reference consists of alphanumeric characters only."
   (let ((cache (plist-get info :internal-references)))
@@ -5412,9 +5442,6 @@ Return the new string."
 
 ;; defsubst org-export-get-parent must be defined before first use
 
-(define-obsolete-function-alias
-  'org-export-get-genealogy 'org-element-lineage "25.1")
-
 (defun org-export-get-parent-headline (blob)
   "Return BLOB parent headline or nil.
 BLOB is the element or object being considered."
@@ -6134,9 +6161,8 @@ stack."
 		    (let ((data (nth 2 entry)))
 		      (if proc-p (format " %6s  " (process-status data))
 			;; Compute age of the results.
-			(org-format-seconds
-			 "%4h:%.2m  "
-			 (float-time (time-since data)))))
+			(format-seconds "%4h:%.2m  "
+					(float-time (time-since data)))))
 		    ;; Source.
 		    (format " %s"
 			    (let ((source (car entry)))

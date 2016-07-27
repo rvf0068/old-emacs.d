@@ -28,13 +28,11 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl))
+(require 'cl-lib)
 (require 'org)
 
 (declare-function calendar-iso-to-absolute "cal-iso" (date))
 (declare-function notifications-notify "notifications" (&rest params))
-(declare-function org-pop-to-buffer-same-window "org-compat" (&optional buffer-or-name norecord label))
 (declare-function org-element-property "org-element" (property element))
 (declare-function org-element-type "org-element" (element))
 (declare-function org-table-goto-line "org-table" (n))
@@ -89,7 +87,7 @@ Return value is either a string, an integer, or nil."
     (cond ((equal p "nil") nil)
 	  ((equal p "t") (or (org-log-into-drawer) "LOGBOOK"))
           ((org-string-nw-p p)
-	   (if (org-string-match-p "\\`[0-9]+\\'" p) (string-to-number p) p))
+	   (if (string-match-p "\\`[0-9]+\\'" p) (string-to-number p) p))
 	  ((org-string-nw-p org-clock-into-drawer))
 	  ((integerp org-clock-into-drawer) org-clock-into-drawer)
 	  ((not org-clock-into-drawer) nil)
@@ -239,9 +237,6 @@ file name  Play this sound file, fall back to beep"
 	  (const :tag "Standard beep" t)
 	  (file  :tag "Play sound file")))
 
-(define-obsolete-variable-alias 'org-clock-modeline-total
-  'org-clock-mode-line-total "24.3")
-
 (defcustom org-clock-mode-line-total 'auto
   "Default setting for the time included for the mode line clock.
 This can be overruled locally using the CLOCK_MODELINE_TOTAL property.
@@ -260,7 +255,7 @@ auto     Automatically, either `all', or `repeat' for repeating tasks"
 	  (const :tag "All task time" all)
 	  (const :tag "Automatically, `all' or since `repeat'" auto)))
 
-(org-defvaralias 'org-task-overrun-text 'org-clock-task-overrun-text)
+(defvaralias 'org-task-overrun-text 'org-clock-task-overrun-text)
 (defcustom org-clock-task-overrun-text nil
   "Extra mode line text to indicate that the clock is overrun.
 The can be nil to indicate that instead of adding text, the clock time
@@ -291,7 +286,7 @@ string as argument."
 (defcustom org-clocktable-defaults
   (list
    :maxlevel 2
-   :lang (or (org-bound-and-true-p org-export-default-language) "en")
+   :lang (or (bound-and-true-p org-export-default-language) "en")
    :scope 'file
    :block nil
    :wstart 1
@@ -470,7 +465,7 @@ to add an effort property.")
   (let* ((dichotomy
 	  (lambda (min max pred)
 	    (if (funcall pred min) min
-	      (incf min)
+	      (cl-incf min)
 	      (while (> (- max min) 1)
 		(let ((mean (+ (ash min -1) (ash max -1) (logand min max 1))))
 		  (if (funcall pred mean) (setq max mean) (setq min mean)))))
@@ -989,7 +984,7 @@ The format of clock is (CONS MARKER START-TIME), where MARKER
 identifies the buffer and position the clock is open at (and
 thus, the heading it's under), and START-TIME is when the clock
 was started."
-  (assert clock)
+  (cl-assert clock)
   (let* ((ch
 	  (save-window-excursion
 	    (save-excursion
@@ -1568,7 +1563,7 @@ to, overriding the existing value of `org-clock-out-switch-to-state'."
 	  ts te s h m remove)
       (setq org-clock-out-time now)
       (save-excursion ; Do not replace this with `with-current-buffer'.
-	(org-no-warnings (set-buffer (org-clocking-buffer)))
+	(with-no-warnings (set-buffer (org-clocking-buffer)))
 	(save-restriction
 	  (widen)
 	  (goto-char org-clock-marker)
@@ -1688,7 +1683,7 @@ Optional argument N tells to change by that many units."
 	(let ((ts (if updatets1 ts2 ts1))
 	      (begts (if updatets1 begts1 begts2)))
 	  (setq tdiff
-		(subtract-time
+		(time-subtract
 		 (org-time-string-to-time org-last-changed-timestamp)
 		 (org-time-string-to-time ts)))
 	  (save-excursion
@@ -1713,7 +1708,7 @@ Optional argument N tells to change by that many units."
     (force-mode-line-update)
     (error "No active clock"))
   (save-excursion    ; Do not replace this with `with-current-buffer'.
-    (org-no-warnings (set-buffer (org-clocking-buffer)))
+    (with-no-warnings (set-buffer (org-clocking-buffer)))
     (goto-char org-clock-marker)
     (if (looking-back (concat "^[ \t]*" org-clock-string ".*")
 		      (line-beginning-position))
@@ -1747,7 +1742,7 @@ With prefix arg SELECT, offer recently clocked tasks for selection."
 	      (setq recent t)
 	      (car org-clock-history))
 	     (t (error "No active or recent clock task")))))
-    (org-pop-to-buffer-same-window (marker-buffer m))
+    (pop-to-buffer-same-window (marker-buffer m))
     (if (or (< m (point-min)) (> m (point-max))) (widen))
     (goto-char m)
     (org-show-entry)
@@ -1853,8 +1848,8 @@ PROPNAME lets you set a custom text property instead of :org-clock-minutes."
 	     (when (or (> t1 0) (> (aref ltimes level) 0))
 	       (when (or headline-included headline-forced)
 		 (if headline-included
-		     (loop for l from 0 to level do
-			   (aset ltimes l (+ (aref ltimes l) t1))))
+		     (cl-loop for l from 0 to level do
+			      (aset ltimes l (+ (aref ltimes l) t1))))
 		 (setq time (aref ltimes level))
 		 (goto-char (match-beginning 0))
 		 (put-text-property (point) (point-at-eol)
@@ -1869,8 +1864,8 @@ PROPNAME lets you set a custom text property instead of :org-clock-minutes."
 			    (point) (point-at-eol)
 			    :org-clock-force-headline-inclusion t))))))
 	       (setq t1 0)
-	       (loop for l from level to (1- lmax) do
-		     (aset ltimes l 0)))))))
+	       (cl-loop for l from level to (1- lmax) do
+			(aset ltimes l 0)))))))
        (setq org-clock-file-total-minutes (aref ltimes 0))))))
 
 (defun org-clock-sum-current-item (&optional tstart)
@@ -2187,22 +2182,22 @@ have priority."
       (when (and (memq key '(quarter thisq)) (> shift 0))
 	(error "Looking forward with quarters isn't implemented"))))
     (when (= shift 0)
-      (case key
-	(yesterday (setq key 'today   shift -1))
-	(lastweek  (setq key 'week    shift -1))
-	(lastmonth (setq key 'month   shift -1))
-	(lastyear  (setq key 'year    shift -1))
-	(lastq     (setq key 'quarter shift -1))))
+      (pcase key
+	(`yesterday (setq key 'today   shift -1))
+	(`lastweek  (setq key 'week    shift -1))
+	(`lastmonth (setq key 'month   shift -1))
+	(`lastyear  (setq key 'year    shift -1))
+	(`lastq     (setq key 'quarter shift -1))))
     ;; Prepare start and end times depending on KEY's type.
-    (case key
-      ((day today) (setq m 0 h 0 h1 24 d (+ d shift)))
-      ((week thisweek)
+    (pcase key
+      ((or `day `today) (setq m 0 h 0 h1 24 d (+ d shift)))
+      ((or `week `thisweek)
        (let* ((ws (or wstart 1))
 	      (diff (+ (* -7 shift) (if (= dow 0) (- 7 ws) (- dow ws)))))
 	 (setq m 0 h 0 d (- d diff) d1 (+ 7 d))))
-      ((month thismonth)
+      ((or `month `thismonth)
        (setq h 0 m 0 d (or mstart 1) month (+ month shift) month1 (1+ month)))
-      ((quarter thisq)
+      ((or `quarter `thisq)
        ;; Compute if this shift remains in this year.  If not, compute
        ;; how many years and quarters we have to shift (via floor*) and
        ;; compute the shifted years, months and quarters.
@@ -2210,7 +2205,7 @@ have priority."
 	((< (+ (- q 1) shift) 0)	; Shift not in this year.
 	 (let* ((interval (* -1 (+ (- q 1) shift)))
 		;; Set tmp to ((years to shift) (quarters to shift)).
-		(tmp (org-floor* interval 4)))
+		(tmp (cl-floor interval 4)))
 	   ;; Due to the use of floor, 0 quarters actually means 4.
 	   (if (= 0 (nth 1 tmp))
 	       (setq shiftedy (- y (nth 0 tmp))
@@ -2225,35 +2220,35 @@ have priority."
 	 (setq shiftedy y)
 	 (let ((qshift (* 3 (1- (+ q shift)))))
 	   (setq m 0 h 0 d 1 month (+ 1 qshift) month1 (+ 4 qshift))))))
-      ((year thisyear)
+      ((or `year `thisyear)
        (setq m 0 h 0 d 1 month 1 y (+ y shift) y1 (1+ y)))
-      ((interactive untilnow))		; Special cases, ignore them.
-      (t (user-error "No such time block %s" key)))
+      ((or `interactive `untilnow))	; Special cases, ignore them.
+      (_ (user-error "No such time block %s" key)))
     ;; Format start and end times according to AS-STRINGS.
-    (let* ((start (case key
-		    (interactive (org-read-date nil t nil "Range start? "))
-		    (untilnow org-clock--oldest-date)
-		    (t (encode-time 0 m h d month y))))
-	   (end (case key
-		  (interactive (org-read-date nil t nil "Range end? "))
-		  (untilnow (current-time))
-		  (t (encode-time 0
+    (let* ((start (pcase key
+		    (`interactive (org-read-date nil t nil "Range start? "))
+		    (`untilnow org-clock--oldest-date)
+		    (_ (encode-time 0 m h d month y))))
+	   (end (pcase key
+		  (`interactive (org-read-date nil t nil "Range end? "))
+		  (`untilnow (current-time))
+		  (_ (encode-time 0
 				  (or m1 m)
 				  (or h1 h)
 				  (or d1 d)
 				  (or month1 month)
 				  (or y1 y)))))
 	   (text
-	    (case key
-	      ((day today) (format-time-string "%A, %B %d, %Y" start))
-	      ((week thisweek) (format-time-string "week %G-W%V" start))
-	      ((month thismonth) (format-time-string "%B %Y" start))
-	      ((year thisyear) (format-time-string "the year %Y" start))
-	      ((quarter thisq)
+	    (pcase key
+	      ((or `day `today) (format-time-string "%A, %B %d, %Y" start))
+	      ((or `week `thisweek) (format-time-string "week %G-W%V" start))
+	      ((or `month `thismonth) (format-time-string "%B %Y" start))
+	      ((or `year `thisyear) (format-time-string "the year %Y" start))
+	      ((or `quarter `thisq)
 	       (concat (org-count-quarter shiftedq)
 		       " quarter of " (number-to-string shiftedy)))
-	      (interactive "(Range interactively set)")
-	      (untilnow "now"))))
+	      (`interactive "(Range interactively set)")
+	      (`untilnow "now"))))
       (if (not as-strings) (list start end text)
 	(let ((f (cdr org-time-stamp-formats)))
 	  (list (format-time-string f start)
@@ -2383,8 +2378,6 @@ the currently selected interval size."
 
       ;; Get the right scope
       (cond
-       ((and scope (listp scope) (symbolp (car scope)))
-	(setq scope (eval scope)))
        ((eq scope 'agenda)
 	(setq scope (org-agenda-files t)))
        ((eq scope 'agenda-with-archives)
@@ -2451,7 +2444,7 @@ from the dynamic block definition."
   ;; well-defined number of columns...
   (let* ((hlchars '((1 . "*") (2 . "/")))
 	 (lwords (assoc (or (plist-get params :lang)
-			    (org-bound-and-true-p org-export-default-language)
+			    (bound-and-true-p org-export-default-language)
 			    "en")
 			org-clock-clocktable-language-setup))
 	 (multifile (plist-get params :multifile))
@@ -2705,16 +2698,16 @@ LEVEL is an integer.  Indent by two spaces per level above 1."
 	    te (nth 1 cc)))
     (cond
      ((numberp ts)
-      ;; If ts is a number, it's an absolute day number from org-agenda.
-      (destructuring-bind (month day year) (calendar-gregorian-from-absolute ts)
+      ;; If ts is a number, it's an absolute day number from
+      ;; org-agenda.
+      (pcase-let ((`(,month ,day ,year) (calendar-gregorian-from-absolute ts)))
 	(setq ts (float-time (encode-time 0 0 0 day month year)))))
      (ts
-      (setq ts (float-time
-		(apply #'encode-time (org-parse-time-string ts))))))
+      (setq ts (float-time (apply #'encode-time (org-parse-time-string ts))))))
     (cond
      ((numberp te)
       ;; Likewise for te.
-      (destructuring-bind (month day year) (calendar-gregorian-from-absolute te)
+      (pcase-let ((`(,month ,day ,year) (calendar-gregorian-from-absolute te)))
 	(setq te (float-time (encode-time 0 0 0 day month year)))))
      (te
       (setq te (float-time (apply #'encode-time (org-parse-time-string te))))))

@@ -26,16 +26,16 @@
 ;;
 ;;; Commentary:
 
-;; This file contains the code dealing with source code examples in Org-mode.
+;; This file contains the code dealing with source code examples in
+;; Org mode.
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'org-macs)
 (require 'org-compat)
 (require 'ob-keys)
 (require 'ob-comint)
-(eval-when-compile (require 'cl))
-(require 'cl-lib)
 
 (declare-function org-base-buffer "org" (buffer))
 (declare-function org-do-remove-indentation "org" (&optional n))
@@ -48,10 +48,8 @@
 (declare-function org-footnote-goto-definition "org-footnote"
 		  (label &optional location))
 (declare-function org-get-indentation "org" (&optional line))
-(declare-function org-pop-to-buffer-same-window "org-compat"
-		  (&optional buffer-or-name norecord label))
 (declare-function org-switch-to-buffer-other-window "org" (&rest args))
-(declare-function org-trim "org" (s))
+(declare-function org-trim "org" (s &optional keep-lead))
 
 (defvar org-element-all-elements)
 (defvar org-inhibit-startup)
@@ -494,26 +492,35 @@ as `org-src-fontify-natively' is non-nil."
     (when (fboundp lang-mode)
       (let ((string (buffer-substring-no-properties start end))
 	    (modified (buffer-modified-p))
-	    (org-buffer (current-buffer)) pos next)
+	    (org-buffer (current-buffer))
+	    (block-faces (let ((face-name (intern (format "org-block-%s" lang))))
+			   (append (and (facep face-name) (list face-name))
+				   '(org-block)))))
 	(remove-text-properties start end '(face nil))
 	(with-current-buffer
 	    (get-buffer-create
-	     (concat " org-src-fontification:" (symbol-name lang-mode)))
-	  (delete-region (point-min) (point-max))
-	  (insert string " ") ;; so there's a final property change
+	     (format " *org-src-fontification:%s*" lang-mode))
+	  (erase-buffer)
+	  ;; Add string and a final space to ensure property change.
+	  (insert string " ")
 	  (unless (eq major-mode lang-mode) (funcall lang-mode))
 	  (org-font-lock-ensure)
-	  (setq pos (point-min))
-	  (while (setq next (next-single-property-change pos 'face))
-	    (put-text-property
-	     (+ start (1- pos)) (1- (+ start next)) 'face
-	     (get-text-property pos 'face) org-buffer)
-	    (setq pos next)))
+	  (let ((pos (point-min)) next)
+	    (while (setq next (next-single-property-change pos 'face))
+	      (let ((new-face (get-text-property pos 'face)))
+		(put-text-property
+		 (+ start (1- pos)) (1- (+ start next)) 'face
+		 (list :inherit (append (and new-face (list new-face))
+					block-faces))
+		 org-buffer))
+	      (setq pos next))
+	    ;; Add the face to the remaining part of the text.
+	    (put-text-property (1- (+ start pos)) end 'face
+			       (list :inherit block-faces) org-buffer)))
 	(add-text-properties
 	 start end
 	 '(font-lock-fontified t fontified t font-lock-multiline t))
 	(set-buffer-modified-p modified)))))
-
 
 
 ;;; Escape contents
@@ -606,9 +613,9 @@ See also `org-src-mode-hook'."
 		   (setq org-src--auto-save-timer nil)))))))))
 
 (defun org-src-mode-configure-edit-buffer ()
-  (when (org-bound-and-true-p org-src--from-org-mode)
+  (when (bound-and-true-p org-src--from-org-mode)
     (add-hook 'kill-buffer-hook #'org-src--remove-overlay nil 'local)
-    (if (org-bound-and-true-p org-src--allow-write-back)
+    (if (bound-and-true-p org-src--allow-write-back)
 	(progn
 	  (setq buffer-offer-save t)
 	  (setq buffer-file-name
@@ -684,29 +691,29 @@ If BUFFER is non-nil, test it instead."
 	 (local-variable-p 'org-src--end-marker buffer))))
 
 (defun org-src-switch-to-buffer (buffer context)
-  (case org-src-window-setup
-    (current-window (org-pop-to-buffer-same-window buffer))
-    (other-window
+  (pcase org-src-window-setup
+    (`current-window (pop-to-buffer-same-window buffer))
+    (`other-window
      (switch-to-buffer-other-window buffer))
-    (other-frame
-     (case context
-       (exit
+    (`other-frame
+     (pcase context
+       (`exit
 	(let ((frame (selected-frame)))
 	  (switch-to-buffer-other-frame buffer)
 	  (delete-frame frame)))
-       (save
+       (`save
 	(kill-buffer (current-buffer))
-	(org-pop-to-buffer-same-window buffer))
-       (t (switch-to-buffer-other-frame buffer))))
-    (reorganize-frame
+	(pop-to-buffer-same-window buffer))
+       (_ (switch-to-buffer-other-frame buffer))))
+    (`reorganize-frame
      (when (eq context 'edit) (delete-other-windows))
      (org-switch-to-buffer-other-window buffer)
      (when (eq context 'exit) (delete-other-windows)))
-    (switch-invisibly (set-buffer buffer))
-    (t
+    (`switch-invisibly (set-buffer buffer))
+    (_
      (message "Invalid value %s for `org-src-window-setup'"
 	      org-src-window-setup)
-     (org-pop-to-buffer-same-window buffer))))
+     (pop-to-buffer-same-window buffer))))
 
 (defun org-edit-footnote-reference ()
   "Edit definition of footnote reference at point."
@@ -783,7 +790,7 @@ Throw an error when not at such a table."
      element
      (org-src--construct-edit-buffer-name (buffer-name) "Table")
      #'text-mode t)
-    (when (org-bound-and-true-p flyspell-mode) (flyspell-mode -1))
+    (when (bound-and-true-p flyspell-mode) (flyspell-mode -1))
     (table-recognize)
     t))
 

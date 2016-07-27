@@ -96,6 +96,7 @@
 ;;   - incomplete drawers
 ;;   - indented diary-sexps
 ;;   - obsolete QUOTE section
+;;   - obsolete "file+application" link
 
 
 ;;; Code:
@@ -273,7 +274,11 @@
     :name 'quote-section
     :description "Report obsolete QUOTE section"
     :categories '(obsolete)
-    :trust 'low))
+    :trust 'low)
+   (make-org-lint-checker
+    :name 'file-application
+    :description "Report obsolete \"file+application\" link"
+    :categories '(link obsolete)))
   "List of all available checkers.")
 
 (defun org-lint--collect-duplicates
@@ -358,7 +363,7 @@ called with one argument, the key used for comparison."
       (lambda (k)
 	(let ((key (org-element-property :key k)))
 	  (and (or (let ((case-fold-search t))
-		     (org-string-match-p "\\`ATTR_[-_A-Za-z0-9]+\\'" key))
+		     (string-match-p "\\`ATTR_[-_A-Za-z0-9]+\\'" key))
 		   (member key keywords))
 	       (list (org-element-property :post-affiliated k)
 		     (format "Orphaned affiliated keyword: \"%s\"" key))))))))
@@ -447,7 +452,7 @@ Use :header-args: instead"
 	(list (org-element-property :post-affiliated b)
 	      "Invalid syntax in babel call block"))
        ((let ((h (org-element-property :end-header b)))
-	  (and h (org-string-match-p "\\`\\[.*\\]\\'" h)))
+	  (and h (string-match-p "\\`\\[.*\\]\\'" h)))
 	(list
 	 (org-element-property :post-affiliated b)
 	 "Babel call's end header must not be wrapped within brackets"))))))
@@ -733,7 +738,7 @@ Use \"export %s\" instead"
     (lambda (e)
       (let ((name (org-element-property :name e)))
 	(and name
-	     (org-string-match-p ":" name)
+	     (string-match-p ":" name)
 	     (list (progn
 		     (goto-char (org-element-property :begin e))
 		     (re-search-forward
@@ -848,6 +853,14 @@ Use \"export %s\" instead"
 		 (string-prefix-p (concat org-comment-string " QUOTE ") title))
 	     (list (org-element-property :begin h)
 		   "Deprecated QUOTE section"))))))
+
+(defun org-lint-file-application (ast)
+  (org-element-map ast 'link
+    (lambda (l)
+      (let ((app (org-element-property :application l)))
+	(and app
+	     (list (org-element-property :begin l)
+		   (format "Deprecated \"file+%s\" link type" app)))))))
 
 (defun org-lint-wrong-header-argument (ast)
   (let* ((reports)
@@ -1059,14 +1072,15 @@ for `tabulated-list-printer'."
 	(mapcar
 	 (lambda (report)
 	   (list
-	    (incf id)
+	    (cl-incf id)
 	    (apply #'vector
 		   (cons
 		    (progn
 		      (goto-char (car report))
 		      (beginning-of-line)
 		      (prog1 (number-to-string
-			      (incf last-line (count-lines last-pos (point))))
+			      (cl-incf last-line
+				       (count-lines last-pos (point))))
 			(setf last-pos (point))))
 		    (cdr report)))))
 	 ;; Insert trust level in generated reports.  Also sort them
@@ -1169,7 +1183,7 @@ checker by its name.
 ARG can also be a list of checker names, as symbols, to run."
   (interactive "P")
   (unless (derived-mode-p 'org-mode) (user-error "Not in an Org buffer"))
-  (when (org-called-interactively-p)
+  (when (called-interactively-p 'any)
     (message "Org linting process starting..."))
   (let ((checkers
 	 (pcase arg
@@ -1198,7 +1212,7 @@ ARG can also be a list of checker names, as symbols, to run."
 	    (cl-remove-if-not (lambda (c) (memq (org-lint-checker-name c) arg))
 			       org-lint--checkers))
 	   (_ (user-error "Invalid argument `%S' for `org-lint'" arg)))))
-    (if (not (org-called-interactively-p))
+    (if (not (called-interactively-p 'any))
 	(org-lint--generate-reports (current-buffer) checkers)
       (org-lint--display-reports (current-buffer) checkers)
       (message "Org linting process completed"))))

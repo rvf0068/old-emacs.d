@@ -1,4 +1,4 @@
-;;; org-info.el --- Support for links to Info nodes from within Org-Mode
+;;; org-info.el --- Support for Links to Info Nodes -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
 
@@ -40,19 +40,20 @@
 (defvar Info-current-node)
 
 ;; Install the link type
-(org-add-link-type "info" 'org-info-open 'org-info-export)
-(add-hook 'org-store-link-functions 'org-info-store-link)
+(org-link-set-parameters "info"
+			 :follow #'org-info-open
+			 :export #'org-info-export
+			 :store #'org-info-store-link)
 
 ;; Implementation
 (defun org-info-store-link ()
   "Store a link to an Info file and node."
   (when (eq major-mode 'Info-mode)
-    (let (link desc)
-      (setq link (concat "info:"
-			 (file-name-nondirectory Info-current-file)
-			 "#" Info-current-node))
-      (setq desc (concat (file-name-nondirectory Info-current-file)
-			 "#" Info-current-node))
+    (let ((link (concat "info:"
+			(file-name-nondirectory Info-current-file)
+			"#" Info-current-node))
+	  (desc (concat (file-name-nondirectory Info-current-file)
+			"#" Info-current-node)))
       (org-store-link-props :type "info" :file Info-current-file
 			    :node Info-current-node
 			    :link link :desc desc)
@@ -114,7 +115,7 @@ emacs related documents. See `org-info-official-gnu-document' and
 
 (defun org-info-export (path desc format)
   "Export an info link.
-See `org-add-link-type' for details about PATH, DESC and FORMAT."
+See `org-link-parameters' for details about PATH, DESC and FORMAT."
   (when (eq format 'html)
     (or (string-match "\\(.*\\)[#:]:?\\(.*\\)" path)
 	(string-match "\\(.*\\)" path))

@@ -1,4 +1,4 @@
-;;; org-pcomplete.el --- In-buffer completion code
+;;; org-pcomplete.el --- In-buffer Completion Code -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
 ;;
@@ -27,16 +27,11 @@
 
 ;;;; Require other packages
 
-(eval-when-compile
-  (require 'cl))
-
 (require 'org-macs)
 (require 'org-compat)
 (require 'pcomplete)
 
-(declare-function org-split-string "org" (string &optional separators))
-(declare-function org-make-org-heading-search-string "org"
-		  (&optional string))
+(declare-function org-make-org-heading-search-string "org" (&optional string))
 (declare-function org-get-buffer-tags "org" ())
 (declare-function org-get-tags "org" ())
 (declare-function org-buffer-property-keys "org"
@@ -267,7 +262,7 @@ When completing for #+STARTUP, for example, this function returns
 	      "|:" "tags:" "tasks:" "<:" "todo:")
 	    ;; OPTION items from registered back-ends.
 	    (let (items)
-	      (dolist (backend (org-bound-and-true-p
+	      (dolist (backend (bound-and-true-p
 				org-export-registered-backends))
 		(dolist (option (org-export-backend-options backend))
 		  (let ((item (nth 2 option)))
@@ -279,7 +274,7 @@ When completing for #+STARTUP, for example, this function returns
   (while (pcomplete-here
 	  (pcomplete-uniqify-list
 	   (mapcar (lambda (item) (format "%s:" (car item)))
-		   (org-bound-and-true-p org-html-infojs-opts-table))))))
+		   (bound-and-true-p org-html-infojs-opts-table))))))
 
 (defun pcomplete/org-mode/file-option/bind ()
   "Complete arguments for the #+BIND file option, which are variable names."

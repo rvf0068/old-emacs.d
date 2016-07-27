@@ -1,4 +1,4 @@
-;;; org-w3m.el --- Support from copy and paste from w3m to Org-mode
+;;; org-w3m.el --- Support from Copy and Paste From w3m -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2008-2016 Free Software Foundation, Inc.
 
@@ -46,7 +46,7 @@
 (defvar w3m-current-url)
 (defvar w3m-current-title)
 
-(add-hook 'org-store-link-functions 'org-w3m-store-link)
+(org-link-set-parameters "w3m" :store #'org-w3m-store-link)
 (defun org-w3m-store-link ()
   "Store a link to a w3m buffer."
   (when (eq major-mode 'w3m-mode)

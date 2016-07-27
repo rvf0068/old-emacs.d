@@ -1,4 +1,4 @@
-;;; org-compat.el --- Compatibility code for Org-mode
+;;; org-compat.el --- Compatibility Code for Older Emacsen -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
 
@@ -29,9 +29,10 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl))
+(require 'cl-lib)
 (require 'org-macs)
+
+(declare-function org-link-set-parameters "org" (type &rest rest))
 
 ;; As of Emacs 25.1, `outline-mode' functions are under the 'outline-'
 ;; prefix, `find-tag' is replaced with `xref-find-definition' and
@@ -45,46 +46,198 @@
   (defalias 'outline-show-children 'show-children)
   (defalias 'outline-show-entry 'show-entry)
   (defalias 'outline-show-subtree 'show-subtree)
-  (defalias 'xref-find-definitions 'find-tag))
+  (defalias 'xref-find-definitions 'find-tag)
+  (defalias 'format-message 'format))
 
 (eval-when-compile
   (when (< emacs-major-version 25)
     (defalias 'gui-get-selection 'x-get-selection)))
 
+
+;;; Obsolete aliases (remove them once the next major release is released).
+
+;;;; XEmacs compatibility, now removed.
+(define-obsolete-function-alias 'org-activate-mark 'activate-mark)
+(define-obsolete-function-alias 'org-add-hook 'add-hook "Org 9.0")
+(define-obsolete-function-alias 'org-bound-and-true-p 'bound-and-true-p "Org 9.0")
+(define-obsolete-function-alias 'org-decompose-region 'decompose-region "Org 9.0")
+(define-obsolete-function-alias 'org-defvaralias 'defvaralias "Org 9.0")
+(define-obsolete-function-alias 'org-detach-overlay 'delete-overlay "Org 9.0")
+(define-obsolete-function-alias 'org-file-equal-p 'file-equal-p "Org 9.0")
+(define-obsolete-function-alias 'org-float-time 'float-time "Org 9.0")
+(define-obsolete-function-alias 'org-indent-line-to 'indent-line-to "Org 9.0")
+(define-obsolete-function-alias 'org-indent-to-column 'indent-to-column "Org 9.0")
+(define-obsolete-function-alias 'org-looking-at-p 'looking-at-p "Org 9.0")
+(define-obsolete-function-alias 'org-looking-back 'looking-back "Org 9.0")
+(define-obsolete-function-alias 'org-match-string-no-properties 'match-string-no-properties "Org 9.0")
+(define-obsolete-function-alias 'org-propertize 'propertize "Org 9.0")
+(define-obsolete-function-alias 'org-select-frame-set-input-focus 'select-frame-set-input-focus "Org 9.0")
+
+(defmacro org-re (s)
+  "Replace posix classes in regular expression S."
+  (declare (debug (form))
+	   (obsolete "you can safely remove it." "Org 9.0"))
+  s)
+
+;;;; Functions from cl-lib that Org used to have its own implementation of.
+(define-obsolete-function-alias 'org-count 'cl-count "Org 9.0")
+(define-obsolete-function-alias 'org-every 'cl-every "Org 9.0")
+(define-obsolete-function-alias 'org-find-if 'cl-find-if "Org 9.0")
+(define-obsolete-function-alias 'org-reduce 'cl-reduce "Org 9.0")
+(define-obsolete-function-alias 'org-remove-if 'cl-remove-if "Org 9.0")
+(define-obsolete-function-alias 'org-remove-if-not 'cl-remove-if-not "Org 9.0")
+(define-obsolete-function-alias 'org-some 'cl-some "Org 9.0")
+(define-obsolete-function-alias 'org-floor* 'cl-floor "Org 9.0")
+
+;;;; Functions available since Emacs 24.3
+(define-obsolete-function-alias 'org-buffer-narrowed-p 'buffer-narrowed-p "Org 9.0")
+(define-obsolete-function-alias 'org-called-interactively-p 'called-interactively-p "Org 9.0")
+(define-obsolete-function-alias 'org-char-to-string 'char-to-string "Org 9.0")
+(define-obsolete-function-alias 'org-delete-directory 'delete-directory "Org 9.0")
+(define-obsolete-function-alias 'org-format-seconds 'format-seconds "Org 9.0")
+(define-obsolete-function-alias 'org-link-escape-browser 'url-encode-url "Org 9.0")
+(define-obsolete-function-alias 'org-no-warnings 'with-no-warnings "Org 9.0")
+(define-obsolete-function-alias 'org-number-sequence 'number-sequence "Org 9.0")
+(define-obsolete-function-alias 'org-pop-to-buffer-same-window 'pop-to-buffer-same-window "Org 9.0")
+(define-obsolete-function-alias 'org-string-match-p 'string-match-p "Org 9.0")
+
+;;;; Functions and variables from previous releases now obsolete.
+(define-obsolete-function-alias 'org-element-remove-indentation
+  'org-remove-indentation "Org 9.0")
+(define-obsolete-variable-alias 'org-hierarchical-checkbox-statistics
+  'org-checkbox-hierarchical-statistics "Org 8.0")
+(define-obsolete-variable-alias 'org-description-max-indent
+  'org-list-description-max-indent "Org 8.0")
+(define-obsolete-variable-alias 'org-latex-create-formula-image-program
+  'org-preview-latex-default-process "Org 9.0")
+(define-obsolete-variable-alias 'org-latex-preview-ltxpng-directory
+ 'org-preview-latex-image-directory "Org 9.0")
+(define-obsolete-function-alias 'org-table-p 'org-at-table-p "Org 9.0")
+(define-obsolete-function-alias 'org-on-heading-p 'org-at-heading-p "Org 9.0")
+(define-obsolete-function-alias 'org-at-regexp-p 'org-in-regexp "Org 8.3")
+(define-obsolete-function-alias 'org-speed-command-default-hook
+  'org-speed-command-activate "Org 8.0")
+(define-obsolete-function-alias 'org-babel-speed-command-hook
+  'org-babel-speed-command-activate "Org 8.0")
+(define-obsolete-function-alias 'org-image-file-name-regexp
+  'image-file-name-regexp "Org 9.0")
+(define-obsolete-function-alias 'org-get-legal-level
+  'org-get-valid-level "Org 7.8")
+(define-obsolete-function-alias 'org-completing-read-no-i
+  'completing-read "Org 9.0")
+(define-obsolete-function-alias 'org-icompleting-read
+  'completing-read "Org 9.0")
+(define-obsolete-function-alias 'org-iread-file-name 'read-file-name "Org 9.0")
+(define-obsolete-function-alias 'org-days-to-time
+  'org-time-stamp-to-now "Org 8.2")
+(define-obsolete-variable-alias 'org-agenda-ignore-drawer-properties
+  'org-agenda-ignore-properties "Org 9.0")
+(define-obsolete-function-alias 'org-preview-latex-fragment
+  'org-toggle-latex-fragment "Org 8.3")
+(define-obsolete-function-alias 'org-display-inline-modification-hook
+  'org-display-inline-remove-overlay "Org 8.0")
+(define-obsolete-function-alias 'org-export-get-genealogy
+  'org-element-lineage "Org 9.0")
+(define-obsolete-variable-alias 'org-latex-with-hyperref
+  'org-latex-hyperref-template "Org 9.0")
+(define-obsolete-variable-alias 'org-link-to-org-use-id
+  'org-id-link-to-org-use-id "Org 8.0")
+(define-obsolete-variable-alias 'hfy-optimisations 'hfy-optimizations "Org 9.0")
+(define-obsolete-variable-alias 'org-clock-modeline-total
+  'org-clock-mode-line-total "Org 8.0")
+(define-obsolete-function-alias 'org-protocol-unhex-compound
+  'org-link-unescape-compound "Org 7.8")
+(define-obsolete-function-alias 'org-protocol-unhex-string
+  'org-link-unescape "Org 7.8")
+(define-obsolete-function-alias 'org-protocol-unhex-single-byte-sequence
+  'org-link-unescape-single-byte-sequence "Org 7.8")
+(define-obsolete-variable-alias 'org-export-htmlized-org-css-url
+  'org-org-htmlized-css-url "Org 8.2")
+(define-obsolete-variable-alias 'org-alphabetical-lists
+  'org-list-allow-alphabetical "Org 8.0")
+(define-obsolete-function-alias 'org-list-parse-list 'org-list-to-lisp "Org 9.0")
+(define-obsolete-variable-alias 'org-agenda-menu-two-column
+  'org-agenda-menu-two-columns "Org 8.0")
+(define-obsolete-variable-alias 'org-finalize-agenda-hook
+  'org-agenda-finalize-hook "Org 8.0")
+(make-obsolete-variable 'org-agenda-ndays 'org-agenda-span "Org 7.8")
+(define-obsolete-function-alias 'org-agenda-post-command-hook
+  'org-agenda-update-agenda-type "Org 8.0")
+(define-obsolete-function-alias 'org-agenda-todayp
+  'org-agenda-today-p "Org 9.0")
+(define-obsolete-function-alias 'org-babel-examplize-region
+  'org-babel-examplify-region "Org 9.0")
+(define-obsolete-function-alias 'org-babel-trim 'org-trim "Org 9.0")
+(define-obsolete-variable-alias 'org-html-style-include-scripts
+  'org-html-head-include-scripts "Org 8.0")
+(define-obsolete-variable-alias 'org-html-style-include-default
+  'org-html-head-include-default-style "Org 8.0")
+(define-obsolete-variable-alias 'org-html-style 'org-html-head "24.4")
+(define-obsolete-function-alias 'org-insert-columns-dblock
+  'org-columns-insert-dblock "Org 9.0")
+
+(defcustom org-read-date-minibuffer-setup-hook nil
+  "Hook to be used to set up keys for the date/time interface.
+Add key definitions to `minibuffer-local-map', which will be a
+temporary copy."
+  :group 'org-time
+  :type 'hook)
+(make-obsolete-variable
+ 'org-read-date-minibuffer-setup-hook
+ "set `org-read-date-minibuffer-local-map' instead." "Org 8.0")
+
 (defun org-compatible-face (inherits specs)
   "Make a compatible face specification.
-If INHERITS is an existing face and if the Emacs version supports it,
-just inherit the face.  If INHERITS is set and the Emacs version does
-not support it, copy the face specification from the inheritance face.
-If INHERITS is not given and SPECS is, use SPECS to define the face."
-  (when (and inherits (facep inherits) (not specs))
-    (setq specs (or specs
-		    (get inherits 'saved-face)
-		    (get inherits 'face-defface-spec))))
-  (cond
-   ((and inherits (facep inherits)
-	 (>= emacs-major-version 22)
-	 ;; do not inherit outline faces before Emacs 23
-	 (or (>= emacs-major-version 23)
-	     (not (string-match "\\`outline-[0-9]+"
-				(symbol-name inherits)))))
-    (list (list t :inherit inherits)))
-   ((< emacs-major-version 22)
-    ;; These do not understand the `min-colors' attribute.
-    (let (r e a)
-      (while (setq e (pop specs))
-	(cond
-	 ((memq (car e) '(t default)) (push e r))
-	 ((setq a (member '(min-colors 8) (car e)))
-	  (nconc r (list (cons (cons '(type tty) (delq (car a) (car e)))
-			       (cdr e)))))
-	 ((setq a (assq 'min-colors (car e)))
-	  (setq e (cons (delq a (car e)) (cdr e)))
-	  (or (assoc (car e) r) (push e r)))
-	 (t (or (assoc (car e) r) (push e r)))))
-      (nreverse r)))
-   (t specs)))
-(put 'org-compatible-face 'lisp-indent-function 1)
+If INHERITS is an existing face and if the Emacs version supports
+it, just inherit the face.  If INHERITS is not given and SPECS
+is, use SPECS to define the face."
+  (declare (indent 1))
+  (if (facep inherits)
+      (list (list t :inherit inherits))
+    specs))
+(make-obsolete 'org-compatible-face "you can remove it." "Org 9.0")
+
+(defun org-add-link-type (type &optional follow export)
+  "Add a new TYPE link.
+FOLLOW and EXPORT are two functions.
+
+FOLLOW should take the link path as the single argument and do whatever
+is necessary to follow the link, for example find a file or display
+a mail message.
+
+EXPORT should format the link path for export to one of the export formats.
+It should be a function accepting three arguments:
+
+  path    the path of the link, the text after the prefix (like \"http:\")
+  desc    the description of the link, if any
+  format  the export format, a symbol like `html' or `latex' or `ascii'.
+
+The function may use the FORMAT information to return different values
+depending on the format.  The return value will be put literally into
+the exported file.  If the return value is nil, this means Org should
+do what it normally does with links which do not have EXPORT defined.
+
+Org mode has a built-in default for exporting links.  If you are happy with
+this default, there is no need to define an export function for the link
+type.  For a simple example of an export function, see `org-bbdb.el'.
+
+If TYPE already exists, update it with the arguments.
+See `org-link-parameters' for documentation on the other parameters."
+  (org-link-set-parameters type :follow follow :export export)
+  (message "Created %s link." type))
+
+(make-obsolete 'org-add-link-type "use `org-link-add' instead." "Org 9.0")
+
+;;;; Obsolete link types
+
+(eval-after-load 'org
+  '(progn
+     (org-link-set-parameters "file+emacs") ;since Org 9.0
+     (org-link-set-parameters "file+sys"))) ;since Org 9.0
+
+
+
+;;; Miscellaneous functions
 
 (defun org-version-check (version feature level)
   (let* ((v1 (mapcar 'string-to-number (split-string version "[.]")))
@@ -109,42 +262,6 @@ If INHERITS is not given and SPECS is, use SPECS to define the face."
 	    (display-warning 'org msg level)
 	    t))
       t)))
-
-
-;;; Emacs/XEmacs compatibility
-
-(eval-and-compile
-  (defun org-defvaralias (new-alias base-variable &optional docstring)
-    "Compatibility function for defvaralias.
-Don't do the aliasing when `defvaralias' is not bound."
-    (declare (indent 1))
-    (when (fboundp 'defvaralias)
-      (defvaralias new-alias base-variable docstring)))
-
-  (when (and (not (boundp 'user-emacs-directory))
-	     (boundp 'user-init-directory))
-    (org-defvaralias 'user-emacs-directory 'user-init-directory)))
-
-(define-obsolete-function-alias 'org-add-hook 'add-hook "Org 9.0")
-(define-obsolete-function-alias 'org-decompose-region 'decompose-region "Org 9.0")
-(define-obsolete-function-alias 'org-detach-overlay 'delete-overlay "Org 9.0")
-(define-obsolete-function-alias 'org-file-equal-p 'file-equal-p "Org 9.0")
-(define-obsolete-function-alias 'org-float-time 'float-time "Org 9.0")
-(define-obsolete-function-alias 'org-indent-line-to 'indent-line-to "Org 9.0")
-(define-obsolete-function-alias 'org-indent-to-column 'indent-to-column "Org 9.0")
-(define-obsolete-function-alias 'org-looking-at-p 'looking-at-p "Org 9.0")
-(define-obsolete-function-alias 'org-looking-back 'looking-back "Org 9.0")
-(define-obsolete-function-alias 'org-match-string-no-properties 'match-string-properties "Org 9.0")
-(define-obsolete-function-alias 'org-propertize 'propertize "Org 9.0")
-(define-obsolete-function-alias 'org-select-frame-set-input-focus 'select-frame-set-input-focus "Org 9.0")
-
-(defmacro org-re (s)
-  "Replace posix classes in regular expression."
-  (declare (debug (form)))
-  s)
-(make-obsolete 'org-re "It is now a no-op.  Please remove it altogether." "Org 9.0")
-
-;;; Miscellaneous functions
 
 (defun org-get-x-clipboard (value)
   "Get the value of the X or Windows clipboard."
@@ -184,26 +301,6 @@ ignored in this case."
 	 (shrink-window-if-larger-than-buffer window)))
   (or window (selected-window)))
 
-(defun org-number-sequence (from &optional to inc)
-  "Call `number-sequence' or emulate it."
-  (if (fboundp 'number-sequence)
-      (number-sequence from to inc)
-    (if (or (not to) (= from to))
-	(list from)
-      (or inc (setq inc 1))
-      (when (zerop inc) (error "The increment can not be zero"))
-      (let (seq (n 0) (next from))
-	(if (> inc 0)
-	    (while (<= next to)
-	      (setq seq (cons next seq)
-		    n (1+ n)
-		    next (+ from (* n inc))))
-	  (while (>= next to)
-	    (setq seq (cons next seq)
-		  n (1+ n)
-		  next (+ from (* n inc)))))
-	(nreverse seq)))))
-
 ;; `set-transient-map' is only in Emacs >= 24.4
 (defalias 'org-set-transient-map
   (if (fboundp 'set-transient-map)
@@ -216,20 +313,15 @@ ignored in this case."
   "Non-nil means temporarily disable the active region.")
 
 (defun org-region-active-p ()
-  "Is `transient-mark-mode' on and the region active?"
-  (if org-ignore-region
-      nil
-    (if (fboundp 'use-region-p)
-	(use-region-p)
-      (and transient-mark-mode mark-active)))) ; Emacs 22 and before
+  "Non-nil when the region active.
+Unlike to `use-region-p', this function also checks
+`org-ignore-region'."
+  (and (not org-ignore-region) (use-region-p)))
 
 (defun org-cursor-to-region-beginning ()
   (when (and (org-region-active-p)
 	     (> (point) (region-beginning)))
     (exchange-point-and-mark)))
-
-;;; Old alias for emacs 22 compatibility, now dropped
-(define-obsolete-function-alias 'org-activate-mark 'activate-mark)
 
 ;;; Invisibility compatibility
 
@@ -246,7 +338,7 @@ ignored in this case."
   (if (consp buffer-invisibility-spec)
       (member arg buffer-invisibility-spec)))
 
-(defun org-move-to-column (column &optional force buffer)
+(defun org-move-to-column (column &optional force _buffer)
   "Move to column COLUMN.
 Pass COLUMN and FORCE to `move-to-column'."
   (let ((buffer-invisibility-spec
@@ -272,14 +364,6 @@ Pass COLUMN and FORCE to `move-to-column'."
 			  string)
   (apply 'kill-new string args))
 
-;; `user-error' is only available from 24.2.50 on
-(unless (fboundp 'user-error)
-  (defalias 'user-error 'error))
-
-;; ‘format-message’ is available only from 25 on
-(unless (fboundp 'format-message)
-  (defalias 'format-message 'format))
-
 ;; `font-lock-ensure' is only available from 24.4.50 on
 (defalias 'org-font-lock-ensure
   (if (fboundp 'font-lock-ensure)
@@ -296,48 +380,6 @@ effect, which variables to use depends on the Emacs version."
 	 ,@body)
     `(let (pop-up-frames special-display-buffer-names special-display-regexps special-display-function)
        ,@body)))
-
-(if (fboundp 'string-match-p)
-    (defalias 'org-string-match-p 'string-match-p)
-  (defun org-string-match-p (regexp string &optional start)
-    (save-match-data
-      (funcall 'string-match regexp string start))))
-
-(defun org-floor* (x &optional y)
-  "Return a list of the floor of X and the fractional part of X.
-With two arguments, return floor and remainder of their quotient."
-  (let ((q (floor x y)))
-    (list q (- x (if y (* y q) q)))))
-
-;; `pop-to-buffer-same-window' has been introduced in Emacs 24.1.
-(defun org-pop-to-buffer-same-window
-  (&optional buffer-or-name norecord label)
-  "Pop to buffer specified by BUFFER-OR-NAME in the selected window."
-  (if (fboundp 'pop-to-buffer-same-window)
-      (funcall
-       'pop-to-buffer-same-window buffer-or-name norecord)
-    (funcall 'switch-to-buffer buffer-or-name norecord)))
-
-;; RECURSIVE has been introduced with Emacs 23.2.
-;; This is copying and adapted from `tramp-compat-delete-directory'
-(defun org-delete-directory (directory &optional recursive)
-  "Compatibility function for `delete-directory'."
-  (if (null recursive)
-      (delete-directory directory)
-    (condition-case nil
-	(funcall 'delete-directory directory recursive)
-      ;; This Emacs version does not support the RECURSIVE flag.  We
-      ;; use the implementation from Emacs 23.2.
-      (wrong-number-of-arguments
-       (setq directory (directory-file-name (expand-file-name directory)))
-       (if (not (file-symlink-p directory))
-	   (mapc (lambda (file)
-		   (if (eq t (car (file-attributes file)))
-		       (org-delete-directory file recursive)
-		     (delete-file file)))
-		 (directory-files
-		  directory 'full "^\\([^.]\\|\\.\\([^.]\\|\\..\\)\\).*")))
-       (delete-directory directory)))))
 
 ;;;###autoload
 (defmacro org-check-version ()
@@ -357,13 +399,6 @@ With two arguments, return floor and remainder of their quotient."
 	   (defun org-release () "N/A")
 	   (defun org-git-version () "N/A !!check installation!!"))))))
 
-;; `buffer-narrowed-p' is available for Emacs >=24.3
-(defun org-buffer-narrowed-p ()
-  "Compatibility function for `buffer-narrowed-p'."
-  (if (fboundp 'buffer-narrowed-p)
-      (buffer-narrowed-p)
-    (/= (- (point-max) (point-min)) (buffer-size))))
-
 (defmacro org-with-silent-modifications (&rest body)
   (if (fboundp 'with-silent-modifications)
       `(with-silent-modifications ,@body)
@@ -379,14 +414,6 @@ Implements `define-error' for older emacsen."
   (if (fboundp 'define-error) (define-error name message)
     (put name 'error-conditions
 	 (copy-sequence (cons name (get 'error 'error-conditions))))))
-
-;;; Functions from cl-lib that Org used to have its own implementation of
-(define-obsolete-function-alias 'org-count 'cl-count "Org 9.0")
-(define-obsolete-function-alias 'org-remove-if 'cl-remove-if "Org 9.0")
-(define-obsolete-function-alias 'org-remove-if-not 'cl-remove-if-not "Org 9.0")
-(define-obsolete-function-alias 'org-reduce 'cl-reduce "Org 9.0")
-(define-obsolete-function-alias 'org-every 'cl-every "Org 9.0")
-(define-obsolete-function-alias 'org-some 'cl-some "Org 9.0")
 
 (provide 'org-compat)
 

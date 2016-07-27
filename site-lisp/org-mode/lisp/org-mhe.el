@@ -1,4 +1,4 @@
-;;; org-mhe.el --- Support for links to MH-E messages from within Org-mode
+;;; org-mhe.el --- Support for Links to MH-E Messages -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
 
@@ -74,8 +74,7 @@ supported by MH-E."
 (defvar mh-search-regexp-builder)
 
 ;; Install the link type
-(org-add-link-type "mhe" 'org-mhe-open)
-(add-hook 'org-store-link-functions 'org-mhe-store-link)
+(org-link-set-parameters "mhe" :follow #'org-mhe-open :store #'org-mhe-store-link)
 
 ;; Implementation
 (defun org-mhe-store-link ()

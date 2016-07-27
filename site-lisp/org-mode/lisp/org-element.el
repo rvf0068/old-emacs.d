@@ -185,7 +185,7 @@ specially in `org-element--object-lex'.")
 		"\\)\\)")
 	org-element--object-regexp
 	(mapconcat #'identity
-		   (let ((link-types (regexp-opt org-link-types)))
+		   (let ((link-types (regexp-opt (org-link-types))))
 		     (list
 		      ;; Sub/superscript.
 		      "\\(?:[_^][-{(*+.,[:alnum:]]\\)"
@@ -421,6 +421,24 @@ Other brackets are treated as spaces.")
   "Table used internally to pair only curly brackets.
 Other brackets are treated as spaces.")
 
+(defun org-element--parse-paired-brackets (char)
+  "Parse paired brackets at point.
+CHAR is the opening bracket to consider, as a character.  Return
+contents between brackets, as a string, or nil.  Also move point
+past the brackets."
+  (when (eq char (char-after))
+    (let ((syntax-table (pcase char
+			  (?\{ org-element--pair-curly-table)
+			  (?\[ org-element--pair-square-table)
+			  (?\( org-element--pair-round-table)
+			  (_ nil)))
+	  (pos (point)))
+      (when syntax-table
+	(with-syntax-table syntax-table
+	  (let ((end (ignore-errors (scan-lists pos 1 0))))
+	    (when end
+	      (goto-char end)
+	      (buffer-substring-no-properties (1+ pos) (1- end)))))))))
 
 
 ;;; Accessors and Setters
@@ -2592,7 +2610,7 @@ containing `:begin', `:end', `:contents-begin', `:contents-end',
   "Interpret TABLE-ROW element as Org syntax.
 CONTENTS is the contents of the table row."
   (if (eq (org-element-property :type table-row) 'rule) "|-"
-    (concat "| " contents)))
+    (concat "|" contents)))
 
 
 ;;;; Verse Block
@@ -2852,43 +2870,34 @@ Assume point is at the beginning of the babel call."
   (save-excursion
     (catch :no-object
       (when (let ((case-fold-search nil))
-	      (looking-at
-	       "\\<call_\\([^ \t\n[{]+\\)\\(?:\\[\\([^]]*\\)\\]\\)?("))
-	(let ((begin (point))
-	      (call (match-string-no-properties 1))
-	      (inside-header
-	       (let ((h (org-string-nw-p (match-string-no-properties 2))))
-		 (and h (org-trim
-			 (replace-regexp-in-string "\n[ \t]*" " " h))))))
-	  (goto-char (1- (match-end 0)))
-	  (let* ((s (point))
-		 (e (with-syntax-table org-element--pair-round-table
-		      (or (ignore-errors (scan-lists s 1 0))
-			  ;; Invalid inline source block.
-			  (throw :no-object nil))))
-		 (arguments
-		  (let ((a (org-string-nw-p
-			    (buffer-substring-no-properties (1+ s) (1- e)))))
-		    (and a (org-trim
-			    (replace-regexp-in-string "\n[ \t]*" " " a)))))
-		 (end-header
-		  (progn
-		    (goto-char e)
-		    (and (looking-at "\\[\\([^]]*\\)\\]")
-			 (prog1 (org-string-nw-p (match-string-no-properties 1))
-			   (goto-char (match-end 0))))))
-		 (value (buffer-substring-no-properties begin (point)))
-		 (post-blank (skip-chars-forward " \t"))
-		 (end (point)))
-	    (list 'inline-babel-call
-		  (list :call call
-			:inside-header inside-header
-			:arguments arguments
-			:end-header end-header
-			:begin begin
-			:end end
-			:value value
-			:post-blank post-blank))))))))
+	      (looking-at "\\<call_\\([^ \t\n[(]+\\)[([]"))
+	(goto-char (match-end 1))
+	(let* ((begin (match-beginning 0))
+	       (call (match-string-no-properties 1))
+	       (inside-header
+		(let ((p (org-element--parse-paired-brackets ?\[)))
+		  (and (org-string-nw-p p)
+		       (replace-regexp-in-string "\n[ \t]*" " " (org-trim p)))))
+	       (arguments (org-string-nw-p
+			   (or (org-element--parse-paired-brackets ?\()
+			       ;; Parenthesis are mandatory.
+			       (throw :no-object nil))))
+	       (end-header
+		(let ((p (org-element--parse-paired-brackets ?\[)))
+		  (and (org-string-nw-p p)
+		       (replace-regexp-in-string "\n[ \t]*" " " (org-trim p)))))
+	       (value (buffer-substring-no-properties begin (point)))
+	       (post-blank (skip-chars-forward " \t"))
+	       (end (point)))
+	  (list 'inline-babel-call
+		(list :call call
+		      :inside-header inside-header
+		      :arguments arguments
+		      :end-header end-header
+		      :begin begin
+		      :end end
+		      :value value
+		      :post-blank post-blank)))))))
 
 (defun org-element-inline-babel-call-interpreter (inline-babel-call _)
   "Interpret INLINE-BABEL-CALL object as Org syntax."
@@ -2915,31 +2924,24 @@ Assume point is at the beginning of the inline src block."
   (save-excursion
     (catch :no-object
       (when (let ((case-fold-search nil))
-	      (looking-at "\\<src_\\([^ \t\n[{]+\\)\
-\\(?:\\[[ \t]*\\([^]]*?\\)[ \t]*\\]\\)?{"))
-	(let ((begin (point))
+	      (looking-at "\\<src_\\([^ \t\n[{]+\\)[{[]"))
+	(goto-char (match-end 1))
+	(let ((begin (match-beginning 0))
 	      (language (match-string-no-properties 1))
 	      (parameters
-	       (let ((p (org-string-nw-p (match-string-no-properties 2))))
-		 (and p (org-trim
-			 (replace-regexp-in-string "\n[ \t]*" " " p))))))
-	  (goto-char (1- (match-end 0)))
-	  (let* ((s (point))
-		 (e (with-syntax-table org-element--pair-curly-table
-		      (or (ignore-errors (scan-lists s 1 0))
-			  ;; Invalid inline source block.
-			  (throw :no-object nil))))
-		 (value (buffer-substring-no-properties
-			 (1+ s) (1- e)))
-		 (post-blank (progn (goto-char e)
-				    (skip-chars-forward " \t"))))
-	    (list 'inline-src-block
-		  (list :language language
-			:value value
-			:parameters parameters
-			:begin begin
-			:end (point)
-			:post-blank post-blank))))))))
+	       (let ((p (org-element--parse-paired-brackets ?\[)))
+		 (and (org-string-nw-p p)
+		      (replace-regexp-in-string "\n[ \t]*" " " (org-trim p)))))
+	      (value (or (org-element--parse-paired-brackets ?\{)
+			 (throw :no-object nil)))
+	      (post-blank (skip-chars-forward " \t")))
+	  (list 'inline-src-block
+		(list :language language
+		      :value value
+		      :parameters parameters
+		      :begin begin
+		      :end (point)
+		      :post-blank post-blank)))))))
 
 (defun org-element-inline-src-block-interpreter (inline-src-block _)
   "Interpret INLINE-SRC-BLOCK object as Org syntax."
@@ -3106,7 +3108,7 @@ Assume point is at the beginning of the link."
 	      (string-match "\\`\\.\\.?/" raw-link))
 	  (setq type "file")
 	  (setq path raw-link))
-	 ;; Explicit type (http, irc, bbdb...).  See `org-link-types'.
+	 ;; Explicit type (http, irc, bbdb...).
 	 ((string-match org-link-types-re raw-link)
 	  (setq type (match-string 1 raw-link))
 	  (setq path (substring raw-link (match-end 0))))
@@ -3114,8 +3116,8 @@ Assume point is at the beginning of the link."
 	 ((string-match "\\`id:\\([-a-f0-9]+\\)\\'" raw-link)
 	  (setq type "id" path (match-string 1 raw-link)))
 	 ;; Code-ref type: PATH is the name of the reference.
-	 ((and (org-string-match-p "\\`(" raw-link)
-	       (org-string-match-p ")\\'" raw-link))
+	 ((and (string-match-p "\\`(" raw-link)
+	       (string-match-p ")\\'" raw-link))
 	  (setq type "coderef")
 	  (setq path (substring raw-link 1 -1)))
 	 ;; Custom-id type: PATH is the name of the custom id.
@@ -4552,14 +4554,14 @@ If there is no affiliated keyword, return the empty string."
      ;; List all ELEMENT's properties matching an attribute line or an
      ;; affiliated keyword, but ignore translated keywords since they
      ;; cannot belong to the property list.
-     (loop for prop in (nth 1 element) by 'cddr
-	   when (let ((keyword (upcase (substring (symbol-name prop) 1))))
-		  (or (string-match "^ATTR_" keyword)
-		      (and
-		       (member keyword org-element-affiliated-keywords)
-		       (not (assoc keyword
-				   org-element-keyword-translation-alist)))))
-	   collect prop)
+     (cl-loop for prop in (nth 1 element) by 'cddr
+	      when (let ((keyword (upcase (substring (symbol-name prop) 1))))
+		     (or (string-match "^ATTR_" keyword)
+			 (and
+			  (member keyword org-element-affiliated-keywords)
+			  (not (assoc keyword
+				      org-element-keyword-translation-alist)))))
+	      collect prop)
      "")))
 
 ;; Because interpretation of the parse tree must return the same
@@ -5090,8 +5092,8 @@ Properties are modified by side-effect."
 	       (not (eq (org-element-type (plist-get properties :parent))
 			'item)))
       (dolist (item (plist-get properties :structure))
-	(incf (car item) offset)
-	(incf (nth 6 item) offset)))
+	(cl-incf (car item) offset)
+	(cl-incf (nth 6 item) offset)))
     (dolist (key '(:begin :contents-begin :contents-end :end :post-affiliated))
       (let ((value (and (or (not props) (memq key props))
 			(plist-get properties key))))
@@ -5130,7 +5132,7 @@ updated before current modification are actually submitted."
 	    ;; Request processed.  Merge current and next offsets and
 	    ;; transfer ending position.
 	    (when next
-	      (incf (aref next 3) (aref request 3))
+	      (cl-incf (aref next 3) (aref request 3))
 	      (aset next 2 (aref request 2)))
 	    (setq org-element--cache-sync-requests
 		  (cdr org-element--cache-sync-requests))))
@@ -5606,7 +5608,7 @@ change, as an integer."
 	;; Current changes can be merged with first sync request: we
 	;; can save a partial cache synchronization.
 	(progn
-	  (incf (aref next 3) offset)
+	  (cl-incf (aref next 3) offset)
 	  ;; If last change happened within area to be removed, extend
 	  ;; boundaries of robust parents, if any.  Otherwise, find
 	  ;; first element to remove and update request accordingly.
@@ -5656,7 +5658,8 @@ change, as an integer."
 	  ;; No element to remove.  No need to re-parent either.
 	  ;; Simply shift additional elements, if any, by OFFSET.
 	  (when org-element--cache-sync-requests
-	    (incf (aref (car org-element--cache-sync-requests) 3) offset)))))))
+	    (cl-incf (aref (car org-element--cache-sync-requests) 3)
+		     offset)))))))
 
 
 ;;;; Public Functions
@@ -6038,10 +6041,6 @@ end of ELEM-A."
 	(dolist (o (cdr overlays))
 	  (move-overlay (car o) (- (nth 1 o) offset) (- (nth 2 o) offset))))
       (goto-char (org-element-property :end elem-B)))))
-
-;; For backward-compatibility with Org <= 8.3
-(define-obsolete-function-alias
-  'org-element-remove-indentation 'org-remove-indentation "25.1")
 
 
 (provide 'org-element)

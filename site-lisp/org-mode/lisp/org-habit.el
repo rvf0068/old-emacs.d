@@ -24,15 +24,13 @@
 ;;
 ;;; Commentary:
 
-;; This file contains the habit tracking code for Org-mode
+;; This file contains the habit tracking code for Org mode
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'org)
 (require 'org-agenda)
-
-(eval-when-compile
-  (require 'cl))
 
 (defgroup org-habit nil
   "Options concerning habit tracking in Org-mode."
@@ -170,7 +168,7 @@ Returns a list with the following elements:
 This list represents a \"habit\" for the rest of this module."
   (save-excursion
     (if pom (goto-char pom))
-    (assert (org-is-habit-p (point)))
+    (cl-assert (org-is-habit-p (point)))
     (let* ((scheduled (org-get-scheduled-time (point)))
 	   (scheduled-repeat (org-get-repeat org-scheduled-string))
 	   (end (org-entry-end-position))
@@ -368,9 +366,9 @@ current time."
 				  ;; number of S-REPEAT hops it takes
 				  ;; to get past DONE, with a minimum
 				  ;; of one hop.
-				  (incf s
-					(* (1+ (/ (max (- done s) 0) s-repeat))
-					   s-repeat))
+				  (cl-incf s (* (1+ (/ (max (- done s) 0)
+						       s-repeat))
+						s-repeat))
 				  (when (= done last-done-date)
 				    (throw :exit s))))))))))
 		 donep)))
