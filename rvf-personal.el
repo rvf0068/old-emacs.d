@@ -172,6 +172,32 @@
 		:publishing-function org-beamer-publish-to-pdf
 		:base-extension "org"
 		:exclude "options.org"
+		)
+	       ("geometria" . (:components (
+					    "geometria-clases"
+					    "geometria-inicio"
+					    "geometria-pdf"
+					    )))
+	       ("geometria-clases"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016cGeometria/clases"
+		:publishing-directory "/home/rafael/Dropbox/paginas/geometria/_posts"
+		:base-extension "org"
+		:publishing-function org-jekyll-html-publish-to-jekyll
+		:body-only t
+		:exclude "options.org"
+		)
+	       ("geometria-inicio"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016cGeometria/inicio"
+		:publishing-directory "/home/rafael/Dropbox/paginas/geometria/"
+		:publishing-function org-jekyll-html-publish-to-jekyll
+		:body-only t
+		:base-extension "org")
+	       ("geometria-pdf"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016cGeometria/clases"
+		:publishing-directory "/home/rafael/Dropbox/paginas/geometria/pdfs"
+		:publishing-function org-beamer-publish-to-pdf
+		:base-extension "org"
+		:exclude "options.org"
 	       )
 	     )))
 
