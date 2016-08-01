@@ -8092,7 +8092,9 @@ When NO-TODO is non-nil, don't include TODO keywords."
       (cond
        ((and no-tags no-todo)
 	(looking-at org-complex-heading-regexp)
-	(match-string 4))
+	;; Return value has to be a string, but match group 4 is
+	;; optional.
+	(or (match-string 4) ""))
        (no-tags
 	(looking-at (concat org-outline-regexp
 			    "\\(.*?\\)"
@@ -8404,7 +8406,7 @@ After top level, it switches back to sibling level."
 
 (defun org-map-tree (fun)
   "Call FUN for every heading underneath the current one."
-  (org-back-to-heading)
+  (org-back-to-heading t)
   (let ((level (funcall outline-level)))
     (save-excursion
       (funcall fun)
