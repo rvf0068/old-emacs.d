@@ -48,12 +48,11 @@ channel."
     bars-removed
     ))
 
-;; Transforms
-;; ![img](../images/oli.jpg) to
-;; {: .center}
-;; ![img]({{ site.baseurl }}/images/oli.jpg)
-;; This was very useful
-;; http://stackoverflow.com/questions/16241957/how-can-i-regexp-replace-a-string-in-an-elisp-function
+;; We have to transform
+;; <img src="recta.png" alt="recta" width="400" align="center" />
+;; to
+;; <img src="{{ site.baseurl}}/images/recta.png" alt="recta" width="400" align="center" />
+;; TODO: Deal with character "
 
 (defun org-jekyll-html-template (contents info)
   (let* ((title (or (car (plist-get info :title)) ""))
@@ -64,9 +63,8 @@ channel."
 	 (layout (plist-get info :layout))
 	 (body (replace-regexp-in-string "#+ $" "" contents))
 	 (images (replace-regexp-in-string
-		  "!\\[img\\](\.\.\\(.*\\)\.\\(png\\|jpg\\|jpeg\\))"
-		  "{: .center}
-![img]({{ site.baseurl }}\\1.\\2)"
+		  "<img src=\\(.\\)\\(.*\\)\.\\(png\\|jpg\\|jpeg\\)"
+		  "<img src=\\1{{ site.baseurl }}/images/\\2.\\3"
 		  body))
 	 (corollaries (replace-regexp-in-string
 		       ":B<sub>corollary</sub>:"
@@ -98,7 +96,7 @@ channel."
 (defun org-jekyll-html-export-as-jekyll
   (&optional async subtreep visible-only body-only ext-plist)
   (interactive)
-  (org-export-to-buffer 'jekyll "*Org JEKYLL-HTML Export*"
+  (org-export-to-buffer 'jekyll-html "*Org JEKYLL-HTML Export*"
     async subtreep visible-only body-only ext-plist (lambda () (html-mode))))
 
 (defun org-jekyll-html-publish-to-jekyll (plist filename pub-dir)
