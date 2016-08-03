@@ -177,6 +177,7 @@
 					    "geometria-clases"
 					    "geometria-inicio"
 					    "geometria-pdf"
+					    "geometria-extra"
 					    )))
 	       ("geometria-clases"
 		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016cGeometria/clases"
@@ -198,7 +199,44 @@
 		:publishing-function org-beamer-publish-to-pdf
 		:base-extension "org"
 		:exclude "options.org"
-	       )
+		)
+	       ("geometria-extra"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016cGeometria/clases"
+		:publishing-directory "/home/rafael/Dropbox/paginas/geometria/images"
+		:publishing-function org-publish-attachment
+		:base-extension "png\\|jpg\\|jpeg")
+
+	       ("algebra" . (:components (
+					    "algebra-clases"
+					    "algebra-inicio"
+					    "algebra-pdf"
+					    "algebra-extra"
+					    )))
+	       ("algebra-clases"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016dAlgebraModerna/clases"
+		:publishing-directory "/home/rafael/Dropbox/paginas/algebra/_posts"
+		:base-extension "org"
+		:publishing-function org-jekyll-html-publish-to-jekyll
+		:body-only t
+		:exclude "options.org"
+		)
+	       ("algebra-inicio"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016dAlgebraModerna/inicio"
+		:publishing-directory "/home/rafael/Dropbox/paginas/algebra/"
+		:publishing-function org-jekyll-html-publish-to-jekyll
+		:body-only t
+		:base-extension "org")
+	       ("algebra-pdf"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016dAlgebraModerna/clases"
+		:publishing-directory "/home/rafael/Dropbox/paginas/algebra/pdfs"
+		:publishing-function org-beamer-publish-to-pdf
+		:base-extension "org"
+		:exclude "options.org")
+	       ("algebra-extra"
+		:base-directory "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/2016dAlgebraModerna/clases"
+		:publishing-directory "/home/rafael/Dropbox/paginas/algebra/images"
+		:publishing-function org-publish-attachment
+		:base-extension "png\\|jpg\\|jpeg")
 	     )))
 
 (load "~/.emacs.d/rvf-captures.el")
