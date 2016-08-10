@@ -38,69 +38,67 @@
 (defvar org-src-lang-modes)
 (defvar org-src-preserve-indentation)
 
-(declare-function outline-show-all "outline" ())
-(declare-function org-get-indentation "org" (&optional line))
-(declare-function org-remove-indentation "org" (code &optional n))
-(declare-function org-mark-ring-push "org" (&optional pos buffer))
-(declare-function tramp-compat-make-temp-file "tramp-compat"
-                  (filename &optional dir-flag))
-(declare-function tramp-dissect-file-name "tramp" (name &optional nodefault))
-(declare-function tramp-file-name-user "tramp" (vec))
-(declare-function tramp-file-name-host "tramp" (vec))
-(declare-function with-parsed-tramp-file-name "tramp" (filename var &rest body)
-		  t)
-(declare-function org-edit-src-code "org-src" (&optional code edit-buffer-name))
-(declare-function org-edit-src-exit "org-src"  ())
-(declare-function org-get-indentation "org" (&optional line))
-(declare-function org-in-regexp "org" (regexp &optional nlines visually))
-(declare-function org-open-at-point "org" (&optional in-emacs reference-buffer))
-(declare-function org-outline-overlay-data "org" (&optional use-markers))
-(declare-function org-set-outline-overlay-data "org" (data))
-(declare-function org-narrow-to-subtree "org" ())
-(declare-function org-split-string "org" (string &optional separators))
-(declare-function org-entry-get "org"
-		  (pom property &optional inherit literal-nil))
-(declare-function org-indent-line "org" ())
-(declare-function org-make-options-regexp "org" (kwds &optional extra))
-(declare-function org-do-remove-indentation "org" (&optional n))
-(declare-function org-next-block "org" (arg &optional backward block-regexp))
-(declare-function org-previous-block "org" (arg &optional block-regexp))
-(declare-function org-show-context "org" (&optional key))
+(declare-function org-at-item-p "org-list" ())
 (declare-function org-at-table-p "org" (&optional table-type))
-(declare-function org-cycle "org" (&optional arg))
-(declare-function org-uniquify "org" (list))
-(declare-function org-current-level "org" ())
-(declare-function org-table-import "org-table" (file arg))
-(declare-function org-table-align "org-table" ())
-(declare-function org-table-end "org-table" (&optional table-type))
-(declare-function org-trim "org" (s &optional keep-lead))
-(declare-function orgtbl-to-generic "org-table" (table params))
-(declare-function orgtbl-to-orgtbl "org-table" (table params))
-(declare-function org-babel-tangle-comment-links "ob-tangle" (&optional info))
-(declare-function org-babel-ref-split-args "ob-ref" (arg-string))
-(declare-function org-babel-ref-parse "ob-ref" (assignment))
-(declare-function org-babel-ref-resolve "ob-ref" (ref))
+(declare-function org-babel-lob-execute-maybe "ob-lob" ())
 (declare-function org-babel-ref-goto-headline-id "ob-ref" (id))
 (declare-function org-babel-ref-headline-body "ob-ref" ())
-(declare-function org-babel-lob-execute-maybe "ob-lob" ())
-(declare-function org-number-sequence "org-compat" (from &optional to inc))
-(declare-function org-at-item-p "org-list" ())
-(declare-function org-list-to-generic "org-list" (LIST PARAMS))
-(declare-function org-list-to-lisp "org-list" (&optional delete))
-(declare-function org-list-struct "org-list" ())
-(declare-function org-list-prevs-alist "org-list" (struct))
-(declare-function org-list-get-list-end "org-list" (item struct prevs))
+(declare-function org-babel-ref-parse "ob-ref" (assignment))
+(declare-function org-babel-ref-resolve "ob-ref" (ref))
+(declare-function org-babel-ref-split-args "ob-ref" (arg-string))
+(declare-function org-babel-tangle-comment-links "ob-tangle" (&optional info))
 (declare-function org-completing-read "org" (&rest args))
-(declare-function org-escape-code-in-region "org-src" (beg end))
-(declare-function org-unescape-code-in-string "org-src" (s))
-(declare-function org-table-to-lisp "org-table" (&optional txt))
-(declare-function org-reverse-string "org" (string))
-(declare-function org-element-context "org-element" (&optional element))
-(declare-function org-element-type "org-element" (element))
+(declare-function org-current-level "org" ())
+(declare-function org-cycle "org" (&optional arg))
+(declare-function org-do-remove-indentation "org" (&optional n))
+(declare-function org-edit-src-code "org-src" (&optional code edit-buffer-name))
+(declare-function org-edit-src-exit "org-src"  ())
 (declare-function org-element-at-point "org-element" ())
+(declare-function org-element-context "org-element" (&optional element))
 (declare-function org-element-normalize-string "org-element" (s))
 (declare-function org-element-property "org-element" (property element))
+(declare-function org-element-type "org-element" (element))
+(declare-function org-entry-get "org" (pom property &optional inherit literal-nil))
+(declare-function org-escape-code-in-region "org-src" (beg end))
+(declare-function org-get-indentation "org" (&optional line))
+(declare-function org-get-indentation "org" (&optional line))
+(declare-function org-in-regexp "org" (regexp &optional nlines visually))
+(declare-function org-indent-line "org" ())
+(declare-function org-list-get-list-end "org-list" (item struct prevs))
+(declare-function org-list-prevs-alist "org-list" (struct))
+(declare-function org-list-struct "org-list" ())
+(declare-function org-list-to-generic "org-list" (LIST PARAMS))
+(declare-function org-list-to-lisp "org-list" (&optional delete))
 (declare-function org-macro-escape-arguments "org-macro" (&rest args))
+(declare-function org-make-options-regexp "org" (kwds &optional extra))
+(declare-function org-mark-ring-push "org" (&optional pos buffer))
+(declare-function org-narrow-to-subtree "org" ())
+(declare-function org-next-block "org" (arg &optional backward block-regexp))
+(declare-function org-number-sequence "org-compat" (from &optional to inc))
+(declare-function org-open-at-point "org" (&optional in-emacs reference-buffer))
+(declare-function org-outline-overlay-data "org" (&optional use-markers))
+(declare-function org-previous-block "org" (arg &optional block-regexp))
+(declare-function org-remove-indentation "org" (code &optional n))
+(declare-function org-reverse-string "org" (string))
+(declare-function org-set-outline-overlay-data "org" (data))
+(declare-function org-show-context "org" (&optional key))
+(declare-function org-split-string "org" (string &optional separators))
+(declare-function org-src-coderef-regexp "org-src" (element))
+(declare-function org-table-align "org-table" ())
+(declare-function org-table-end "org-table" (&optional table-type))
+(declare-function org-table-import "org-table" (file arg))
+(declare-function org-table-to-lisp "org-table" (&optional txt))
+(declare-function org-trim "org" (s &optional keep-lead))
+(declare-function org-unescape-code-in-string "org-src" (s))
+(declare-function org-uniquify "org" (list))
+(declare-function orgtbl-to-generic "org-table" (table params))
+(declare-function orgtbl-to-orgtbl "org-table" (table params))
+(declare-function outline-show-all "outline" ())
+(declare-function tramp-compat-make-temp-file "tramp-compat" (filename &optional dir-flag))
+(declare-function tramp-dissect-file-name "tramp" (name &optional nodefault))
+(declare-function tramp-file-name-host "tramp" (vec))
+(declare-function tramp-file-name-user "tramp" (vec))
+(declare-function with-parsed-tramp-file-name "tramp" (filename var &rest body) t)
 
 (defgroup org-babel nil
   "Code block evaluation and management in `org-mode' documents."
@@ -542,6 +540,27 @@ match group 9.  Other match groups are defined in
   "This generates a regexp used to match data named NAME."
   (concat org-babel-name-regexp (regexp-quote name) "[ \t]*$"))
 
+(defun org-babel--normalize-body (datum)
+  "Normalize body for element or object DATUM.
+In particular, remove spurious indentation, final newline
+character and coderef labels when appropriate."
+  (let* ((value (org-element-property :value datum))
+	 (body (if (and (> (length value) 1)
+			(string-match-p "\n\\'" value))
+		   (substring value 0 -1)
+		 value)))
+    (if (eq (org-element-type datum) 'inline-src-block)
+	;; Newline characters and indentation in an inline src-block
+	;; are not meaningful, since they could come from some
+	;; paragraph filling.  Treat them as a white space.
+	(replace-regexp-in-string "\n[ \t]*" " " body)
+      (let ((body (replace-regexp-in-string
+		   (org-src-coderef-regexp datum) "" body nil nil 1)))
+	(if (or org-src-preserve-indentation
+		(org-element-property :preserve-indent datum))
+	    body
+	  (org-remove-indentation body))))))
+
 ;;; functions
 (defvar org-babel-current-src-block-location nil
   "Marker pointing to the src block currently being executed.
@@ -566,7 +585,7 @@ object instead.
 Return nil if point is not on a source block.  Otherwise, return
 a list with the following pattern:
 
-  \(language body header-arguments-alist switches name block-head)"
+  (language body header-arguments-alist switches name block-head)"
   (let* ((datum (or datum (org-element-context)))
 	 (type (org-element-type datum))
 	 (inline (eq type 'inline-src-block)))
@@ -578,23 +597,7 @@ a list with the following pattern:
 	     (info
 	      (list
 	       lang
-	       ;; Normalize contents.  In particular, remove spurious
-	       ;; indentation and final newline character.
-	       (let* ((value (org-element-property :value datum))
-		      (body (if (and (> (length value) 1)
-				     (string-match-p "\n\\'" value))
-				(substring value 0 -1)
-			      value)))
-		 (cond (inline
-			 ;; Newline characters and indentation in an
-			 ;; inline src-block are not meaningful, since
-			 ;; they could come from some paragraph
-			 ;; filling.  Treat them as a white space.
-			 (replace-regexp-in-string "\n[ \t]*" " " body))
-		       ((or org-src-preserve-indentation
-			    (org-element-property :preserve-indent datum))
-			body)
-		       (t (org-remove-indentation body))))
+	       (org-babel--normalize-body datum)
 	       (apply #'org-babel-merge-params
 		      (if inline org-babel-default-inline-header-args
 			org-babel-default-header-args)
@@ -603,14 +606,11 @@ a list with the following pattern:
 		       ;; If DATUM is provided, make sure we get node
 		       ;; properties applicable to its location within
 		       ;; the document.
-		       (org-with-wide-buffer
-			(when datum
-			  (goto-char (org-element-property :begin datum)))
-			(org-babel-params-from-properties lang))
+		       (org-with-point-at (org-element-property :begin datum)
+			 (org-babel-params-from-properties lang))
 		       (mapcar #'org-babel-parse-header-arguments
-			       (cons
-				(org-element-property :parameters datum)
-				(org-element-property :header datum)))))
+			       (cons (org-element-property :parameters datum)
+				     (org-element-property :header datum)))))
 	       (or (org-element-property :switches datum) "")
 	       name
 	       (org-element-property (if inline :begin :post-affiliated)

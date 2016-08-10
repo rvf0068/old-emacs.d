@@ -492,10 +492,7 @@ as `org-src-fontify-natively' is non-nil."
     (when (fboundp lang-mode)
       (let ((string (buffer-substring-no-properties start end))
 	    (modified (buffer-modified-p))
-	    (org-buffer (current-buffer))
-	    (block-faces (let ((face-name (intern (format "org-block-%s" lang))))
-			   (append (and (facep face-name) (list face-name))
-				   '(org-block)))))
+	    (org-buffer (current-buffer)))
 	(remove-text-properties start end '(face nil))
 	(with-current-buffer
 	    (get-buffer-create
@@ -506,17 +503,20 @@ as `org-src-fontify-natively' is non-nil."
 	  (unless (eq major-mode lang-mode) (funcall lang-mode))
 	  (org-font-lock-ensure)
 	  (let ((pos (point-min)) next)
-	    (while (setq next (next-single-property-change pos 'face))
-	      (let ((new-face (get-text-property pos 'face)))
-		(put-text-property
-		 (+ start (1- pos)) (1- (+ start next)) 'face
-		 (list :inherit (append (and new-face (list new-face))
-					block-faces))
-		 org-buffer))
-	      (setq pos next))
-	    ;; Add the face to the remaining part of the text.
-	    (put-text-property (1- (+ start pos)) end 'face
-			       (list :inherit block-faces) org-buffer)))
+	    (while (setq next (next-property-change pos))
+	      ;; Handle additional properties from font-lock, so as to
+	      ;; preserve, e.g., composition.
+	      (dolist (prop (cons 'face font-lock-extra-managed-props))
+		(let ((new-prop (get-text-property pos prop)))
+		  (put-text-property
+		   (+ start (1- pos)) (1- (+ start next)) prop new-prop
+		   org-buffer)))
+	      (setq pos next))))
+	;; Add Org faces.
+	(let ((face-name (intern (format "org-block-%s" lang))))
+	  (when (facep face-name)
+	    (font-lock-append-text-property start end 'face face-name))
+	  (font-lock-append-text-property start end 'face 'org-block))
 	(add-text-properties
 	 start end
 	 '(font-lock-fontified t fontified t font-lock-multiline t))
@@ -714,6 +714,20 @@ If BUFFER is non-nil, test it instead."
      (message "Invalid value %s for `org-src-window-setup'"
 	      org-src-window-setup)
      (pop-to-buffer-same-window buffer))))
+
+(defun org-src-coderef-regexp (element)
+  "Return regexp matching coderef for ELEMENT.
+
+ELEMENT has a `src-block' or `example-block' type.
+
+Match group 1 contains the full coderef string with surrounding
+white spaces.  Match group 2 contains the same string without any
+surrounding space.  Match group 3 contains the label."
+  (let ((label (regexp-quote (or (org-element-property :label-fmt element)
+				 org-coderef-label-format))))
+    (format "\\S-\\([ \t]*\\(%s\\)[ \t]*\\)$"
+	    (replace-regexp-in-string
+	     "%s" "\\([-a-zA-Z0-9_ ]+\\)" label nil t))))
 
 (defun org-edit-footnote-reference ()
   "Edit definition of footnote reference at point."
