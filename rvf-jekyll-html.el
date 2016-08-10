@@ -81,12 +81,16 @@ channel."
 	 (blocks (replace-regexp-in-string
 		   ":B<sub>block</sub>"
 		   ""
-		   columns))	 
+		   columns))
+	 (morecols (replace-regexp-in-string
+		   ":B<sub>column</sub><br  />"
+		   ""
+		   blocks))
 	 (lists (replace-regexp-in-string
 		 "\n\n    -"
 		 "
     -"
-		 blocks
+		 morecols
 		 ))
 	 (frontmatter
 	  "---\nlayout: %s\ntitle: %s\ndate: %s %s\ncomments: true\npublished: %s\ncategories: %s\n---\n\n"))
