@@ -1521,17 +1521,16 @@ Footnotes definitions are returned within \"\\footnotetext{}\"
 commands.
 
 This function is used within constructs that don't support
-\"\\footnote{}\" command (i.e. an item's tag).  In that case,
+\"\\footnote{}\" command (e.g, an item tag).  In that case,
 \"\\footnotemark\" is used within the construct and the function
 just outside of it."
   (mapconcat
    (lambda (ref)
-     (format
-      "\\footnotetext[%s]{%s}"
-      (org-export-get-footnote-number ref info)
-      (org-trim
-       (org-export-data
-	(org-export-get-footnote-definition ref info) info))))
+     (let ((def (org-export-get-footnote-definition ref info)))
+       (format "\\footnotetext[%d]{%s%s}"
+	       (org-export-get-footnote-number ref info)
+	       (org-trim (org-latex--label def info t t))
+	       (org-trim (org-export-data def info)))))
    ;; Find every footnote reference in ELEMENT.
    (letrec ((all-refs nil)
 	    (search-refs
@@ -3483,9 +3482,9 @@ is non-nil."
 
 ;;;###autoload
 (defun org-latex-convert-region-to-latex ()
-  "Assume the current region has org-mode syntax, and convert it to LaTeX.
+  "Assume the current region has Org syntax, and convert it to LaTeX.
 This can be used in any buffer.  For example, you can write an
-itemized list in org-mode syntax in an LaTeX buffer and use this
+itemized list in Org syntax in an LaTeX buffer and use this
 command to convert it."
   (interactive)
   (org-export-replace-region-by 'latex))

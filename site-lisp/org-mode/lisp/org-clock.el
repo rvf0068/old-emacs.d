@@ -382,7 +382,7 @@ play with them."
   :type 'string)
 
 (defcustom org-clock-clocked-in-display 'mode-line
-  "When clocked in for a task, org-mode can display the current
+  "When clocked in for a task, Org can display the current
 task and accumulated time in the mode line and/or frame title.
 Allowed values are:
 
@@ -966,7 +966,7 @@ If necessary, clock-out of the currently active clock."
 		   (throw 'exit nil)))))))))))
 
 (defun org-clock-resolve (clock &optional prompt-fn last-valid fail-quietly)
-  "Resolve an open org-mode clock.
+  "Resolve an open Org clock.
 An open clock was found, with `dangling' possibly being non-nil.
 If this function was invoked with a prefix argument, non-dangling
 open clocks are ignored.  The given clock requires some sort of
@@ -1078,7 +1078,7 @@ to be CLOCKED OUT."))))
 
 ;;;###autoload
 (defun org-resolve-clocks (&optional only-dangling-p prompt-fn last-valid)
-  "Resolve all currently open org-mode clocks.
+  "Resolve all currently open Org clocks.
 If `only-dangling-p' is non-nil, only ask to resolve dangling
 \(i.e., not currently open and valid) clocks."
   (interactive "P")
@@ -1141,7 +1141,7 @@ This routine returns a floating point number."
 (defvar org-clock-user-idle-seconds)
 
 (defun org-resolve-clocks-if-idle ()
-  "Resolve all currently open org-mode clocks.
+  "Resolve all currently open Org clocks.
 This is performed after `org-clock-idle-time' minutes, to check
 if the user really wants to stay clocked in after being idle for
 so long."
@@ -1854,15 +1854,13 @@ PROPNAME lets you set a custom text property instead of :org-clock-minutes."
 		 (goto-char (match-beginning 0))
 		 (put-text-property (point) (point-at-eol)
 				    (or propname :org-clock-minutes) time)
-		 (if headline-filter
-		     (save-excursion
-		       (save-match-data
-			 (while
-			     (> (funcall outline-level) 1)
-			   (outline-up-heading 1 t)
-			   (put-text-property
-			    (point) (point-at-eol)
-			    :org-clock-force-headline-inclusion t))))))
+		 (when headline-filter
+		   (save-excursion
+		     (save-match-data
+		       (while (org-up-heading-safe)
+			 (put-text-property
+			  (point) (line-end-position)
+			  :org-clock-force-headline-inclusion t))))))
 	       (setq t1 0)
 	       (cl-loop for l from level to (1- lmax) do
 			(aset ltimes l 0)))))))

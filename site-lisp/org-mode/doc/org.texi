@@ -557,7 +557,6 @@ Embedded @LaTeX{}
 Exporting
 
 * The export dispatcher::       The main exporter interface
-* Export back-ends::            Built-in export formats
 * Export settings::             Generic export settings
 * Table of contents::           The if and where of the table of contents
 * Include files::               Include additional files into a document
@@ -3668,7 +3667,7 @@ Pretty much all Emacs mail clients are supported.  The link will point to the
 current article, or, in some GNUS buffers, to the group.  The description is
 constructed from the author and the subject.
 
-@b{Web browsers: W3 and W3M}@*
+@b{Web browsers: Eww, W3 and W3M}@*
 Here the link will be the current URL, with the page title as description.
 
 @b{Contacts: BBDB}@*
@@ -7342,7 +7341,7 @@ gnus, notmuch                    |  %:from %:fromname %:fromaddress
                                  |  %:date-timestamp-inactive @r{(date as inactive timestamp)}
                                  |  %:fromto @r{(either "to NAME" or "from NAME")@footnote{This will always be the other, not the user.  See the variable @code{org-from-is-user-regexp}.}}
 gnus                             |  %:group, @r{for messages also all email fields}
-w3, w3m                          |  %:url
+eww, w3, w3m                     |  %:url
 info                             |  %:file %:node
 calendar                         |  %:date
 @end smallexample
@@ -10266,25 +10265,50 @@ is normal.
 @chapter Exporting
 @cindex exporting
 
-The Org mode export facilities can be used to export Org documents or parts
-of Org documents to a variety of other formats.  In addition, these
-facilities can be used with @code{orgtbl-mode} and/or @code{orgstruct-mode}
-in foreign buffers so you can author tables and lists in Org syntax and
-convert them in place to the target language.
+Sometimes, you may want to pretty print your notes, publish them on the web
+or even share them with people not using Org.  In these cases, the Org export
+facilities can be used to convert your documents to a variety of other
+formats, while retaining as much structure (@pxref{Document structure}) and
+markup (@pxref{Markup}) as possible.
 
-ASCII export produces a readable and simple version of an Org file for
-printing and sharing notes.  HTML export allows you to easily publish notes
-on the web, or to build full-fledged websites.  @LaTeX{} export lets you use
-Org mode and its structured editing functions to create arbitrarily complex
-@LaTeX{} files for any kind of document.  OpenDocument Text (ODT) and
-Markdown export allow seamless collaboration across organizational
-boundaries.  Texinfo export helps generating documentation or full-fledged
-manuals.  Finally, iCal export can extract entries with deadlines or
-appointments to produce a file in the iCalendar format.
+@cindex export back-end
+Libraries responsible for such translation are called back-ends.  Org ships
+with the following ones
+
+@itemize
+@item ascii (ASCII format)
+@item beamer (@LaTeX{} Beamer format)
+@item html (HTML format)
+@item icalendar (iCalendar format)
+@item latex (@LaTeX{} format)
+@item md (Markdown format)
+@item odt (OpenDocument Text format)
+@item org (Org format)
+@item texinfo (Texinfo format)
+@item man (Man page format)
+@end itemize
+
+@noindent More of them can be found in the @code{contrib/} directory
+(@pxref{Installation}) or through the Emacs packaging system@footnote{These
+libraries traditionnaly appear as @file{ox-NAME}, e.g., @file{ox-koma-letter}
+for @code{koma-letter} back-end.}.
+
+@vindex org-export-backends
+By default, the following five back-ends are loaded: @code{ascii},
+@code{html}, @code{icalendar}, @code{latex} and @code{odt}.  Others need to
+be specifically loaded, either by customizing @code{org-export-backends}, or
+by requiring the associated library, e.g.,
+
+@lisp
+(require 'ox-md)
+@end lisp
+
+Eventually, you can these facilities can be used with @code{orgtbl-mode} or
+@code{orgstruct-mode} in foreign buffers so you can author tables and lists
+in Org syntax and convert them in place to the target language.
 
 @menu
 * The export dispatcher::       The main exporter interface
-* Export back-ends::            Built-in export formats
 * Export settings::             Generic export settings
 * Table of contents::           The if and where of the table of contents
 * Include files::               Include additional files into a document
@@ -10300,8 +10324,8 @@ appointments to produce a file in the iCalendar format.
 * Texinfo export::              Exporting to Texinfo
 * iCalendar export::            Exporting to iCalendar
 * Other built-in back-ends::    Exporting to a man page
-* Export in foreign buffers::   Author tables and lists in Org syntax
 * Advanced configuration::      Fine-tuning the export output
+* Export in foreign buffers::   Author tables and lists in Org syntax
 @end menu
 
 @node The export dispatcher
@@ -10363,37 +10387,6 @@ You can change the default state of this option by setting
 Toggle visible-only export.  Only export the text that is currently
 visible, i.e., not hidden by outline visibility in the buffer.
 @end table
-
-@node Export back-ends
-@section Export back-ends
-@cindex Export, back-ends
-
-An export back-end is a library that translates Org syntax into a foreign
-format.  An export format is not available until the proper back-end has been
-loaded.
-
-Built-in back-ends include:
-
-@itemize
-@item ascii (ASCII format)
-@item beamer (@LaTeX{} Beamer format)
-@item html (HTML format)
-@item icalendar (iCalendar format)
-@item latex (@LaTeX{} format)
-@item man (Man page format)
-@item md (Markdown format)
-@item odt (OpenDocument Text format)
-@item org (Org format)
-@item texinfo (Texinfo format)
-@end itemize
-
-Other back-ends might be found in the @code{contrib/} directory
-(@pxref{Installation}).
-
-@vindex org-export-backends
-By default, the following five back-ends are loaded: @code{ascii},
-@code{html}, @code{icalendar}, @code{latex} and @code{odt}.  It is possible
-to add more, or remove some, by customizing @code{org-export-backends}.
 
 @node Export settings
 @section Export settings
@@ -13879,29 +13872,6 @@ keys in the export dispatcher (@pxref{The export dispatcher}).
 See the comment section of these files for more information on how to use
 them.
 
-@node Export in foreign buffers
-@section Export in foreign buffers
-
-Most built-in back-ends come with a command to convert the selected region
-into a selected format and replace this region by the exported output.  Here
-is a list of such conversion commands:
-
-@table @code
-@item org-html-convert-region-to-html
-Convert the selected region into HTML.
-@item org-latex-convert-region-to-latex
-Convert the selected region into @LaTeX{}.
-@item org-texinfo-convert-region-to-texinfo
-Convert the selected region into @code{Texinfo}.
-@item org-md-convert-region-to-md
-Convert the selected region into @code{MarkDown}.
-@end table
-
-This is particularly useful for converting tables and lists in foreign
-buffers.  E.g., in an HTML buffer, you can turn on @code{orgstruct-mode}, then
-use Org commands for editing a list, and finally select and convert the list
-with @code{M-x org-html-convert-region-to-html RET}.
-
 @node Advanced configuration
 @section Advanced configuration
 
@@ -14101,6 +14071,29 @@ back-end is calling the following from an Org buffer:
 
 It is obviously possible to write an interactive function for this, install
 it in the export dispatcher menu, and so on.
+
+@node Export in foreign buffers
+@section Export in foreign buffers
+
+Most built-in back-ends come with a command to convert the selected region
+into a selected format and replace this region by the exported output.  Here
+is a list of such conversion commands:
+
+@table @code
+@item org-html-convert-region-to-html
+Convert the selected region into HTML.
+@item org-latex-convert-region-to-latex
+Convert the selected region into @LaTeX{}.
+@item org-texinfo-convert-region-to-texinfo
+Convert the selected region into @code{Texinfo}.
+@item org-md-convert-region-to-md
+Convert the selected region into @code{MarkDown}.
+@end table
+
+This is particularly useful for converting tables and lists in foreign
+buffers.  E.g., in an HTML buffer, you can turn on @code{orgstruct-mode}, then
+use Org commands for editing a list, and finally select and convert the list
+with @code{M-x org-html-convert-region-to-html RET}.
 
 
 @node Publishing
@@ -18241,8 +18234,8 @@ Orgtbl mode has several translator functions built-in: @code{orgtbl-to-csv}
 (comma-separated values), @code{orgtbl-to-tsv} (TAB-separated values)
 @code{orgtbl-to-latex}, @code{orgtbl-to-html}, @code{orgtbl-to-texinfo},
 @code{orgtbl-to-unicode} and @code{orgtbl-to-orgtbl}.  These all use
-a generic translator, @code{orgtbl-to-generic}, which, in turn, can delegate
-translations to various export back-ends (@pxref{Export back-ends}).
+a generic translator, @code{orgtbl-to-generic}, which, in turn, delegates
+translations to various export back-ends.
 
 In particular, properties passed into the function (i.e., the ones set by the
 @samp{ORGTBL SEND} line) take precedence over translations defined in the
@@ -19357,6 +19350,8 @@ work on a tty.
 @item
 @i{Piotr Zielinski} wrote @file{org-mouse.el}, proposed agenda blocks
 and contributed various ideas and code snippets.
+@item
+@i{Marco Wahl} wrote @file{org-eww.el}.
 @end itemize
 
 

@@ -836,11 +836,11 @@ e.g. \"tex:mathjax\".  Allowed values are:
   "Non-nil means make file links to `file.org' point to `file.html'.
 When `org-mode' is exporting an `org-mode' file to HTML, links to
 non-html files are directly put into a href tag in HTML.
-However, links to other Org-mode files (recognized by the
-extension `.org') should become links to the corresponding html
+However, links to other Org files (recognized by the extension
+\".org\") should become links to the corresponding HTML
 file, assuming that the linked `org-mode' file will also be
 converted to HTML.
-When nil, the links still point to the plain `.org' file."
+When nil, the links still point to the plain \".org\" file."
   :group 'org-export-html
   :type 'boolean)
 
@@ -3112,16 +3112,16 @@ the plist used as a communication channel."
 	     (let ((raw (org-export-data
 			 (org-export-get-caption paragraph) info))
 		   (org-html-standalone-image-predicate
-		    'org-html--has-caption-p))
+		    #'org-html--has-caption-p))
 	       (if (not (org-string-nw-p raw)) raw
-		 (concat
-                  "<span class=\"figure-number\">"
-		  (format (org-html--translate "Figure %d:" info)
-			  (org-export-get-ordinal
-			   (org-element-map paragraph 'link
-			     'identity info t)
-			   info nil 'org-html-standalone-image-p))
-		  "</span> " raw))))
+		 (concat "<span class=\"figure-number\">"
+			 (format (org-html--translate "Figure %d:" info)
+				 (org-export-get-ordinal
+				  (org-element-map paragraph 'link
+				    #'identity info t)
+				  info nil #'org-html-standalone-image-p))
+			 " </span>"
+			 raw))))
 	    (label (and (org-element-property :name paragraph)
 			(org-export-get-reference paragraph info))))
 	(org-html--wrap-image contents info caption label)))
@@ -3319,18 +3319,28 @@ contextual information."
   (if (org-export-read-attribute :attr_html src-block :textarea)
       (org-html--textarea-block src-block)
     (let ((lang (org-element-property :language src-block))
-	  (caption (org-export-get-caption src-block))
 	  (code (org-html-format-code src-block info))
 	  (label (let ((lbl (and (org-element-property :name src-block)
 				 (org-export-get-reference src-block info))))
 		   (if lbl (format " id=\"%s\"" lbl) ""))))
       (if (not lang) (format "<pre class=\"example\"%s>\n%s</pre>" label code)
-	(format
-	 "<div class=\"org-src-container\">\n%s%s\n</div>"
-	 (if (not caption) ""
-	   (format "<label class=\"org-src-name\">%s</label>"
-		   (org-export-data caption info)))
-	 (format "\n<pre class=\"src src-%s\"%s>%s</pre>" lang label code))))))
+	(format "<div class=\"org-src-container\">\n%s%s\n</div>"
+		;; Build caption.
+		(let ((caption (org-export-get-caption src-block)))
+		  (if (not caption) ""
+		    (let ((listing-number
+			   (format
+			    "<span class=\"listing-number\">%s </span>"
+			    (format
+			     (org-html--translate "Listing %d:" info)
+			     (org-export-get-ordinal
+			      src-block info nil #'org-html--has-caption-p)))))
+		      (format "<label class=\"org-src-name\">%s%s</label>"
+			      listing-number
+			      (org-trim (org-export-data caption info))))))
+		;; Contents.
+		(format "<pre class=\"src src-%s\"%s>%s</pre>"
+			lang label code))))))
 
 ;;;; Statistics Cookie
 
@@ -3649,10 +3659,10 @@ is non-nil."
 
 ;;;###autoload
 (defun org-html-convert-region-to-html ()
-  "Assume the current region has org-mode syntax, and convert it to HTML.
+  "Assume the current region has Org syntax, and convert it to HTML.
 This can be used in any buffer.  For example, you can write an
-itemized list in org-mode syntax in an HTML buffer and use this
-command to convert it."
+itemized list in Org syntax in an HTML buffer and use this command
+to convert it."
   (interactive)
   (org-export-replace-region-by 'html))
 

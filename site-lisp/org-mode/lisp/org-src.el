@@ -645,14 +645,17 @@ See also `org-src-mode-hook'."
 
 (add-hook 'org-src-mode-hook #'org-src-babel-configure-edit-buffer)
 
+
+;;; Public API
+
 (defmacro org-src-do-at-code-block (&rest body)
-  "Execute a command from an edit buffer in the Org mode buffer."
+  "Execute BODY from an edit buffer in the Org mode buffer."
+  (declare (debug (body)))
   `(let ((beg-marker org-src--beg-marker))
      (when beg-marker
        (with-current-buffer (marker-buffer beg-marker)
 	 (goto-char beg-marker)
 	 ,@body))))
-(def-edebug-spec org-src-do-at-code-block (body))
 
 (defun org-src-do-key-sequence-at-code-block (&optional key)
   "Execute key sequence at code block in the source Org buffer.
@@ -677,10 +680,6 @@ Org-babel commands."
     (org-edit-src-save)
     (org-src-do-at-code-block
      (call-interactively (lookup-key org-babel-map key)))))
-
-
-
-;;; Public functions
 
 (defun org-src-edit-buffer-p (&optional buffer)
   "Non-nil when current buffer is a source editing buffer.
@@ -715,19 +714,38 @@ If BUFFER is non-nil, test it instead."
 	      org-src-window-setup)
      (pop-to-buffer-same-window buffer))))
 
-(defun org-src-coderef-regexp (element)
-  "Return regexp matching coderef for ELEMENT.
+(defun org-src-coderef-format (&optional element)
+  "Return format string for block at point.
 
-ELEMENT has a `src-block' or `example-block' type.
+When optional argument ELEMENT is provided, use that block.
+Otherwise, assume point is either at a source block, at an
+example block.
+
+If point is in an edit buffer, retrieve format string associated
+to the remote source block."
+  (cond
+   ((and element (org-element-property :label-fmt element)))
+   ((org-src-edit-buffer-p) (org-src-do-at-code-block (org-src-coderef-format)))
+   ((org-element-property :label-fmt (org-element-at-point)))
+   (t org-coderef-label-format)))
+
+(defun org-src-coderef-regexp (fmt &optional label)
+  "Return regexp matching a coderef format string FMT.
+
+When optional argument LABEL is non-nil, match coderef for that
+label only.
 
 Match group 1 contains the full coderef string with surrounding
 white spaces.  Match group 2 contains the same string without any
-surrounding space.  Match group 3 contains the label."
-  (let ((label (regexp-quote (or (org-element-property :label-fmt element)
-				 org-coderef-label-format))))
-    (format "\\S-\\([ \t]*\\(%s\\)[ \t]*\\)$"
-	    (replace-regexp-in-string
-	     "%s" "\\([-a-zA-Z0-9_ ]+\\)" label nil t))))
+surrounding space.  Match group 3 contains the label.
+
+A coderef format regexp can only match at the end of a line."
+  (format "\\S-\\([ \t]*\\(%s\\)[ \t]*\\)$"
+	  (replace-regexp-in-string
+	   "%s"
+	   (if label (regexp-quote label) "\\([-a-zA-Z0-9_][-a-zA-Z0-9_ ]*\\)")
+	   (regexp-quote fmt)
+	   nil t)))
 
 (defun org-edit-footnote-reference ()
   "Edit definition of footnote reference at point."

@@ -6,7 +6,7 @@
 ;; Keywords: link, eww
 ;; Homepage: http://orgmode.org
 ;;
-;; This file is not part of GNU Emacs.
+;; This file is part of GNU Emacs.
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -29,8 +29,8 @@
 
 ;; In an eww buffer function `org-eww-copy-for-org-mode' kills either
 ;; a region or the whole buffer if no region is set and transforms the
-;; text on the fly so that it can be pasted into an org-mode buffer
-;; with hot links.
+;; text on the fly so that it can be pasted into an Org buffer with
+;; hot links.
 
 ;; C-c C-x C-w (and also C-c C-x M-w) trigger
 ;; `org-eww-copy-for-org-mode'.
@@ -45,6 +45,14 @@
 
 ;;; Code:
 (require 'org)
+(require 'cl-lib)
+
+(defvar eww-current-title)
+(defvar eww-current-url)
+(defvar eww-data)
+(defvar eww-mode-map)
+
+(declare-function eww-current-url "eww")
 
 
 ;; Store Org-link in eww-mode buffer
@@ -112,8 +120,9 @@ the structure of the Org file."
         ;; Move to next anchor when current point is not at anchor.
         (or (org-eww-url-below-point)
 	    (org-eww-goto-next-url-property-change))
-	(assert (org-eww-url-below-point) t
-                "program logic error: point must have an url below but it hasn't")
+	(cl-assert
+	 (org-eww-url-below-point) t
+	 "program logic error: point must have an url below but it hasn't")
 	(if (<= (point) transform-end) ; if point is inside transform bound
 	    (progn
 	      ;; Get content between two links.
