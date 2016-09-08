@@ -86,11 +86,15 @@ channel."
 		   ":B<sub>column</sub><br  />"
 		   ""
 		   blocks))
+	 (ignoreh (replace-regexp-in-string
+		    ":B<sub>ignoreheading</sub>:<br  />"
+		    ""
+		    morecols))
 	 (lists (replace-regexp-in-string
 		 "\n\n    -"
 		 "
     -"
-		 morecols
+		 ignoreh
 		 ))
 	 (frontmatter
 	  "---\nlayout: %s\ntitle: %s\ndate: %s %s\ncomments: true\npublished: %s\ncategories: %s\n---\n\n"))
