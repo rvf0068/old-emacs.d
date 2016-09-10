@@ -628,7 +628,7 @@ of the day at point (if any) or the current HH:MM time."
 	       (equal (car (org-capture-get :target)) 'function))
 	    ((error quit)
 	     (if (and (buffer-base-buffer (current-buffer))
-		      (string-match "\\`CAPTURE-" (buffer-name)))
+		      (string-prefix-p "CAPTURE-" (buffer-name)))
 		 (kill-buffer (current-buffer)))
 	     (set-window-configuration (org-capture-get :return-to-wconf))
 	     (error "Capture template `%s': %s"
@@ -825,11 +825,9 @@ already gone.  Any prefix argument will be passed to the refile command."
     (org-capture-finalize)
     (save-window-excursion
       (with-current-buffer (or base (current-buffer))
-	(save-excursion
-	  (save-restriction
-	    (widen)
-	    (goto-char pos)
-	    (call-interactively 'org-refile)))))
+	(org-with-wide-buffer
+	 (goto-char pos)
+	 (call-interactively 'org-refile))))
     (when kill-buffer (kill-buffer base))))
 
 (defun org-capture-kill ()
@@ -1305,16 +1303,14 @@ Of course, if exact position has been required, just put it there."
 		      (point-at-bol))
 		  (point))))))
     (with-current-buffer (buffer-base-buffer (current-buffer))
-      (save-excursion
-	(save-restriction
-	  (widen)
-	  (goto-char pos)
-	  (let ((bookmark-name (plist-get org-bookmark-names-plist
-					  :last-capture)))
-	    (when bookmark-name
-	      (with-demoted-errors
-		(bookmark-set bookmark-name))))
-	  (move-marker org-capture-last-stored-marker (point)))))))
+      (org-with-wide-buffer
+       (goto-char pos)
+       (let ((bookmark-name (plist-get org-bookmark-names-plist
+				       :last-capture)))
+	 (when bookmark-name
+	   (with-demoted-errors
+	       (bookmark-set bookmark-name))))
+       (move-marker org-capture-last-stored-marker (point))))))
 
 (defun org-capture-narrow (beg end)
   "Narrow, unless configuration says not to narrow."
@@ -1897,6 +1893,9 @@ Assume sexps have been marked with
 		       (if jump-to-captured '(:jump-to-captured t)))))
 
 	   org-remember-templates))))
+;;; The function was made obsolete by commit 65399674d5 of
+;;; 2013-02-22.  This make-obsolete call was added 2016-09-01.
+(make-obsolete 'org-capture-import-remember-templates "use the `org-capture-templates' variable instead." "Org 9.0")
 
 (provide 'org-capture)
 

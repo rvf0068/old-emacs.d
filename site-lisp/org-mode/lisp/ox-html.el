@@ -120,7 +120,6 @@
     (:html-link-home "HTML_LINK_HOME" nil org-html-link-home)
     (:html-link-up "HTML_LINK_UP" nil org-html-link-up)
     (:html-mathjax "HTML_MATHJAX" nil "" space)
-    (:html-link-use-abs-url nil "html-link-use-abs-url" org-html-link-use-abs-url)
     (:html-postamble nil "html-postamble" org-html-postamble)
     (:html-preamble nil "html-preamble" org-html-preamble)
     (:html-head "HTML_HEAD" nil org-html-head newline)
@@ -339,6 +338,7 @@ for the JavaScript code in this tag.
   pre.src-ledger:before { content: 'Ledger'; }
   pre.src-lisp:before { content: 'Lisp'; }
   pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
   pre.src-matlab:before { content: 'MATLAB'; }
   pre.src-mscgen:before { content: 'Mscgen'; }
   pre.src-ocaml:before { content: 'Objective Caml'; }
@@ -1725,10 +1725,7 @@ produce code that uses these same face definitions."
 (defun org-html-fix-class-name (kwd)	; audit callers of this function
   "Turn todo keyword KWD into a valid class name.
 Replaces invalid characters with \"_\"."
-  (save-match-data
-    (while (string-match "[^a-zA-Z0-9_]" kwd)
-      (setq kwd (replace-match "_" t t kwd))))
-  kwd)
+  (replace-regexp-in-string "[^a-zA-Z0-9_]" "_" kwd nil t))
 
 (defun org-html-footnote-section (info)
   "Format the footnote section.
@@ -2629,7 +2626,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 CONTENTS holds the contents of the item.  INFO is a plist holding
 contextual information."
   (let ((lang (org-element-property :language inline-src-block))
-	(code (org-html-format-code inline-src-block info))
+	(code (org-element-property :value inline-src-block))
 	(label
 	 (let ((lbl (and (org-element-property :name inline-src-block)
 			 (org-export-get-reference inline-src-block info))))

@@ -285,6 +285,15 @@ the value in cdr."
   "Load FILE with optional arguments NOERROR and MUSTSUFFIX."
   `(load ,file 'noerror nil nil 'mustsuffix))
 
+(defun org-unbracket-string (pre post string)
+  "Remove PRE/POST from the beginning/end of STRING.
+Both PRE and POST must be pre-/suffixes of STRING, or neither is
+removed."
+  (if (and (string-prefix-p pre string)
+	   (string-suffix-p post string))
+      (substring string (length pre) (- (length post)))
+    string))
+
 (provide 'org-macs)
 
 ;;; org-macs.el ends here
