@@ -180,7 +180,7 @@
 
 (diary)
 
-(if (or (equal system-name "hp") (equal system-name "HP-14"))
+(if (or (equal system-name "hp") (equal system-name "HP-14") (equal system-name "lap-dell"))
     (display-battery-mode)
   )
 
