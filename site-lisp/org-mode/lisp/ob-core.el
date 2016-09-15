@@ -543,25 +543,21 @@ match group 9.  Other match groups are defined in
 
 (defun org-babel--normalize-body (datum)
   "Normalize body for element or object DATUM.
-In particular, remove spurious indentation, final newline
-character and coderef labels when appropriate."
+DATUM is a source block element or an inline source block object.
+Remove final newline character and spurious indentation."
   (let* ((value (org-element-property :value datum))
-	 (body (if (and (> (length value) 1)
-			(string-match-p "\n\\'" value))
+	 (body (if (string-suffix-p "\n" value)
 		   (substring value 0 -1)
 		 value)))
-    (if (eq (org-element-type datum) 'inline-src-block)
-	;; Newline characters and indentation in an inline src-block
-	;; are not meaningful, since they could come from some
-	;; paragraph filling.  Treat them as a white space.
-	(replace-regexp-in-string "\n[ \t]*" " " body)
-      (let ((body (replace-regexp-in-string
-		   (org-src-coderef-regexp (org-src-coderef-format datum)) ""
-		   body nil nil 1)))
-	(if (or org-src-preserve-indentation
-		(org-element-property :preserve-indent datum))
-	    body
-	  (org-remove-indentation body))))))
+    (cond ((eq (org-element-type datum) 'inline-src-block)
+	   ;; Newline characters and indentation in an inline
+	   ;; src-block are not meaningful, since they could come from
+	   ;; some paragraph filling.  Treat them as a white space.
+	   (replace-regexp-in-string "\n[ \t]*" " " body))
+	  ((or org-src-preserve-indentation
+	       (org-element-property :preserve-indent datum))
+	   body)
+	  (t (org-remove-indentation body)))))
 
 ;;; functions
 (defvar org-babel-current-src-block-location nil
@@ -587,7 +583,7 @@ object instead.
 Return nil if point is not on a source block.  Otherwise, return
 a list with the following pattern:
 
-  (language body header-arguments-alist switches name block-head)"
+  (language body arguments switches name start coderef)"
   (let* ((datum (or datum (org-element-context)))
 	 (type (org-element-type datum))
 	 (inline (eq type 'inline-src-block)))
@@ -616,7 +612,8 @@ a list with the following pattern:
 	       (or (org-element-property :switches datum) "")
 	       name
 	       (org-element-property (if inline :begin :post-affiliated)
-				     datum))))
+				     datum)
+	       (and (not inline) (org-src-coderef-format datum)))))
 	(unless light
 	  (setf (nth 2 info) (org-babel-process-params (nth 2 info))))
 	(setf (nth 2 info) (org-babel-generate-file-param name (nth 2 info)))
@@ -667,10 +664,17 @@ block."
 	 ((org-babel-confirm-evaluate info)
 	  (let* ((lang (nth 0 info))
 		 (result-params (cdr (assq :result-params params)))
-		 (body (setf (nth 1 info)
-			     (if (org-babel-noweb-p params :eval)
-				 (org-babel-expand-noweb-references info)
-			       (nth 1 info))))
+		 ;; Expand noweb references in BODY and remove any
+		 ;; coderef.
+		 (body
+		  (let ((coderef (nth 6 info))
+			(expand
+			 (if (org-babel-noweb-p params :eval)
+			     (org-babel-expand-noweb-references info)
+			   (nth 1 info))))
+		    (if (not coderef) expand
+		      (replace-regexp-in-string
+		       (org-src-coderef-regexp coderef) "" expand nil nil 1))))
 		 (dir (cdr (assq :dir params)))
 		 (default-directory
 		   (or (and dir (file-name-as-directory (expand-file-name dir)))
@@ -924,8 +928,8 @@ the session.  Copy the body of the code block to the kill ring."
 	   (or (and dir (file-name-as-directory dir)) default-directory))
 	 (init-cmd (intern (format "org-babel-%s-initiate-session" lang)))
 	 (prep-cmd (intern (concat "org-babel-prep-session:" lang))))
-    (if (and (stringp session) (string= session "none"))
-	(error "This block is not using a session!"))
+    (when (and (stringp session) (string= session "none"))
+      (error "This block is not using a session!"))
     (unless (fboundp init-cmd)
       (error "No org-babel-initiate-session function for %s!" lang))
     (with-temp-buffer (insert (org-trim body))
@@ -1376,15 +1380,15 @@ portions of results lines."
                                 (eq (overlay-get overlay 'invisible)
 				    'org-babel-hide-result))
                               (overlays-at start)))
-              (if (or (not force) (eq force 'off))
-                  (mapc (lambda (ov)
-                          (when (member ov org-babel-hide-result-overlays)
-                            (setq org-babel-hide-result-overlays
-                                  (delq ov org-babel-hide-result-overlays)))
-                          (when (eq (overlay-get ov 'invisible)
-                                    'org-babel-hide-result)
-                            (delete-overlay ov)))
-                        (overlays-at start)))
+              (when (or (not force) (eq force 'off))
+		(mapc (lambda (ov)
+			(when (member ov org-babel-hide-result-overlays)
+			  (setq org-babel-hide-result-overlays
+				(delq ov org-babel-hide-result-overlays)))
+			(when (eq (overlay-get ov 'invisible)
+				  'org-babel-hide-result)
+			  (delete-overlay ov)))
+		      (overlays-at start)))
             (setq ov (make-overlay start end))
             (overlay-put ov 'invisible 'org-babel-hide-result)
             ;; make the block accessible to isearch
@@ -1998,7 +2002,7 @@ Return nil if ELEMENT cannot be read."
    (pcase (org-element-type element)
      (`fixed-width
       (let ((v (org-trim (org-element-property :value element))))
-	(or (org-babel-number-p v) v)))
+	(or (org-babel--string-to-number v) v)))
      (`table (org-babel-read-table))
      (`plain-list (org-babel-read-list))
      (`example-block
@@ -2302,7 +2306,7 @@ INFO may provide the values of these header arguments (in the
 		    (funcall wrap "#+BEGIN_EXPORT latex" "#+END_EXPORT" nil nil
 			     "{{{results(@@latex:" "@@)}}}"))
 		   ((member "org" result-params)
-		    (goto-char beg) (if (org-at-table-p) (org-cycle))
+		    (goto-char beg) (when (org-at-table-p) (org-cycle))
 		    (funcall wrap "#+BEGIN_SRC org" "#+END_SRC" nil nil
 			     "{{{results(src_org{" "})}}}"))
 		   ((member "code" result-params)
@@ -2312,11 +2316,11 @@ INFO may provide the values of these header arguments (in the
 			       (format "{{{results(src_%s[%s]{" lang results-switches)
 			       "})}}}")))
 		   ((member "raw" result-params)
-		    (goto-char beg) (if (org-at-table-p) (org-cycle)))
+		    (goto-char beg) (when (org-at-table-p) (org-cycle)))
 		   ((or (member "drawer" result-params)
 			;; Stay backward compatible with <7.9.2
 			(member "wrap" result-params))
-		    (goto-char beg) (if (org-at-table-p) (org-cycle))
+		    (goto-char beg) (when (org-at-table-p) (org-cycle))
 		    (funcall wrap ":RESULTS:" ":END:" 'no-escape nil
 			     "{{{results(" ")}}}"))
 		   ((and inline (member "file" result-params))
@@ -2839,7 +2843,7 @@ lisp, otherwise return it unmodified as a string.  Optional
 argument INHIBIT-LISP-EVAL inhibits lisp evaluation for
 situations in which is it not appropriate."
   (if (and (stringp cell) (not (equal cell "")))
-      (or (org-babel-number-p cell)
+      (or (org-babel--string-to-number cell)
           (if (and (not inhibit-lisp-eval)
 		   (or (member (substring cell 0 1) '("(" "'" "`" "["))
 		       (string= cell "*this*")))
@@ -2849,14 +2853,13 @@ situations in which is it not appropriate."
 	      (progn (set-text-properties 0 (length cell) nil cell) cell))))
     cell))
 
-(defun org-babel-number-p (string)
-  "If STRING represents a number return its value."
-  (if (and (string-match "[0-9]+" string)
-	   (string-match "^-?[0-9]*\\.?[0-9]*$" string)
-           (= (length (substring string (match-beginning 0)
-				 (match-end 0)))
-	      (length string)))
-      (string-to-number string)))
+(defun org-babel--string-to-number (string)
+  "If STRING represents a number return its value.
+
+Otherwise return nil."
+  (when (string-match "\\`-?[0-9]*\\.?[0-9]*\\'" string)
+    (string-to-number string)))
+(define-obsolete-function-alias 'org-babel-number-p 'org-babel--string-to-number "Org 9.0")
 
 (defun org-babel-import-elisp-from-file (file-name &optional separator)
   "Read the results located at FILE-NAME into an elisp table.
@@ -3078,6 +3081,10 @@ Callers of this function will probably want to add an entry to
     (let ((sym (intern-soft (concat "org-babel-" var ":" old))))
       (when (and sym (boundp sym))
 	(defvaralias (intern (concat "org-babel-" var ":" new)) sym)))))
+
+(defun org-babel-strip-quotes (string)
+  "Strip \\\"s from around a string, if applicable."
+  (org-unbracket-string "\"" "\"" string))
 
 (provide 'ob-core)
 

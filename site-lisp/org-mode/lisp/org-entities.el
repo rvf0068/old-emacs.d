@@ -163,7 +163,7 @@ packages to be loaded, add these packages to `org-latex-packages-alist'."
      ("beta" "\\beta" t "&beta;" "beta" "beta" "β")
      ("Gamma" "\\Gamma" t "&Gamma;" "Gamma" "Gamma" "Γ")
      ("gamma" "\\gamma" t "&gamma;" "gamma" "gamma" "γ")
-     ("Delta" "\\Delta" t "&Delta;" "Delta" "Gamma" "Δ")
+     ("Delta" "\\Delta" t "&Delta;" "Delta" "Delta" "Δ")
      ("delta" "\\delta" t "&delta;" "delta" "delta" "δ")
      ("Epsilon" "E" nil "&Epsilon;" "Epsilon" "Epsilon" "Ε")
      ("epsilon" "\\epsilon" t "&epsilon;" "epsilon" "epsilon" "ε")
@@ -260,7 +260,7 @@ packages to be loaded, add these packages to `org-latex-packages-alist'."
 
      "* Other"
      "** Misc. (often used)"
-     ("circ" "\\^{}" nil "&circ;" "^" "^" "ˆ")
+     ("circ" "\\^{}" nil "&circ;" "^" "^" "∘")
      ("vert" "\\vert{}" t "&vert;" "|" "|" "|")
      ("vbar" "|" nil "|" "|" "|" "|")
      ("brvbar" "\\textbrokenbar{}" nil "&brvbar;" "|" "¦" "¦")
@@ -281,7 +281,7 @@ packages to be loaded, add these packages to `org-latex-packages-alist'."
      ("ddag" "\\ddag{}" nil "&Dagger;" "[doubledagger]" "[doubledagger]" "‡")
 
      "** Whitespace"
-     ("nbsp" "~" nil "&nbsp;" " " " " " ")
+     ("nbsp" "~" nil "&nbsp;" " " "\x00A0" "\x00A0")
      ("ensp" "\\hspace*{.5em}" nil "&ensp;" " " " " " ")
      ("emsp" "\\hspace*{1em}" nil "&emsp;" " " " " " ")
      ("thinsp" "\\hspace*{.2em}" nil "&thinsp;" " " " " " ")

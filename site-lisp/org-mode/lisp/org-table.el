@@ -944,41 +944,40 @@ Optional argument NEW may specify text to replace the current field content."
    ((and (not new) org-table-may-need-update)) ; Realignment will happen anyway
    ((org-at-table-hline-p))
    ((and (not new)
-	 (or (not (equal (marker-buffer org-table-aligned-begin-marker)
-			 (current-buffer)))
+	 (or (not (eq (marker-buffer org-table-aligned-begin-marker)
+		      (current-buffer)))
 	     (< (point) org-table-aligned-begin-marker)
 	     (>= (point) org-table-aligned-end-marker)))
-    ;; This is not the same table, force a full re-align
+    ;; This is not the same table, force a full re-align.
     (setq org-table-may-need-update t))
-   (t ;; realign the current field, based on previous full realign
-    (let* ((pos (point)) s
-	   (col (org-table-current-column))
-	   (num (if (> col 0) (nth (1- col) org-table-last-alignment)))
-	   l f n o e)
+   (t
+    ;; Realign the current field, based on previous full realign.
+    (let ((pos (point))
+	  (col (org-table-current-column)))
       (when (> col 0)
-	(skip-chars-backward "^|\n")
-	(if (looking-at " *\\([^|\n]*?\\) *\\(|\\|$\\)")
-	    (progn
-	      (setq s (match-string 1)
-		    o (match-string 0)
-		    l (max 1
-			   (- (org-string-width
-			       (buffer-substring-no-properties
-				(match-end 0) (match-beginning 0))) 3))
-		    e (not (= (match-beginning 2) (match-end 2))))
-	      (setq f (format (if num " %%%ds %s" " %%-%ds %s")
-			      l (if e "|" (setq org-table-may-need-update t) ""))
-		    n (format f s))
-	      (if new
-		  (if (<= (org-string-width new) l)
-		      (setq n (format f new))
-		    (setq n (concat new "|") org-table-may-need-update t)))
-	      (if (equal (string-to-char n) ?-) (setq n (concat " " n)))
-	      (or (equal n o)
-		  (let (org-table-may-need-update)
-		    (replace-match n t t))))
-	  (setq org-table-may-need-update t))
-	(goto-char pos))))))
+	(skip-chars-backward "^|")
+	(if (not (looking-at " *\\([^|\n]*?\\) *\\(|\\|$\\)"))
+	    (setq org-table-may-need-update t)
+	  (let* ((numbers? (nth (1- col) org-table-last-alignment))
+		 (cell (match-string 0))
+		 (field (match-string 1))
+		 (len (max 1 (- (org-string-width cell) 3)))
+		 (properly-closed? (/= (match-beginning 2) (match-end 2)))
+		 (fmt (format (if numbers? " %%%ds %s" " %%-%ds %s")
+			      len
+			      (if properly-closed? "|"
+				(setq org-table-may-need-update t)
+				"")))
+		 (new-cell
+		  (cond ((not new) (format fmt field))
+			((<= (org-string-width new) len) (format fmt new))
+			(t
+			 (setq org-table-may-need-update t)
+			 (format " %s |" new)))))
+	    (unless (equal new-cell cell)
+	      (let (org-table-may-need-update)
+		(replace-match new-cell t t)))
+	    (goto-char pos))))))))
 
 ;;;###autoload
 (defun org-table-next-field ()
@@ -3194,8 +3193,8 @@ existing formula for column %s"
 		      (re-search-forward org-table-hline-regexp end t)
 		      (re-search-forward org-table-dataline-regexp end t))
 		 (setq beg (match-beginning 0)))
-		;; Just leave BEG where it is.
-		(t (setq beg (line-beginning-position)))))
+		;; Just leave BEG at the start of the table.
+		(t nil)))
 	   (setq beg (line-beginning-position)
 		 end (copy-marker (line-beginning-position 2))))
 	 (goto-char beg)
@@ -3265,19 +3264,19 @@ existing formula for column %s"
 	      ;; `org-table-formula-create-columns' allows it.
 	      (let ((column-count (progn (end-of-line)
 					 (1- (org-table-current-column)))))
-		`(lambda (column)
-		   (when (> column 1000)
-		     (user-error "Formula column target too large"))
-		   (and (> column ,column-count)
-			(or (eq org-table-formula-create-columns t)
-			    (and (eq org-table-formula-create-columns 'warn)
-				 (progn
-				   (org-display-warning
-				    "Out-of-bounds formula added columns")
-				   t))
-			    (and (eq org-table-formula-create-columns 'prompt)
-				 (yes-or-no-p
-				  "Out-of-bounds formula.  Add columns? ")))))))
+		(lambda (column)
+		  (when (> column 1000)
+		    (user-error "Formula column target too large"))
+		  (and (> column column-count)
+		       (or (eq org-table-formula-create-columns t)
+			   (and (eq org-table-formula-create-columns 'warn)
+				(progn
+				  (org-display-warning
+				   "Out-of-bounds formula added columns")
+				  t))
+			   (and (eq org-table-formula-create-columns 'prompt)
+				(yes-or-no-p
+				 "Out-of-bounds formula.  Add columns? ")))))))
 	     (org-table-eval-formula nil formula t t t t))))
 	;; Clean up markers and internal text property.
 	(remove-text-properties (point-min) (point-max) '(org-untouchable t))
@@ -3317,10 +3316,8 @@ with the prefix ARG."
 (defun org-table-recalculate-buffer-tables ()
   "Recalculate all tables in the current buffer."
   (interactive)
-  (save-excursion
-    (save-restriction
-      (widen)
-      (org-table-map-tables (lambda () (org-table-recalculate t)) t))))
+  (org-with-wide-buffer
+   (org-table-map-tables (lambda () (org-table-recalculate t)) t)))
 
 ;;;###autoload
 (defun org-table-iterate-buffer-tables ()
@@ -3330,19 +3327,17 @@ with the prefix ARG."
 	 (i imax)
 	 (checksum (md5 (buffer-string)))
 	 c1)
-    (save-excursion
-      (save-restriction
-	(widen)
-	(catch 'exit
-	  (while (> i 0)
-	    (setq i (1- i))
-	    (org-table-map-tables (lambda () (org-table-recalculate t)) t)
-	    (if (equal checksum (setq c1 (md5 (buffer-string))))
-		(progn
-		  (message "Convergence after %d iterations" (- imax i))
-		  (throw 'exit t))
-	      (setq checksum c1)))
-	  (user-error "No convergence after %d iterations" imax))))))
+    (org-with-wide-buffer
+     (catch 'exit
+       (while (> i 0)
+	 (setq i (1- i))
+	 (org-table-map-tables (lambda () (org-table-recalculate t)) t)
+	 (if (equal checksum (setq c1 (md5 (buffer-string))))
+	     (progn
+	       (message "Convergence after %d iterations" (- imax i))
+	       (throw 'exit t))
+	   (setq checksum c1)))
+       (user-error "No convergence after %d iterations" imax)))))
 
 (defun org-table-calc-current-TBLFM (&optional arg)
   "Apply the #+TBLFM in the line at point to the table."
