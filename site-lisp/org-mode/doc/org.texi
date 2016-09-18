@@ -9718,6 +9718,8 @@ markup rules used in an Org mode buffer.
 * Horizontal rules::            Make a line
 * Images and tables::           Images, tables and caption mechanism
 * Literal examples::            Source code examples with special formatting
+* Special symbols::             Greek letters and other symbols
+* Subscripts and superscripts:: Simple syntax for raising/lowering text
 * Embedded @LaTeX{}::           LaTeX can be freely used inside Org documents
 @end menu
 
@@ -9986,63 +9988,44 @@ formatting like @samp{(ref:label)} at the end of the current line.  Then the
 label is stored as a link @samp{(label)}, for retrieval with @kbd{C-c C-l}.
 @end table
 
-@node Embedded @LaTeX{}
-@section Embedded @LaTeX{}
-@cindex @TeX{} interpretation
-@cindex @LaTeX{} interpretation
-
-Plain ASCII is normally sufficient for almost all note taking.  Exceptions
-include scientific notes, which often require mathematical symbols and the
-occasional formula.  @LaTeX{}@footnote{@LaTeX{} is a macro system based on
-Donald E. Knuth's @TeX{} system.  Many of the features described here as
-``@LaTeX{}'' are really from @TeX{}, but for simplicity I am blurring this
-distinction.}  is widely used to typeset scientific documents.  Org mode
-supports embedding @LaTeX{} code into its files, because many academics are
-used to writing and reading @LaTeX{} source code, and because it can be
-readily processed to produce pretty output for a number of export back-ends.
-
-@menu
-* Special symbols::             Greek letters and other symbols
-* Subscripts and superscripts::  Simple syntax for raising/lowering text
-* @LaTeX{} fragments::          Complex formulas made easy
-* Previewing @LaTeX{} fragments::  What will this snippet look like?
-* CDLaTeX mode::                Speed up entering of formulas
-@end menu
-
 @node Special symbols
-@subsection Special symbols
+@section Special symbols
+@cindex Org entities
 @cindex math symbols
 @cindex special symbols
-@cindex @TeX{} macros
-@cindex @LaTeX{} fragments, markup rules
 @cindex HTML entities
 @cindex @LaTeX{} entities
 
-You can use @LaTeX{}-like syntax to insert special symbols like @samp{\alpha}
-to indicate the Greek letter, or @samp{\to} to indicate an arrow.  Completion
-for these symbols is available, just type @samp{\} and maybe a few letters,
-and press @kbd{M-@key{TAB}} to see possible completions.  Unlike @LaTeX{}
-code, Org mode allows these symbols to be present without surrounding math
-delimiters, for example:
+You can use @LaTeX{}-like syntax to insert special symbols---named
+entities---like @samp{\alpha} to indicate the Greek letter, or @samp{\to} to
+indicate an arrow.  Completion for these symbols is available, just type
+@samp{\} and maybe a few letters, and press @kbd{M-@key{TAB}} to see possible
+completions.  If you need such a symbol inside a word, terminate it with
+a pair of curly brackets.  For example
 
 @example
-Angles are written as Greek letters \alpha, \beta and \gamma.
+Protip: Given a circle \Gamma of diameter d, the length of its circumference
+is \pi@{@}d.
 @end example
 
-@vindex org-entities
-During export, these symbols will be transformed into the native format of
-the exporter back-end.  Strings like @code{\alpha} will be exported as
-@code{&alpha;} in the HTML output, and as @code{\(\alpha\)} in the @LaTeX{}
-output.  Similarly, @code{\nbsp} will become @code{&nbsp;} in HTML and
-@code{~} in @LaTeX{}.  If you need such a symbol inside a word, terminate it
-like this: @samp{\Aacute@{@}stor}.
-
+@findex org-entities-help
+@vindex org-entities-user
 A large number of entities is provided, with names taken from both HTML and
-@LaTeX{}; see the variable @code{org-entities} for the complete list.
-@samp{\-} is treated as a shy hyphen, and @samp{--}, @samp{---}, and
-@samp{...} are all converted into special commands creating hyphens of
-different lengths or a compact set of dots.
+@LaTeX{}; you can comfortably browse the complete list from a dedicated
+buffer using the command @code{org-entities-help}.  It is also possible to
+provide your own special symbols in the variable @code{org-entities-user}.
 
+During export, these symbols are transformed into the native format of the
+exporter back-end.  Strings like @code{\alpha} are exported as @code{&alpha;}
+in the HTML output, and as @code{\(\alpha\)} in the @LaTeX{} output.
+Similarly, @code{\nbsp} becomes @code{&nbsp;} in HTML and @code{~} in
+@LaTeX{}.
+
+@cindex escaping characters
+Entities may also be used as a may to escape markup in an Org document, e.g.,
+@samp{\under@{@}not underlined\under} exports as @samp{_not underlined_}.
+
+@cindex special symbols, in-buffer display
 If you would like to see entities displayed as UTF-8 characters, use the
 following command@footnote{You can turn this on by default by setting the
 variable @code{org-pretty-entities}, or on a per-file base with the
@@ -10057,20 +10040,28 @@ buffer content which remains plain ASCII, but it overlays the UTF-8 character
 for display purposes only.
 @end table
 
+@cindex shy hyphen, special symbol
+@cindex dash, special symbol
+@cindex ellipsis, special symbol
+In addition to regular entities defined above, Org exports in a special
+way@footnote{This behaviour can be disabled with @code{-} export setting
+(@pxref{Export settings}).} the following commonly used character
+combinations: @samp{\-} is treated as a shy hyphen, @samp{--} and @samp{---}
+are converted into dashes, and @samp{...} becomes a compact set of dots.
+
 @node Subscripts and superscripts
-@subsection Subscripts and superscripts
+@section Subscripts and superscripts
 @cindex subscript
 @cindex superscript
 
-Just like in @LaTeX{}, @samp{^} and @samp{_} are used to indicate super- and
-subscripts.  Again, these can be used without embedding them in math-mode
-delimiters.  To increase the readability of ASCII text, it is not necessary
-(but OK) to surround multi-character sub- and superscripts with curly braces.
-For example
+@samp{^} and @samp{_} are used to indicate super- and subscripts.  To
+increase the readability of ASCII text, it is not necessary---but OK---to
+surround multi-character sub- and superscripts with curly braces.  Those are,
+however, mandatory, when more than one word is involved.  For example
 
 @example
-The mass of the sun is M_sun = 1.989 x 10^30 kg.  The radius of
-the sun is R_@{sun@} = 6.96 x 10^8 m.
+The radius of the sun is R_sun = 6.96 x 10^8 m.  On the other hand, the
+radius of Alpha Centauri is R_@{Alpha Centauri@} = 1.28 x R_@{sun@}.
 @end example
 
 @vindex org-use-sub-superscripts
@@ -10087,15 +10078,35 @@ In addition to showing entities as UTF-8 characters, this command will also
 format sub- and superscripts in a WYSIWYM way.
 @end table
 
+@node Embedded @LaTeX{}
+@section Embedded @LaTeX{}
+@cindex @TeX{} interpretation
+@cindex @LaTeX{} interpretation
+
+Plain ASCII is normally sufficient for almost all note taking.  Exceptions
+include scientific notes, which often require mathematical symbols and the
+occasional formula.  @LaTeX{}@footnote{@LaTeX{} is a macro system based on
+Donald E. Knuth's @TeX{} system.  Many of the features described here as
+``@LaTeX{}'' are really from @TeX{}, but for simplicity I am blurring this
+distinction.}  is widely used to typeset scientific documents.  Org mode
+supports embedding @LaTeX{} code into its files, because many academics are
+used to writing and reading @LaTeX{} source code, and because it can be
+readily processed to produce pretty output for a number of export back-ends.
+
+@menu
+* @LaTeX{} fragments::          Complex formulas made easy
+* Previewing @LaTeX{} fragments::  What will this snippet look like?
+* CDLaTeX mode::                Speed up entering of formulas
+@end menu
+
 @node @LaTeX{} fragments
 @subsection @LaTeX{} fragments
 @cindex @LaTeX{} fragments
 
 @vindex org-format-latex-header
-Going beyond symbols and sub- and superscripts, a full formula language is
-needed.  Org mode can contain @LaTeX{} math fragments, and it supports ways
-to process these for several export back-ends.  When exporting to @LaTeX{},
-the code is left as it is.  When exporting to HTML, Org can use either
+Org mode can contain @LaTeX{} math fragments, and it supports ways to process
+these for several export back-ends.  When exporting to @LaTeX{}, the code is
+left as it is.  When exporting to HTML, Org can use either
 @uref{http://www.mathjax.org, MathJax} (@pxref{Math formatting in HTML
 export}) or transcode the math into images (see @pxref{Previewing @LaTeX{}
 fragments}).
@@ -12423,9 +12434,8 @@ that one (@pxref{Export settings}).
 @cindex export, OpenDocument
 @cindex LibreOffice
 
-Org mode@footnote{Versions 7.8 or later} supports export to OpenDocument Text
-(ODT) format.  Documents created by this exporter use the
-@cite{OpenDocument-v1.2
+Org mode supports export to OpenDocument Text (ODT) format.  Documents
+created by this exporter use the @cite{OpenDocument-v1.2
 specification}@footnote{@url{http://docs.oasis-open.org/office/v1.2/OpenDocument-v1.2.html,
 Open Document Format for Office Applications (OpenDocument) Version 1.2}} and
 are compatible with LibreOffice 3.4.
