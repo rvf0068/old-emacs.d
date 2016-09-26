@@ -77,7 +77,7 @@
 (require 'find-func)
 (require 'format-spec)
 
-(or (equal this-command 'eval-buffer)
+(or (eq this-command 'eval-buffer)
     (condition-case nil
 	(load (concat (file-name-directory load-file-name)
 		      "org-loaddefs.el")
@@ -156,6 +156,8 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function org-table-beginning-of-field "org-table" (&optional n))
 (declare-function org-table-blank-field "org-table" ())
 (declare-function org-table-calc-current-TBLFM "org-table" (&optional arg))
+(declare-function org-table-copy-region "org-table" (beg end &optional cut))
+(declare-function org-table-cut-region "org-table" (beg end))
 (declare-function org-table-edit-field "org-table" (arg))
 (declare-function org-table-end "org-table" (&optional table-type))
 (declare-function org-table-end-of-field "org-table" (&optional n))
@@ -5665,7 +5667,7 @@ The following commands are available:
 		      (mapcar
 		       (lambda (alist)
 			 (when (boundp alist)
-			   (cdr (assoc 'background-color (symbol-value alist)))))
+			   (cdr (assq 'background-color (symbol-value alist)))))
 		       '(default-frame-alist initial-frame-alist window-system-default-frame-alist))
 		      (list (face-foreground 'org-hide))))))
     (car (remove nil candidates))))
@@ -8903,6 +8905,9 @@ stamps in the subtree shifted for each clone produced.  If SHIFT
 is nil or the empty string, time stamps will be left alone.  The
 ID property of the original subtree is removed.
 
+In each clone, all the CLOCK entries will be removed.  This
+prevents Org from considering that the clocked times overlap.
+
 If the original subtree did contain time stamps with a repeater,
 the following will happen:
 - the repeater will be removed in each clone
@@ -10599,7 +10604,7 @@ If the link is in hidden text, expose it."
   (setq org-link-search-failed nil)
   (let* ((pos (point))
 	 (ct (org-context))
-	 (a (assoc :link ct))
+	 (a (assq :link ct))
 	 (srch-fun (if search-backward 're-search-backward 're-search-forward)))
     (cond (a (goto-char (nth (if search-backward 1 2) a)))
 	  ((looking-at org-any-link-re)
@@ -11431,7 +11436,7 @@ If the file does not exist, an error is thrown."
 		    (cdr (assoc ext apps))
 		    (cdr (assq t apps))))))
     (when (eq cmd 'system)
-      (setq cmd (cdr (assoc 'system apps))))
+      (setq cmd (cdr (assq 'system apps))))
     (when (eq cmd 'default)
       (setq cmd (cdr (assoc t apps))))
     (when (eq cmd 'mailcap)
@@ -13057,9 +13062,9 @@ This hook runs even if there is no statistics cookie present, in which case
     (when (and (stringp state) (> (length state) 0))
       (setq changes (append changes (cdr (assoc state l)))))
     (when (member state org-not-done-keywords)
-      (setq changes (append changes (cdr (assoc 'todo l)))))
+      (setq changes (append changes (cdr (assq 'todo l)))))
     (when (member state org-done-keywords)
-      (setq changes (append changes (cdr (assoc 'done l)))))
+      (setq changes (append changes (cdr (assq 'done l)))))
     (dolist (c changes)
       (org-toggle-tag (car c) (if (cdr c) 'on 'off)))))
 
@@ -19554,25 +19559,21 @@ SNIPPETS-P indicates if this is run to create snippet images for HTML."
 
 (defun org-dvipng-color (attr)
   "Return a RGB color specification for dvipng."
-  (apply #'format "rgb %s %s %s"
-	 (mapcar #'org-normalize-color
-		 (color-values (face-attribute 'default attr nil)))))
+  (org-dvipng-color-format (face-attribute 'default attr nil)))
 
 (defun org-dvipng-color-format (color-name)
   "Convert COLOR-NAME to a RGB color value for dvipng."
-  (apply 'format "rgb %s %s %s"
+  (apply #'format "rgb %s %s %s"
 	 (mapcar 'org-normalize-color
 		 (color-values color-name))))
 
 (defun org-latex-color (attr)
   "Return a RGB color for the LaTeX color package."
-  (apply #'format "%s,%s,%s"
-	 (mapcar #'org-normalize-color
-		 (color-values (face-attribute 'default attr nil)))))
+  (org-latex-color-format (face-attribute 'default attr nil)))
 
 (defun org-latex-color-format (color-name)
   "Convert COLOR-NAME to a RGB color value."
-  (apply 'format "%s,%s,%s"
+  (apply #'format "%s,%s,%s"
 	 (mapcar 'org-normalize-color
 		 (color-values color-name))))
 
@@ -20339,9 +20340,7 @@ COMMANDS is a list of alternating OLDDEF NEWDEF command names."
   (let (new old)
     (while commands
       (setq old (pop commands) new (pop commands))
-      (if (fboundp 'command-remapping)
-	  (org-defkey map (vector 'remap old) new)
-	(substitute-key-definition old new map global-map)))))
+      (org-defkey map (vector 'remap old) new))))
 
 (defun org-transpose-words ()
   "Transpose words for Org.
@@ -20937,19 +20936,19 @@ this numeric value."
 
 (defun org-copy-special ()
   "Copy region in table or copy current subtree.
-Calls `org-table-copy' or `org-copy-subtree', depending on context.
-See the individual commands for more information."
+Calls `org-table-copy-region' or `org-copy-subtree', depending on
+context.  See the individual commands for more information."
   (interactive)
   (call-interactively
-   (if (org-at-table-p) 'org-table-copy-region 'org-copy-subtree)))
+   (if (org-at-table-p) #'org-table-copy-region #'org-copy-subtree)))
 
 (defun org-cut-special ()
   "Cut region in table or cut current subtree.
-Calls `org-table-copy' or `org-cut-subtree', depending on context.
-See the individual commands for more information."
+Calls `org-table-cut-region' or `org-cut-subtree', depending on
+context.  See the individual commands for more information."
   (interactive)
   (call-interactively
-   (if (org-at-table-p) 'org-table-cut-region 'org-cut-subtree)))
+   (if (org-at-table-p) #'org-table-cut-region #'org-cut-subtree)))
 
 (defun org-paste-special (arg)
   "Paste rectangular region into table, or past subtree relative to level.
@@ -20961,7 +20960,9 @@ See the individual commands for more information."
     (org-paste-subtree arg)))
 
 (defsubst org-in-fixed-width-region-p ()
-  "Is point in a fixed-width region?"
+  "OBSOLETE
+
+Is point in a fixed-width region?"
   (save-match-data
     (eq 'fixed-width (org-element-type (org-element-at-point)))))
 
@@ -20977,8 +20978,7 @@ On a link, call `ffap' to visit the link at point.
 Otherwise, return a user error."
   (interactive "P")
   (let ((element (org-element-at-point)))
-    (cl-assert (not buffer-read-only) nil
-	       "Buffer is read-only: %s" (buffer-name))
+    (barf-if-buffer-read-only)
     (pcase (org-element-type element)
       (`src-block
        (if (not arg) (org-edit-src-code)
@@ -21078,7 +21078,7 @@ This command does many different things, depending on context:
     (and (boundp 'org-clock-overlays) (org-clock-remove-overlays))
     (org-remove-occur-highlights)
     (message "Temporary highlights/overlays removed from current buffer"))
-   ((and (local-variable-p 'org-finish-function (current-buffer))
+   ((and (local-variable-p 'org-finish-function)
 	 (fboundp org-finish-function))
     (funcall org-finish-function))
    ((run-hook-with-args-until-success 'org-ctrl-c-ctrl-c-hook))
@@ -21958,18 +21958,9 @@ With prefix arg UNCOMPILED, load the uncompiled versions."
       (get-text-property (or (next-single-property-change 0 prop s) 0)
 			 prop s)))
 
-(defun org-display-warning (message) ;; Copied from Emacs-Muse
+(defun org-display-warning (message)
   "Display the given MESSAGE as a warning."
-  (if (fboundp 'display-warning)
-      (display-warning 'org message :warning)
-    (let ((buf (get-buffer-create "*Org warnings*")))
-      (with-current-buffer buf
-        (goto-char (point-max))
-        (insert "Warning (Org): " message)
-        (unless (bolp)
-          (newline)))
-      (display-buffer buf)
-      (sit-for 0))))
+  (display-warning 'org message :warning))
 
 (defun org-eval (form)
   "Eval FORM and return result."
@@ -22066,7 +22057,7 @@ upon the next fontification round."
     l))
 
 (defun org-shorten-string (s maxlength)
-  "Shorten string S so tht it is no longer than MAXLENGTH characters.
+  "Shorten string S so that it is no longer than MAXLENGTH characters.
 If the string is shorter or has length MAXLENGTH, just return the
 original string.  If it is longer, the functions finds a space in the
 string, breaks this string off at that locations and adds three dots
@@ -22532,7 +22523,7 @@ that may remove elements by altering the list structure."
   "Move backwards over whitespace, to the beginning of the first empty line.
 Returns the number of empty lines passed."
   (let ((pos (point)))
-    (if (cdr (assoc 'heading org-blank-before-new-entry))
+    (if (cdr (assq 'heading org-blank-before-new-entry))
 	(skip-chars-backward " \t\n\r")
       (unless (eobp)
 	(forward-line -1)))

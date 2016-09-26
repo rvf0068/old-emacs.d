@@ -193,6 +193,28 @@ For example, there is no ocaml-mode in Emacs, but the mode to use is
 	   (string "Language name")
 	   (symbol "Major mode"))))
 
+(defcustom org-src-block-faces nil
+  "Alist of faces to be used for source-block.
+Each element is a cell of the format
+
+     (\"language\" FACE)
+
+Where FACE is either a defined face or an anonymous face.
+
+For instance, the following value would color the background of
+emacs-lisp source blocks and python source blocks in purple and
+green, respectability.
+
+    \\='((\"emacs-lisp\" (:background \"#EEE2FF\"))
+      (\"python\" (:background \"#e5ffb8\")))"
+  :group 'org-edit-structure
+  :type '(repeat (list (string :tag "language")
+                       (choice
+                        (face :tag "Face")
+                        (sexp :tag "Anonymous face"))))
+  :version "25.2"
+  :package-version '(Org . "9.0"))
+
 (defcustom org-src-tab-acts-natively nil
   "If non-nil, the effect of TAB in a code block is as if it were
 issued in the language major mode buffer."
@@ -513,9 +535,9 @@ as `org-src-fontify-natively' is non-nil."
 		   org-buffer)))
 	      (setq pos next))))
 	;; Add Org faces.
-	(let ((face-name (intern (format "org-block-%s" lang))))
-	  (when (facep face-name)
-	    (font-lock-append-text-property start end 'face face-name))
+	(let ((src-face (nth 1 (assoc-string lang org-src-block-faces t))))
+          (when (or (facep src-face) (listp src-face))
+            (font-lock-append-text-property start end 'face src-face))
 	  (font-lock-append-text-property start end 'face 'org-block))
 	(add-text-properties
 	 start end
@@ -632,7 +654,7 @@ See also `org-src-mode-hook'."
 (defun org-src-associate-babel-session (info)
   "Associate edit buffer with comint session."
   (interactive)
-  (let ((session (cdr (assoc :session (nth 2 info)))))
+  (let ((session (cdr (assq :session (nth 2 info)))))
     (and session (not (string= session "none"))
 	 (org-babel-comint-buffer-livep session)
 	 (let ((f (intern (format "org-babel-%s-associate-session"

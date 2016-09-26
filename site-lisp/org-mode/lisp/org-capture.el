@@ -625,7 +625,7 @@ of the day at point (if any) or the current HH:MM time."
 	    (org-capture-insert-template-here)
 	  (condition-case error
 	      (org-capture-place-template
-	       (equal (car (org-capture-get :target)) 'function))
+	       (eq (car (org-capture-get :target)) 'function))
 	    ((error quit)
 	     (if (and (buffer-base-buffer (current-buffer))
 		      (string-prefix-p "CAPTURE-" (buffer-name)))
@@ -711,7 +711,7 @@ captured item after finalizing."
 	      (m2 (org-capture-get :end-marker 'local)))
 	  (if (and m1 m2 (= m1 beg) (= m2 end))
 	      (progn
-		(setq m2 (if (cdr (assoc 'heading org-blank-before-new-entry))
+		(setq m2 (if (cdr (assq 'heading org-blank-before-new-entry))
 			     m2 (1+ m2))
 		      m2 (if (< (point-max) m2) (point-max) m2))
 		(setq abort-note 'clean)
@@ -799,11 +799,12 @@ captured item after finalizing."
     ;; Special cases
     (cond
      (abort-note
-      (cond
-       ((equal abort-note 'clean)
-	(message "Capture process aborted and target buffer cleaned up"))
-       ((equal abort-note 'dirty)
-	(error "Capture process aborted, but target buffer could not be cleaned up correctly"))))
+      (cl-case abort-note
+	(clean
+	 (message "Capture process aborted and target buffer cleaned up"))
+	(dirty
+	 (error "Capture process aborted, but target buffer could not be \
+cleaned up correctly"))))
      (stay-with-capture
       (org-capture-goto-last-stored)))
     ;; Return if we did store something
