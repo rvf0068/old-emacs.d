@@ -74,10 +74,14 @@ channel."
 		       ":B<sub>theorem</sub>:"
 		       "Teorema"
 		       corollaries))
+	 (lemmas (replace-regexp-in-string
+		       ":B<sub>lemma</sub>:"
+		       "Lema"
+		       theorems))
 	 (columns (replace-regexp-in-string
 		   ":BMCOL:"
 		   ""
-		   theorems))
+		   lemmas))
 	 (blocks (replace-regexp-in-string
 		   ":B<sub>block</sub>"
 		   ""
