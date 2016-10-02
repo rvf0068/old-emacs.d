@@ -7865,33 +7865,24 @@ When NEXT is non-nil, check the next line instead."
   "Insert a new heading or an item with the same depth at point.
 
 If point is at the beginning of a heading or a list item, insert
-a new heading or a new item above the current one.  If point is
-at the beginning of a normal line, turn the line into a heading.
+a new heading or a new item above the current one.  When at the
+beginning of a regular line of text, turn it into a heading.
 
-If point is in the middle of a headline or a list item, split the
-headline or the item and create a new headline/item with the text
-in the current line after point \(see `org-M-RET-may-split-line'
-on how to modify this behavior).
+If point is in the middle of a line, split it and create a new
+headline/item with the text in the current line after point (see
+`org-M-RET-may-split-line' on how to modify this behavior).
 
-With one universal prefix argument, set the user option
-`org-insert-heading-respect-content' to t for the duration of
-the command.  This modifies the behavior described above in this
-ways: on list items and at the beginning of normal lines, force
-the insertion of a heading after the current subtree.
+With a \\[universal-argument] prefix, set \
+`org-insert-heading-respect-content' to
+a non-nil value for the duration of the command.  This forces the
+insertion of a heading after the current subtree, independently
+on the location of point.
 
-With two universal prefix arguments, insert the heading at the
-end of the grandparent subtree.  For example, if point is within
+With double \\[universal-argument] \\[universal-argument] prefix, \
+insert the heading at the end of the
+tree above the current heading.  For example, if point is within
 a 2nd-level heading, then it will insert a 2nd-level heading at
-the end of the 1st-level parent heading.
-
-If point is at the beginning of a headline, insert a sibling
-before the current headline.  If point is not at the beginning,
-split the line and create a new headline with the text in the
-current line after point \(see `org-M-RET-may-split-line' on how
-to modify this behavior).
-
-If point is at the beginning of a normal line, turn this line
-into a heading.
+the end of the 1st-level parent subtree.
 
 When INVISIBLE-OK is set, stop at invisible headlines when going
 back.  This is important for non-interactive uses of the
@@ -8156,9 +8147,14 @@ Set it to HEADING when provided."
 
 (defun org-insert-todo-heading (arg &optional force-heading)
   "Insert a new heading with the same level and TODO state as current heading.
-If the heading has no TODO state, or if the state is DONE, use the first
-state (TODO by default).  Also with one prefix arg, force first state.  With
-two prefix args, force inserting at the end of the parent subtree."
+
+If the heading has no TODO state, or if the state is DONE, use
+the first state (TODO by default).  Also with one prefix arg,
+force first state.  With two prefix args, force inserting at the
+end of the parent subtree.
+
+When called at a plain list item, insert a new item with an
+unchecked check box."
   (interactive "P")
   (when (or force-heading (not (org-insert-item 'checkbox)))
     (org-insert-heading (or (and (equal arg '(16)) '(16))
@@ -8167,18 +8163,17 @@ two prefix args, force inserting at the end of the parent subtree."
       (org-back-to-heading)
       (outline-previous-heading)
       (looking-at org-todo-line-regexp))
-    (let*
-        ((new-mark-x
-	  (if (or (equal arg '(4))
-		  (not (match-beginning 2))
-		  (member (match-string 2) org-done-keywords))
- 	      (car org-todo-keywords-1)
-	    (match-string 2)))
-	 (new-mark
-	  (or
-	   (run-hook-with-args-until-success
-	    'org-todo-get-default-hook new-mark-x nil)
-	   new-mark-x)))
+    (let* ((new-mark-x
+	    (if (or (equal arg '(4))
+		    (not (match-beginning 2))
+		    (member (match-string 2) org-done-keywords))
+		(car org-todo-keywords-1)
+	      (match-string 2)))
+	   (new-mark
+	    (or
+	     (run-hook-with-args-until-success
+	      'org-todo-get-default-hook new-mark-x nil)
+	     new-mark-x)))
       (beginning-of-line 1)
       (and (looking-at org-outline-regexp) (goto-char (match-end 0))
 	   (if org-treat-insert-todo-heading-as-state-change
@@ -12903,7 +12898,9 @@ changes because there are unchecked boxes in this entry."
 
 (defun org-update-statistics-cookies (all)
   "Update the statistics cookie, either from TODO or from checkboxes.
-This should be called with the cursor in a line with a statistics cookie."
+This should be called with the cursor in a line with a statistics
+cookie.  When called with a \\[universal-argument] prefix, update
+all statistics cookies in the buffer."
   (interactive "P")
   (if all
       (progn
@@ -13910,7 +13907,7 @@ D      Show deadlines and scheduled items between a date range."
   (interactive "P")
   (setq type (or type org-sparse-tree-default-date-type))
   (setq org-ts-type type)
-  (message "Sparse tree: [/]regexp [t]odo [T]odo-kwd [m]atch [p]roperty
+  (message "Sparse tree: [r]egexp [t]odo [T]odo-kwd [m]atch [p]roperty
              \[d]eadlines [b]efore-date [a]fter-date [D]ates range
              \[c]ycle through date types: %s"
 	   (cl-case type
@@ -14951,28 +14948,23 @@ If ONOFF is `on' or `off', don't toggle but set to this state."
     res))
 
 (defun org-align-tags-here (to-col)
-  ;; Assumes that this is a headline
-  "Align tags on the current headline to TO-COL."
-  (let ((pos (point)) (col (current-column)) ncol tags-l p)
-    (beginning-of-line 1)
-    (if	(and (looking-at ".*?\\([ \t]+\\)\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$")
-	     (< pos (match-beginning 2)))
-	(progn
-	  (setq tags-l (string-width (match-string 2)))
-	  (goto-char (match-beginning 1))
-	  (insert " ")
-	  (delete-region (point) (1+ (match-beginning 2)))
-	  (setq ncol (max (current-column)
-			  (1+ col)
-			  (if (> to-col 0)
-			      to-col
-			    (- (abs to-col) tags-l))))
-	  (setq p (point))
-	  (insert (make-string (- ncol (current-column)) ?\ ))
-	  (setq ncol (current-column))
-	  (when indent-tabs-mode (tabify p (point-at-eol)))
-	  (org-move-to-column (min ncol col)))
-      (goto-char pos))))
+  "Align tags on the current headline to TO-COL.
+Assume point is on a headline."
+  (let ((pos (point)))
+    (beginning-of-line)
+    (if	(or (not (looking-at ".*?\\([ \t]+\\)\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$"))
+	    (>= pos (match-beginning 2)))
+	;; No tags or point within tags: do not align.
+	(goto-char pos)
+      (goto-char (match-beginning 1))
+      (let ((shift (max (- (if (>= to-col 0) to-col
+			     (- (abs to-col) (string-width (match-string 2))))
+			   (current-column))
+			1)))
+	(replace-match (make-string shift ?\s) nil nil nil 1)
+	;; Preserve initial position, if possible.  In any case, stop
+	;; before tags.
+	(when (< pos (point)) (goto-char pos))))))
 
 (defun org-set-tags-command (&optional arg just-align)
   "Call the set-tags command for the current entry."
@@ -20609,7 +20601,7 @@ and returns at first non-nil value."
 In front of a drawer or a block keyword, indent it correctly.
 
 Calls `org-do-demote', `org-indent-item', `org-table-move-column',
-`org-indnet-drawer' or `org-indent-block' depending on context.
+`org-indent-drawer' or `org-indent-block' depending on context.
 With no specific context, calls the Emacs default `forward-word'.
 See the individual commands for more information.
 
@@ -20959,13 +20951,6 @@ See the individual commands for more information."
       (org-table-paste-rectangle)
     (org-paste-subtree arg)))
 
-(defsubst org-in-fixed-width-region-p ()
-  "OBSOLETE
-
-Is point in a fixed-width region?"
-  (save-match-data
-    (eq 'fixed-width (org-element-type (org-element-at-point)))))
-
 (defun org-edit-special (&optional arg)
   "Call a special editor for the element at point.
 When at a table, call the formula editor with `org-table-edit-formulas'.
@@ -21247,7 +21232,7 @@ Use \\[org-edit-special] to edit table.el tables"))
   (message "%s restarted" major-mode))
 
 (defun org-kill-note-or-show-branches ()
-  "If this is a Note buffer, abort storing the note.  Else call `show-branches'."
+  "Abort storing current note, or call `outline-show-branches'."
   (interactive)
   (if (not org-finish-function)
       (progn
@@ -23890,9 +23875,9 @@ empty headline, then the yank is handled specially.  How exactly depends
 on the value of the following variables.
 
 `org-yank-folded-subtrees'
-    By default, this variable is non-nil, which results in subtree(s)
-    being folded after insertion, but only if doing so would now
-    swallow text after the yanked text.
+    By default, this variable is non-nil, which results in
+    subtree(s) being folded after insertion, except if doing so
+    would swallow text after the yanked text.
 
 `org-yank-adjusted-subtrees'
     When non-nil (the default value is nil), the subtree will be
