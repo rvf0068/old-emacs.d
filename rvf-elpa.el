@@ -32,6 +32,7 @@
     google-this
     helm
     helm-bibtex
+    helm-org-rifle
     magit
     markdown-mode
     move-text
