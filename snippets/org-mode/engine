@@ -1,0 +1,12 @@
+# -*- mode: snippet -*-
+# name: engine
+# key: eng
+# contributor: Rafael Villarroel (rvf0068@gmail.com)
+# --
+* $1
+  :PROPERTIES:
+  :uci:      $2
+  :ja:       $3
+  :dir:      $4
+  :binary:   $5
+  :END:
