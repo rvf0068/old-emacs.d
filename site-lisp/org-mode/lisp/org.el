@@ -7870,7 +7870,9 @@ beginning of a regular line of text, turn it into a heading.
 
 If point is in the middle of a line, split it and create a new
 headline/item with the text in the current line after point (see
-`org-M-RET-may-split-line' on how to modify this behavior).
+`org-M-RET-may-split-line' on how to modify this behavior).  As
+a special case, on a headline, splitting can only happen on the
+title itself.  E.g., this excludes breaking stars or tags.
 
 With a \\[universal-argument] prefix, set \
 `org-insert-heading-respect-content' to
@@ -7878,10 +7880,10 @@ a non-nil value for the duration of the command.  This forces the
 insertion of a heading after the current subtree, independently
 on the location of point.
 
-With double \\[universal-argument] \\[universal-argument] prefix, \
-insert the heading at the end of the
-tree above the current heading.  For example, if point is within
-a 2nd-level heading, then it will insert a 2nd-level heading at
+With a \\[universal-argument] \\[universal-argument] prefix, \
+insert the heading at the end of the tree
+above the current heading.  For example, if point is within a
+2nd-level heading, then it will insert a 2nd-level heading at
 the end of the 1st-level parent subtree.
 
 When INVISIBLE-OK is set, stop at invisible headlines when going
@@ -7974,8 +7976,7 @@ unconditionally."
 
 	  ;; If we insert after content, move there and clean up
 	  ;; whitespace.
-	  (when (and respect-content
-		     (not (looking-at-p org-outline-regexp-bol)))
+	  (when respect-content
 	    (if (not (org-before-first-heading-p))
 		(org-end-of-subtree nil t)
 	      (re-search-forward org-outline-regexp-bol)
@@ -21058,9 +21059,8 @@ This command does many different things, depending on context:
   inhibited by setting `org-babel-no-eval-on-ctrl-c-ctrl-c'."
   (interactive "P")
   (cond
-   ((or (and (boundp 'org-clock-overlays) org-clock-overlays)
-	org-occur-highlights)
-    (and (boundp 'org-clock-overlays) (org-clock-remove-overlays))
+   ((or (bound-and-true-p org-clock-overlays) org-occur-highlights)
+    (when (boundp 'org-clock-overlays) (org-clock-remove-overlays))
     (org-remove-occur-highlights)
     (message "Temporary highlights/overlays removed from current buffer"))
    ((and (local-variable-p 'org-finish-function)
@@ -21070,7 +21070,9 @@ This command does many different things, depending on context:
    (t
     (if (save-excursion (beginning-of-line) (looking-at "[ \t]*$"))
 	(or (run-hook-with-args-until-success 'org-ctrl-c-ctrl-c-final-hook)
-	    (user-error "C-c C-c can do nothing useful at this location"))
+	    (user-error
+	     (substitute-command-keys
+	      "`\\[org-ctrl-c-ctrl-c]' can do nothing useful here")))
       (let* ((context (org-element-context))
 	     (type (org-element-type context)))
 	(cl-case type
@@ -21084,7 +21086,8 @@ This command does many different things, depending on context:
 		 superscript underline verbatim)
 	   (setq context
 		 (org-element-lineage
-		  context '(radio-target paragraph verse-block table-cell)))))
+		  context '(paragraph radio-target table-cell verse-block)))
+	   (setq type (org-element-type context))))
 	;; For convenience: at the first line of a paragraph on the
 	;; same line as an item, apply function on that item instead.
 	(when (eq type 'paragraph)
@@ -21092,22 +21095,23 @@ This command does many different things, depending on context:
 	    (when (and (eq (org-element-type parent) 'item)
 		       (= (line-beginning-position)
 			  (org-element-property :begin parent)))
-	      (setq context parent type 'item))))
+	      (setq context parent)
+	      (setq type 'item))))
 	;; Act according to type of element or object at point.
-	(cl-case type
-	  (clock (org-clock-update-time-maybe))
-	  (dynamic-block
+	(pcase type
+	  (`clock (org-clock-update-time-maybe))
+	  (`dynamic-block
 	   (save-excursion
 	     (goto-char (org-element-property :post-affiliated context))
 	     (org-update-dblock)))
-	  (footnote-definition
+	  (`footnote-definition
 	   (goto-char (org-element-property :post-affiliated context))
 	   (call-interactively 'org-footnote-action))
-	  (footnote-reference (call-interactively 'org-footnote-action))
-	  ((headline inlinetask)
+	  (`footnote-reference (call-interactively 'org-footnote-action))
+	  ((or `headline `inlinetask)
 	   (save-excursion (goto-char (org-element-property :begin context))
-			   (call-interactively 'org-set-tags)))
-	  (item
+			   (call-interactively #'org-set-tags)))
+	  (`item
 	   ;; At an item: a double C-u set checkbox to "[-]"
 	   ;; unconditionally, whereas a single one will toggle its
 	   ;; presence.  Without a universal argument, if the item
@@ -21145,7 +21149,7 @@ This command does many different things, depending on context:
 	       (when block-item
 		 (message "Checkboxes were removed due to empty box at line %d"
 			  (org-current-line block-item))))))
-	  (keyword
+	  (`keyword
 	   (let ((org-inhibit-startup-visibility-stuff t)
 		 (org-startup-align-all-tables nil))
 	     (when (boundp 'org-table-coordinate-overlays)
@@ -21153,7 +21157,7 @@ This command does many different things, depending on context:
 	       (setq org-table-coordinate-overlays nil))
 	     (org-save-outline-visibility 'use-markers (org-mode-restart)))
 	   (message "Local setup has been refreshed"))
-	  (plain-list
+	  (`plain-list
 	   ;; At a plain list, with a double C-u argument, set
 	   ;; checkboxes of each item to "[-]", whereas a single one
 	   ;; will toggle their presence according to the state of the
@@ -21186,13 +21190,13 @@ This command does many different things, depending on context:
 	      struct (org-list-parents-alist struct) old-struct)
 	     (org-update-checkbox-count-maybe)
 	     (save-excursion (goto-char beginm) (org-list-send-list 'maybe))))
-	  ((property-drawer node-property)
-	   (call-interactively 'org-property-action))
-	  ((radio-target target)
-	   (call-interactively 'org-update-radio-target-regexp))
-	  (statistics-cookie
-	   (call-interactively 'org-update-statistics-cookies))
-	  ((table table-cell table-row)
+	  ((or `property-drawer `node-property)
+	   (call-interactively #'org-property-action))
+	  ((or `radio-target `target)
+	   (call-interactively #'org-update-radio-target-regexp))
+	  (`statistics-cookie
+	   (call-interactively #'org-update-statistics-cookies))
+	  ((or `table `table-cell `table-row)
 	   ;; At a table, recalculate every field and align it.  Also
 	   ;; send the table if necessary.  If the table has
 	   ;; a `table.el' type, just give up.  At a table row or
@@ -21216,11 +21220,16 @@ Use \\[org-edit-special] to edit table.el tables"))
 		 (cond (arg (call-interactively 'org-table-recalculate))
 		       ((org-table-maybe-recalculate-line))
 		       (t (org-table-align)))))))
-	  (timestamp (org-timestamp-change 0 'day))
-	  (otherwise
+	  (`timestamp (org-timestamp-change 0 'day))
+	  ((and `nil (guard (org-at-heading-p)))
+	   ;; When point is on an unsupported object type, we can miss
+	   ;; the fact that it also is at a heading.  Handle it here.
+	   (call-interactively #'org-set-tags))
+	  (_
 	   (or (run-hook-with-args-until-success 'org-ctrl-c-ctrl-c-final-hook)
 	       (user-error
-		"C-c C-c can do nothing useful at this location")))))))))
+		(substitute-command-keys
+		 "`\\[org-ctrl-c-ctrl-c]' can do nothing useful here"))))))))))
 
 (defun org-mode-restart ()
   (interactive)
