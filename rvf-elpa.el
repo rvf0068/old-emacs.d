@@ -36,6 +36,7 @@
     magit
     markdown-mode
     move-text
+    org-board
     org-journal
     org-pomodoro
     org-ref
