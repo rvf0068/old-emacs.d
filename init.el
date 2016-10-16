@@ -180,6 +180,22 @@
 
 (diary)
 
+;; see https://github.com/tmalsburg/helm-bibtex/issues/88#issuecomment-173699869
+(defun bibtex-completion-find-pdf-in-library (key-or-entry)
+  "Searches the directories in `bibtex-completion-library-path' for a
+PDF whose names is composed of the BibTeX key plus \".pdf\".  The
+path of the first matching PDF is returned."
+  (let* ((key (if (stringp key-or-entry)
+                  key-or-entry
+                (bibtex-completion-get-value "=key=" key-or-entry)))
+         (path (-first 'f-file?
+                       (--map (f-join it
+				      (if (and (>= (length key) 5) (equal (substring key -5 nil) "-djvu"))
+					  (s-concat key ".djvu")
+					(s-concat key ".pdf")))
+                              (-flatten (list bibtex-completion-library-path))))))
+    (when path (list path))))
+
 (if (or (equal system-name "hp") (equal system-name "HP-14") (equal system-name "lap-dell"))
     (display-battery-mode)
   )
