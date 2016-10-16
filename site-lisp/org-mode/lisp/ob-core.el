@@ -117,11 +117,11 @@ execution or nil if no prompt is required.
 
 Warning: Disabling confirmation may result in accidental
 evaluation of potentially harmful code.  It may be advisable
-remove code block execution from \\[org-ctrl-c-ctrl-c] \
+remove code block execution from `\\[org-ctrl-c-ctrl-c]' \
 as further protection
 against accidental code block evaluation.  The
 `org-babel-no-eval-on-ctrl-c-ctrl-c' variable can be used to
-remove code block execution from the \\[org-ctrl-c-ctrl-c] keybinding."
+remove code block execution from the `\\[org-ctrl-c-ctrl-c]' keybinding."
   :group 'org-babel
   :version "24.1"
   :type '(choice boolean function))
@@ -130,7 +130,7 @@ remove code block execution from the \\[org-ctrl-c-ctrl-c] keybinding."
 
 (defcustom org-babel-no-eval-on-ctrl-c-ctrl-c nil
   "\\<org-mode-map>\
-Remove code block evaluation from the \\[org-ctrl-c-ctrl-c] key binding."
+Remove code block evaluation from the `\\[org-ctrl-c-ctrl-c]' key binding."
   :group 'org-babel
   :version "24.1"
   :type 'boolean)
@@ -1323,7 +1323,7 @@ the `org-mode-hook'."
   "Return the value of the hash at POINT.
 \\<org-mode-map>\
 The hash is also added as the last element of the kill ring.
-This can be called with \\[org-ctrl-c-ctrl-c]."
+This can be called with `\\[org-ctrl-c-ctrl-c]'."
   (interactive)
   (let ((hash (car (delq nil (mapcar
 			      (lambda (ol) (overlay-get ol 'babel-hash))
@@ -1872,8 +1872,16 @@ the results hash, or nil.  Leave point before the keyword."
 			(t (format "[%s]" hash)))
 		  ":"
 		  (when name (concat " " name))
-		  "\n\n"))
-  (beginning-of-line -1)
+		  "\n"))
+  ;; Make sure results are going to be followed by at least one blank
+  ;; line so they do not get merged with the next element, e.g.,
+  ;;
+  ;;   #+results:
+  ;;   : 1
+  ;;
+  ;;   : fixed-width area, unrelated to the above.
+  (unless (looking-at "^[ \t]*$") (save-excursion (insert "\n")))
+  (beginning-of-line 0)
   (when hash (org-babel-hide-hash)))
 
 (defun org-babel--clear-results-maybe (hash)
@@ -1988,11 +1996,8 @@ to HASH."
 	  (goto-char (min (org-element-property :end context) (point-max)))
 	  (skip-chars-backward " \t\n")
 	  (forward-line)
-	  (cond ((not (bolp)) (insert "\n\n"))
-		((or (eobp)
-		     (= (org-element-property :post-blank context) 0))
-		 (insert "\n"))
-		(t (forward-line)))
+	  (unless (bolp) (insert "\n"))
+	  (insert "\n")
 	  (org-babel--insert-results-keyword
 	   (org-element-property :name context) hash)
 	  (point))))))

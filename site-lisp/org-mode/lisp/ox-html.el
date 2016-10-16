@@ -895,7 +895,7 @@ a style file to define the look of these classes.
 To get a start for your css file, start Emacs session and make sure that
 all the faces you are interested in are defined, for example by loading files
 in all modes you want.  Then, use the command
-\\[org-html-htmlize-generate-css] to extract class definitions."
+`\\[org-html-htmlize-generate-css]' to extract class definitions."
   :group 'org-export-html
   :type '(choice (const css) (const inline-css) (const nil)))
 
@@ -1813,7 +1813,7 @@ INFO is a plist used as a communication channel."
 	      info)
 	     "\n")))
      (format "<title>%s</title>\n" title)
-     (org-html-close-tag "meta" "name=\"generator\" content=\"Org-mode\"" info)
+     (org-html-close-tag "meta" "name=\"generator\" content=\"Org mode\"" info)
      "\n"
      (and (org-string-nw-p author)
 	  (concat

@@ -2467,34 +2467,102 @@ http://article.gmane.org/gmane.emacs.orgmode/21459/"
 
 (ert-deftest test-org/beginning-of-line ()
   "Test `org-beginning-of-line' specifications."
-  ;; Standard test.
+  ;; Move to beginning of line.  If current line in invisible, move to
+  ;; beginning of visible line instead.
   (should
-   (org-test-with-temp-text "Some text\nSome other text"
-     (progn (org-beginning-of-line) (bolp))))
-  ;; Standard test with `visual-line-mode'.
+   (org-test-with-temp-text "Some text\nSome other text<point>"
+     (org-beginning-of-line)
+     (bolp)))
+  (should
+   (org-test-with-temp-text "* H1\n** H2<point>"
+     (org-overview)
+     (org-beginning-of-line)
+     (= (line-beginning-position) 1)))
+  ;; With `visual-line-mode' active, move to beginning of visual line.
   (should-not
-   (org-test-with-temp-text "A long line of text\nSome other text"
-     (progn (visual-line-mode)
-	    (forward-char 2)
-	    (dotimes (i 1000) (insert "very "))
-	    (org-beginning-of-line)
-	    (bolp))))
-  ;; At an headline with special movement.
+   (org-test-with-temp-text "A <point>long line of text\nSome other text"
+     (visual-line-mode)
+     (dotimes (i 1000) (insert "very "))
+     (org-beginning-of-line)
+     (bolp)))
+  ;; In a wide headline, with `visual-line-mode', prefer going to the
+  ;; beginning of a visual line than to the logical beginning of line,
+  ;; even if special movement is active.
+  (should-not
+   (org-test-with-temp-text "* A <point>long headline"
+     (visual-line-mode)
+     (dotimes (i 1000) (insert "very "))
+     (goto-char (point-max))
+     (org-beginning-of-line)
+     (bobp)))
+  (should-not
+   (org-test-with-temp-text "* A <point>long headline"
+     (visual-line-mode)
+     (dotimes (i 1000) (insert "very "))
+     (goto-char (point-max))
+     (let ((org-special-ctrl-a/e t)) (org-beginning-of-line))
+     (bobp)))
+  ;; At an headline with special movement, first move at beginning of
+  ;; title, then at the beginning of line, rinse, repeat.
   (should
-   (org-test-with-temp-text "* TODO Headline"
+   (org-test-with-temp-text "* TODO Headline<point>"
      (let ((org-special-ctrl-a/e t))
-       (org-end-of-line)
        (and (progn (org-beginning-of-line) (looking-at "Headline"))
 	    (progn (org-beginning-of-line) (bolp))
 	    (progn (org-beginning-of-line) (looking-at "Headline"))))))
+  (should
+   (org-test-with-temp-text "* TODO [#A] Headline<point>"
+     (let ((org-special-ctrl-a/e t))
+       (org-beginning-of-line)
+       (looking-at "Headline"))))
+  ;; At an headline with reversed movement, first move to beginning of
+  ;; line, then to the beginning of title.
+  (should
+   (org-test-with-temp-text "* TODO Headline<point>"
+     (let ((org-special-ctrl-a/e 'reversed)
+	   (this-command last-command))
+       (and (progn (org-beginning-of-line) (bolp))
+	    (progn (org-beginning-of-line) (looking-at "Headline"))))))
+  ;; At an item with special movement, first move after to beginning
+  ;; of title, then to the beginning of line, rinse, repeat.
+  (should
+   (org-test-with-temp-text "- [ ] Item<point>"
+     (let ((org-special-ctrl-a/e t))
+       (and (progn (org-beginning-of-line) (looking-at "Item"))
+	    (progn (org-beginning-of-line) (bolp))
+	    (progn (org-beginning-of-line) (looking-at "Item"))))))
+  ;; At an item with reversed movement, first move to beginning of
+  ;; line, then to the beginning of title.
+  (should
+   (org-test-with-temp-text "- [X] Item<point>"
+     (let ((org-special-ctrl-a/e 'reversed)
+	   (this-command last-command))
+       (and (progn (org-beginning-of-line) (bolp))
+	    (progn (org-beginning-of-line) (looking-at "Item"))))))
+  ;; Leave point before invisible characters at column 0.
+  (should
+   (org-test-with-temp-text "[[http://orgmode.org]]<point>"
+     (let ((org-special-ctrl-a/e nil))
+       (org-beginning-of-line)
+       (bolp))))
+  (should
+   (org-test-with-temp-text "[[http://orgmode.org]]<point>"
+     (let ((org-special-ctrl-a/e t))
+       (org-beginning-of-line)
+       (bolp))))
+  (should
+   (org-test-with-temp-text "[[http<point>://orgmode.org]]"
+     (visual-line-mode)
+     (org-beginning-of-line)
+     (bolp)))
   ;; Special case: Do not error when the buffer contains only a single
   ;; asterisk.
   (should
    (org-test-with-temp-text "*<point>"
-     (let ((org-special-ctrl-a/e t)) (org-beginning-of-line))))
+     (let ((org-special-ctrl-a/e t)) (org-beginning-of-line) t)))
   (should
    (org-test-with-temp-text "*<point>"
-     (let ((org-special-ctrl-a/e nil)) (org-beginning-of-line)))))
+     (let ((org-special-ctrl-a/e nil)) (org-beginning-of-line) t))))
 
 (ert-deftest test-org/end-of-line ()
   "Test `org-end-of-line' specifications."
@@ -2502,35 +2570,80 @@ http://article.gmane.org/gmane.emacs.orgmode/21459/"
   (should
    (org-test-with-temp-text "Some text\nSome other text"
      (progn (org-end-of-line) (eolp))))
-  ;; Standard test with `visual-line-mode'.
+  ;; With `visual-line-mode' active, move to end of visible line.
+  ;; However, never go past ellipsis.
   (should-not
-   (org-test-with-temp-text "A long line of text\nSome other text"
-     (progn (visual-line-mode)
-	    (forward-char 2)
-	    (dotimes (i 1000) (insert "very "))
-	    (goto-char (point-min))
-	    (org-end-of-line)
-	    (eolp))))
-  ;; At an headline with special movement.
+   (org-test-with-temp-text "A <point>long line of text\nSome other text"
+     (visual-line-mode)
+     (dotimes (i 1000) (insert "very "))
+     (goto-char (point-min))
+     (org-end-of-line)
+     (eolp)))
+  (should-not
+   (org-test-with-temp-text "* A short headline\nSome contents"
+     (visual-line-mode)
+     (org-overview)
+     (org-end-of-line)
+     (eobp)))
+  ;; In a wide headline, with `visual-line-mode', prefer going to end
+  ;; of visible line if tags, or end of line, are farther.
+  (should-not
+   (org-test-with-temp-text "* A <point>long headline"
+     (visual-line-mode)
+     (dotimes (i 1000) (insert "very "))
+     (goto-char (point-min))
+     (org-end-of-line)
+     (eolp)))
+  (should-not
+   (org-test-with-temp-text "* A <point>long headline :tag:"
+     (visual-line-mode)
+     (dotimes (i 1000) (insert "very "))
+     (goto-char (point-min))
+     (org-end-of-line)
+     (eolp)))
+  ;; At an headline without special movement, go to end of line.
+  ;; However, never go past ellipsis.
+  (should
+   (org-test-with-temp-text "* Headline2b :tag:\n"
+     (let ((org-special-ctrl-a/e nil))
+       (and (progn (org-end-of-line) (eolp))
+	    (progn (org-end-of-line) (eolp))))))
+  (should
+   (org-test-with-temp-text "* Headline2a :tag:\n** Sub"
+     (org-overview)
+     (let ((org-special-ctrl-a/e nil))
+       (org-end-of-line)
+       (= 1 (line-beginning-position)))))
+  ;; At an headline with special movement, first move before tags,
+  ;; then at the end of line, rinse, repeat.  However, never go past
+  ;; ellipsis.
   (should
    (org-test-with-temp-text "* Headline1 :tag:\n"
      (let ((org-special-ctrl-a/e t))
        (and (progn (org-end-of-line) (looking-at " :tag:"))
 	    (progn (org-end-of-line) (eolp))
 	    (progn (org-end-of-line) (looking-at " :tag:"))))))
-  ;; At an headline without special movement.
   (should
-   (org-test-with-temp-text "* Headline2 :tag:\n"
-     (let ((org-special-ctrl-a/e nil))
-       (and (progn (org-end-of-line) (eolp))
-	    (progn (org-end-of-line) (eolp))))))
-  ;; At an headline, with reversed movement.
+   (org-test-with-temp-text "* Headline2a :tag:\n** Sub"
+     (org-overview)
+     (let ((org-special-ctrl-a/e t))
+       (org-end-of-line)
+       (org-end-of-line)
+       (= 1 (line-beginning-position)))))
+  ;; At an headline, with reversed movement, first go to end of line,
+  ;; then before tags.  However, never go past ellipsis.
   (should
    (org-test-with-temp-text "* Headline3 :tag:\n"
      (let ((org-special-ctrl-a/e 'reversed)
 	   (this-command last-command))
        (and (progn (org-end-of-line) (eolp))
 	    (progn (org-end-of-line) (looking-at " :tag:"))))))
+  (should
+   (org-test-with-temp-text "* Headline2a :tag:\n** Sub"
+     (org-overview)
+     (let ((org-special-ctrl-a/e 'reversed))
+       (org-end-of-line)
+       (= 1 (line-beginning-position)))))
   ;; At a block without hidden contents.
   (should
    (org-test-with-temp-text "#+BEGIN_CENTER\nContents\n#+END_CENTER"
@@ -2541,7 +2654,12 @@ http://article.gmane.org/gmane.emacs.orgmode/21459/"
      (let ((org-special-ctrl-a/e t))
        (org-hide-block-toggle)
        (org-end-of-line)
-       (eobp)))))
+       (eobp))))
+  ;; Get past invisible characters at the end of line.
+  (should
+   (org-test-with-temp-text "[[http://orgmode.org]]"
+     (org-end-of-line)
+     (eolp))))
 
 (ert-deftest test-org/open-line ()
   "Test `org-open-line' specifications."

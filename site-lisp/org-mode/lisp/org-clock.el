@@ -45,7 +45,7 @@
 
 
 (defgroup org-clock nil
-  "Options concerning clocking working time in Org-mode."
+  "Options concerning clocking working time in Org mode."
   :tag "Org Clock"
   :group 'org-progress)
 
@@ -279,7 +279,7 @@ string as argument."
 	  (function :tag "Function")))
 
 (defgroup org-clocktable nil
-  "Options concerning the clock table in Org-mode."
+  "Options concerning the clock table in Org mode."
   :tag "Org Clock Table"
   :group 'org-clock)
 
@@ -695,7 +695,8 @@ If not, show simply the clocked time like 01:50."
   (setq org-mode-line-string
 	(propertize
 	 (let ((clock-string (org-clock-get-clock-string))
-	       (help-text "Org-mode clock is running.\nmouse-1 shows a menu\nmouse-2 will jump to task"))
+	       (help-text "Org mode clock is running.\nmouse-1 shows a \
+menu\nmouse-2 will jump to task"))
 	   (if (and (> org-clock-string-limit 0)
 		    (> (length clock-string) org-clock-string-limit))
 	       (propertize
@@ -797,7 +798,7 @@ use libnotify if available, or fall back on a message."
 			org-show-notification-handler notification))
 	((fboundp 'notifications-notify)
 	 (notifications-notify
-	  :title "Org-mode message"
+	  :title "Org mode message"
 	  :body notification
 	  ;; FIXME how to link to the Org icon?
 	  ;; :app-icon "~/.emacs.d/icons/mail.png"
@@ -1169,15 +1170,22 @@ so long."
 ;;;###autoload
 (defun org-clock-in (&optional select start-time)
   "Start the clock on the current item.
+
 If necessary, clock-out of the currently active clock.
-With a prefix argument SELECT (\\[universal-argument]), offer a list of recently clocked
-tasks to clock into.  When SELECT is \\[universal-argument] \\[universal-argument], clock into the current task
-and mark it as the default task, a special task that will always be offered
-in the clocking selection, associated with the letter `d'.
-When SELECT is \\[universal-argument] \\[universal-argument] \\[universal-argument], \
-clock in by using the last clock-out
-time as the start time \(see `org-clock-continuously' to
-make this the default behavior.)"
+
+With a `\\[universal-argument]' prefix argument SELECT, offer a list of \
+recently clocked
+tasks to clock into.
+
+When SELECT is `\\[universal-argument] \ \\[universal-argument]', \
+clock into the current task and mark it as
+the default task, a special task that will always be offered in the
+clocking selection, associated with the letter `d'.
+
+When SELECT is `\\[universal-argument] \\[universal-argument] \
+\\[universal-argument]', clock in by using the last clock-out
+time as the start time.  See `org-clock-continuously' to make this
+the default behavior."
   (interactive "P")
   (setq org-clock-notification-was-shown nil)
   (org-refresh-properties
@@ -1875,15 +1883,18 @@ PROPNAME lets you set a custom text property instead of :org-clock-minutes."
   "Show subtree times in the entire buffer.
 
 By default, show the total time for the range defined in
-`org-clock-display-default-range'.  With \\[universal-argument] \
+`org-clock-display-default-range'.  With `\\[universal-argument]' \
 prefix, show
-the total time for today instead.  With \\[universal-argument] \
-\\[universal-argument] prefix, use
-a custom range, entered at the prompt.  With \\[universal-argument] \
-\\[universal-argument] \\[universal-argument]
-prefix, display the total time in the echo area.
+the total time for today instead.
 
-Use \\[org-clock-remove-overlays] to remove the subtree times."
+With `\\[universal-argument] \\[universal-argument]' prefix, \
+use a custom range, entered at prompt.
+
+With `\\[universal-argument] \ \\[universal-argument] \
+\\[universal-argument]' prefix, display the total time in the
+echo area.
+
+Use `\\[org-clock-remove-overlays]' to remove the subtree times."
   (interactive "P")
   (org-clock-remove-overlays)
   (let* ((todayp (equal arg '(4)))

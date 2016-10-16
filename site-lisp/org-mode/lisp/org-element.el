@@ -3059,7 +3059,7 @@ Assume point is at the beginning of the line break."
   "Parse link at point, if any.
 
 When at a link, return a list whose car is `link' and cdr a plist
-with `:type', `:path', `:raw-link', `:application',
+with `:type', `:path', `:format', `:raw-link', `:application',
 `:search-option', `:begin', `:end', `:contents-begin',
 `:contents-end' and `:post-blank' as keywords.  Otherwise, return
 nil.
@@ -3067,20 +3067,22 @@ nil.
 Assume point is at the beginning of the link."
   (catch 'no-object
     (let ((begin (point))
-	  end contents-begin contents-end link-end post-blank path type
+	  end contents-begin contents-end link-end post-blank path type format
 	  raw-link search-option application)
       (cond
        ;; Type 1: Text targeted from a radio target.
        ((and org-target-link-regexp
 	     (save-excursion (or (bolp) (backward-char))
 			     (looking-at org-target-link-regexp)))
-	(setq type "radio"
-	      link-end (match-end 1)
-	      path (match-string-no-properties 1)
-	      contents-begin (match-beginning 1)
-	      contents-end (match-end 1)))
+	(setq type "radio")
+	(setq format 'plain)
+	(setq link-end (match-end 1))
+	(setq path (match-string-no-properties 1))
+	(setq contents-begin (match-beginning 1))
+	(setq contents-end (match-end 1)))
        ;; Type 2: Standard link, i.e. [[http://orgmode.org][homepage]]
        ((looking-at org-bracket-link-regexp)
+	(setq format 'bracket)
 	(setq contents-begin (match-beginning 3))
 	(setq contents-end (match-end 3))
 	(setq link-end (match-end 0))
@@ -3112,9 +3114,6 @@ Assume point is at the beginning of the link."
 	 ((string-match org-link-types-re raw-link)
 	  (setq type (match-string 1 raw-link))
 	  (setq path (substring raw-link (match-end 0))))
-	 ;; Id type: PATH is the id.
-	 ((string-match "\\`id:\\([-a-f0-9]+\\)\\'" raw-link)
-	  (setq type "id" path (match-string 1 raw-link)))
 	 ;; Code-ref type: PATH is the name of the reference.
 	 ((and (string-match-p "\\`(" raw-link)
 	       (string-match-p ")\\'" raw-link))
@@ -3132,14 +3131,16 @@ Assume point is at the beginning of the link."
 	  (setq path raw-link))))
        ;; Type 3: Plain link, e.g., http://orgmode.org
        ((looking-at org-plain-link-re)
-	(setq raw-link (match-string-no-properties 0)
-	      type (match-string-no-properties 1)
-	      link-end (match-end 0)
-	      path (match-string-no-properties 2)))
+	(setq format 'plain)
+	(setq raw-link (match-string-no-properties 0))
+	(setq type (match-string-no-properties 1))
+	(setq link-end (match-end 0))
+	(setq path (match-string-no-properties 2)))
        ;; Type 4: Angular link, e.g., <http://orgmode.org>.  Unlike to
        ;; bracket links, follow RFC 3986 and remove any extra
        ;; whitespace in URI.
        ((looking-at org-angle-link-re)
+	(setq format 'angle)
 	(setq type (match-string-no-properties 1))
 	(setq link-end (match-end 0))
 	(setq raw-link
@@ -3171,6 +3172,7 @@ Assume point is at the beginning of the link."
       (list 'link
 	    (list :type type
 		  :path path
+		  :format format
 		  :raw-link (or raw-link path)
 		  :application application
 		  :search-option search-option
@@ -3186,18 +3188,33 @@ CONTENTS is the contents of the object, or nil."
   (let ((type (org-element-property :type link))
 	(path (org-element-property :path link)))
     (if (string= type "radio") path
-      (format "[[%s]%s]"
-	      (cond ((string= type "coderef") (format "(%s)" path))
-		    ((string= type "custom-id") (concat "#" path))
-		    ((string= type "file")
-		     (let ((app (org-element-property :application link))
-			   (opt (org-element-property :search-option link)))
-		       (concat type (and app (concat "+" app)) ":"
-			       path
-			       (and opt (concat "::" opt)))))
-		    ((string= type "fuzzy") path)
-		    (t (concat type ":" path)))
-	      (if contents (format "[%s]" contents) "")))))
+      (let ((fmt (pcase (org-element-property :format link)
+		   ;; Links with contents and internal links have to
+		   ;; use bracket syntax.  Ignore `:format' in these
+		   ;; cases.  This is also the default syntax when the
+		   ;; property is not defined, e.g., when the object
+		   ;; was crafted by the user.
+		   ((guard contents) (format "[[%%s][%s]]" contents))
+		   ((or `bracket
+			`nil
+			(guard (member type '("coderef" "custom-id" "fuzzy"))))
+		    "[[%s]]")
+		   ;; Otherwise, just obey to `:format'.
+		   (`angle "<%s>")
+		   (`plain "%s")
+		   (f (error "Wrong `:format' value: %s" f)))))
+	(format fmt
+		(pcase type
+		  ("coderef" (format "(%s)" path))
+		  ("custom-id" (concat "#" path))
+		  ("file"
+		   (let ((app (org-element-property :application link))
+			 (opt (org-element-property :search-option link)))
+		     (concat type (and app (concat "+" app)) ":"
+			     path
+			     (and opt (concat "::" opt)))))
+		  ("fuzzy" path)
+		  (_ (concat type ":" path))))))))
 
 
 ;;;; Macro
@@ -4455,8 +4472,8 @@ the list of objects itself."
 DATA is a parse tree, an element, an object or a secondary string
 to interpret.  Return Org syntax as a string."
   (letrec ((fun
-	    (lambda (--data parent)
-	      (let* ((type (org-element-type --data))
+	    (lambda (data parent)
+	      (let* ((type (org-element-type data))
 		     ;; Find interpreter for current object or
 		     ;; element.  If it doesn't exist (e.g. this is
 		     ;; a pseudo object or element), return contents,
@@ -4470,54 +4487,57 @@ to interpret.  Return Org syntax as a string."
 		       ;; Secondary string.
 		       ((not type)
 			(mapconcat (lambda (obj) (funcall fun obj parent))
-				   --data ""))
+				   data
+				   ""))
 		       ;; Full Org document.
 		       ((eq type 'org-data)
 			(mapconcat (lambda (obj) (funcall fun obj parent))
-				   (org-element-contents --data) ""))
+				   (org-element-contents data)
+				   ""))
 		       ;; Plain text: return it.
-		       ((stringp --data) --data)
+		       ((stringp data) data)
 		       ;; Element or object without contents.
-		       ((not (org-element-contents --data))
-			(funcall interpret --data nil))
+		       ((not (org-element-contents data))
+			(funcall interpret data nil))
 		       ;; Element or object with contents.
 		       (t
 			(funcall
 			 interpret
-			 --data
+			 data
 			 ;; Recursively interpret contents.
 			 (mapconcat
-			  (lambda (obj) (funcall fun obj --data))
+			  (lambda (datum) (funcall fun datum data))
 			  (org-element-contents
 			   (if (not (memq type '(paragraph verse-block)))
-			       --data
+			       data
 			     ;; Fix indentation of elements containing
 			     ;; objects.  We ignore `table-row'
 			     ;; elements as they are one line long
 			     ;; anyway.
 			     (org-element-normalize-contents
-			      --data
+			      data
 			      ;; When normalizing first paragraph of
 			      ;; an item or a footnote-definition,
 			      ;; ignore first line's indentation.
 			      (and (eq type 'paragraph)
-				   (equal --data
-					  (car (org-element-contents parent)))
 				   (memq (org-element-type parent)
-					 '(footnote-definition item))))))
+					 '(footnote-definition item))
+				   (eq data
+				       (car (org-element-contents parent)))))))
 			  ""))))))
 		(if (memq type '(org-data plain-text nil)) results
 		  ;; Build white spaces.  If no `:post-blank' property
 		  ;; is specified, assume its value is 0.
-		  (let ((blank (or (org-element-property :post-blank --data) 0)))
+		  (let ((blank (or (org-element-property :post-blank data) 0)))
 		    (if (or (memq type org-element-all-objects)
 			    (and parent
 				 (let ((type (org-element-type parent)))
 				   (or (not type)
-				       (memq type org-element-object-containers)))))
+				       (memq type
+					     org-element-object-containers)))))
 			(concat results (make-string blank ?\s))
 		      (concat
-		       (org-element--interpret-affiliated-keywords --data)
+		       (org-element--interpret-affiliated-keywords data)
 		       (org-element-normalize-string results)
 		       (make-string blank ?\n)))))))))
     (funcall fun data nil)))
