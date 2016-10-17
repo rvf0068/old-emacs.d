@@ -342,6 +342,7 @@
 (setq bibtex-completion-pdf-open-function
   (lambda (fpath)
     (call-process "evince" nil 0 nil fpath)))
+(setq helm-bibtex-pdf-symbol "☺")
 
 (setq org2blog/wp-blog-alist
       '(("hgomat"
