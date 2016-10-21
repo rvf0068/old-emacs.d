@@ -5251,6 +5251,16 @@ Return a list of src-block elements with a caption."
      (secondary-closing :utf-8 " »" :html "&nbsp;&raquo;" :latex "\\fg{}"
 			:texinfo "@tie{}@guillemetright{}")
      (apostrophe :utf-8 "’" :html "&rsquo;"))
+    ("is"
+     (primary-opening
+      :utf-8 "„" :html "&bdquo;" :latex "\"`" :texinfo "@quotedblbase{}")
+     (primary-closing
+      :utf-8 "“" :html "&ldquo;" :latex "\"'" :texinfo "@quotedblleft{}")
+     (secondary-opening
+      :utf-8 "‚" :html "&sbquo;" :latex "\\glq{}" :texinfo "@quotesinglbase{}")
+     (secondary-closing
+      :utf-8 "‘" :html "&lsquo;" :latex "\\grq{}" :texinfo "@quoteleft{}")
+     (apostrophe :utf-8 "’" :html "&rsquo;"))
     ("no"
      ;; https://nn.wikipedia.org/wiki/Sitatteikn
      (primary-opening
@@ -5587,6 +5597,7 @@ them."
      ("es" :ascii "Ecuacion" :html "Ecuaci&oacute;n" :default "Ecuación")
      ("et" :html "V&#245;rrand" :utf-8 "Võrrand")
      ("fr" :ascii "Equation" :default "Équation")
+     ("is" :default "Jafna")
      ("ja" :default "方程式")
      ("no" :default "Ligning")
      ("nb" :default "Ligning")
@@ -5601,6 +5612,7 @@ them."
      ("de" :default "Abbildung")
      ("es" :default "Figura")
      ("et" :default "Joonis")
+     ("is" :default "Mynd")
      ("ja" :default "図" :html "&#22259;")
      ("no" :default "Illustrasjon")
      ("nb" :default "Illustrasjon")
@@ -5615,6 +5627,7 @@ them."
      ("es" :default "Figura %d:")
      ("et" :default "Joonis %d:")
      ("fr" :default "Figure %d :" :html "Figure&nbsp;%d&nbsp;:")
+     ("is" :default "Mynd %d")
      ("ja" :default "図%d: " :html "&#22259;%d: ")
      ("no" :default "Illustrasjon %d")
      ("nb" :default "Illustrasjon %d")
@@ -5667,6 +5680,7 @@ them."
      ("es" :ascii "Indice de tablas" :html "&Iacute;ndice de tablas" :default "Índice de tablas")
      ("et" :default "Tabelite nimekiri")
      ("fr" :default "Liste des tableaux")
+     ("is" :default "Töfluskrá" :html "T&ouml;fluskr&aacute;")
      ("ja" :default "表目次")
      ("no" :default "Tabeller")
      ("nb" :default "Tabeller")
@@ -5723,6 +5737,7 @@ them."
      ("es" :default "Tabla")
      ("et" :default "Tabel")
      ("fr" :default "Tableau")
+     ("is" :default "Tafla")
      ("ja" :default "表" :html "&#34920;")
      ("pt_BR" :default "Tabela")
      ("ru" :html "&#1058;&#1072;&#1073;&#1083;&#1080;&#1094;&#1072;"
@@ -5734,6 +5749,7 @@ them."
      ("es" :default "Tabla %d")
      ("et" :default "Tabel %d")
      ("fr" :default "Tableau %d :")
+     ("is" :default "Tafla %d")
      ("ja" :default "表%d:" :html "&#34920;%d:")
      ("no" :default "Tabell %d")
      ("nb" :default "Tabell %d")
