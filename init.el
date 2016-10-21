@@ -178,6 +178,9 @@
 
 (pdf-tools-install)
 
+(require 'sage-shell-mode)
+(sage-shell:define-alias)
+
 (diary)
 
 ;; see https://github.com/tmalsburg/helm-bibtex/issues/88#issuecomment-173699869

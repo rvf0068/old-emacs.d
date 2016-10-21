@@ -44,6 +44,7 @@
     orgbox
     pandoc-mode
     pdf-tools
+    sage-shell-mode
     smart-mode-line
     smartparens
     smex
