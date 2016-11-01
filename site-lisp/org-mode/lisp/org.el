@@ -2300,7 +2300,7 @@ Possible values for the file identifier are:
                  handled identically to the second one (i.e. match against
                  file name only).
                  In a custom function, you can access the group matches with
-                 \(match-string n link).
+                 (match-string n link).
 
                  Example: (\"\\\\.pdf::\\\\(\\\\d+\\\\)\\\\\\='\" . \
 \"evince -p %1 %s\")
@@ -2314,7 +2314,7 @@ Possible values for the file identifier are:
                so all files Emacs knows how to handle.  Using this with
                command `emacs' will open most files in Emacs.  Beware that this
                will also open html files inside Emacs, unless you add
-               \(\"html\" . default) to the list as well.
+               (\"html\" . default) to the list as well.
  `system'      The system command to open files, like `open' on Windows
                and Mac OS X, and mailcap under GNU/Linux.  This is the command
                that will be selected if you call `org-open-at-point' with a
@@ -4912,11 +4912,15 @@ Otherwise, these types are allowed:
   "Matches a headline and puts TODO state into group 2 if present.")
 (defvar-local org-complex-heading-regexp nil
   "Matches a headline and puts everything into groups:
+
 group 1: the stars
 group 2: The todo keyword, maybe
 group 3: Priority cookie
 group 4: True headline
-group 5: Tags")
+group 5: Tags
+
+Since TODO keywords are case-sensitive, `case-fold-search' is
+expected to be bound to nil when matching this regexp.")
 (defvar-local org-complex-heading-regexp-format nil
   "Printf format to make regexp to match an exact headline.
 This regexp will match the headline of any node which has the
@@ -6088,13 +6092,17 @@ by a #."
 	   (if (string-equal dc1 "+title:")
 	       '(font-lock-fontified t face org-document-title)
 	     '(font-lock-fontified t face org-document-info))))
-	 ((equal dc1 "+caption:")
+	 ((string-prefix-p "+caption" dc1)
 	  (org-remove-flyspell-overlays-in (match-end 2) (match-end 0))
 	  (remove-text-properties (match-beginning 0) (match-end 0)
 				  '(display t invisible t intangible t))
-	  (add-text-properties (match-beginning 1) (match-end 3)
+	  ;; Handle short captions.
+	  (save-excursion
+	    (beginning-of-line)
+	    (looking-at "\\([ \t]*#\\+caption\\(?:\\[.*\\]\\)?:\\)[ \t]*"))
+	  (add-text-properties (line-beginning-position) (match-end 1)
 			       '(font-lock-fontified t face org-meta-line))
-	  (add-text-properties (match-beginning 6) (+ (match-end 6) 1)
+	  (add-text-properties (match-end 0) (line-end-position)
 			       '(font-lock-fontified t face org-block))
 	  t)
 	 ((member dc3 '(" " ""))
@@ -8021,8 +8029,9 @@ unconditionally."
 		;; tags).
 		(let ((pos (point)))
 		  (beginning-of-line)
-		  (unless (looking-at org-complex-heading-regexp)
-		    (error "This should not happen"))
+		  (let ((case-fold-search nil))
+		    (unless (looking-at org-complex-heading-regexp)
+		      (error "This should not happen")))
 		  (when (and (match-beginning 4)
 			     (> pos (match-beginning 4))
 			     (< pos (match-end 4)))
@@ -8141,16 +8150,17 @@ Set it to HEADING when provided."
   (interactive)
   (org-with-wide-buffer
    (org-back-to-heading t)
-   (when (looking-at org-complex-heading-regexp)
-     (let* ((old (match-string-no-properties 4))
-	    (new (save-match-data
-		   (org-trim (or heading (read-string "Edit: " old))))))
-       (unless (equal old new)
-	 (if old (replace-match new t t nil 4)
-	   (goto-char (or (match-end 3) (match-end 2) (match-end 1)))
-	   (insert " " new))
-	 (org-set-tags nil t)
-	 (when (looking-at "[ \t]*$") (replace-match "")))))))
+   (let ((case-fold-search nil))
+     (when (looking-at org-complex-heading-regexp)
+       (let* ((old (match-string-no-properties 4))
+	      (new (save-match-data
+		     (org-trim (or heading (read-string "Edit: " old))))))
+	 (unless (equal old new)
+	   (if old (replace-match new t t nil 4)
+	     (goto-char (or (match-end 3) (match-end 2) (match-end 1)))
+	     (insert " " new))
+	   (org-set-tags nil t)
+	   (when (looking-at "[ \t]*$") (replace-match ""))))))))
 
 (defun org-insert-heading-after-current ()
   "Insert a new heading with same level as current, after current subtree."
@@ -10842,10 +10852,12 @@ link in a property drawer line."
 	 ;; a link, a footnote reference or on tags.
 	 ((and (memq type '(headline inlinetask))
 	       ;; Not on tags.
-	       (progn (save-excursion (beginning-of-line)
-				      (looking-at org-complex-heading-regexp))
-		      (or (not (match-beginning 5))
-			  (< (point) (match-beginning 5)))))
+	       (let ((case-fold-search nil))
+		 (save-excursion
+		   (beginning-of-line)
+		   (looking-at org-complex-heading-regexp))
+		 (or (not (match-beginning 5))
+		     (< (point) (match-beginning 5)))))
 	  (let* ((data (org-offer-links-in-entry (current-buffer) (point) arg))
 		 (links (car data))
 		 (links-end (cdr data)))
@@ -10873,10 +10885,11 @@ link in a property drawer line."
 	 ((eq type 'timestamp) (org-follow-timestamp-link))
 	 ;; On tags within a headline or an inlinetask.
 	 ((and (memq type '(headline inlinetask))
-	       (progn (save-excursion (beginning-of-line)
-				      (looking-at org-complex-heading-regexp))
-		      (and (match-beginning 5)
-			   (>= (point) (match-beginning 5)))))
+	       (let ((case-fold-search nil))
+		 (save-excursion (beginning-of-line)
+				 (looking-at org-complex-heading-regexp))
+		 (and (match-beginning 5)
+		      (>= (point) (match-beginning 5)))))
 	  (org-tags-view arg (substring (match-string 5) 0 -1)))
 	 ((eq type 'link)
 	  ;; When link is located within the description of another
@@ -11074,7 +11087,7 @@ numeric or double prefix to guide the search function.
 In case this is needed, a function in this hook can also restore
 the window configuration before `org-open-at-point' was called using:
 
-    \(set-window-configuration org-window-config-before-follow-link)")
+    (set-window-configuration org-window-config-before-follow-link)")
 
 (defun org-search-radio-target (target)
   "Search a radio target matching TARGET in current buffer.
@@ -11737,7 +11750,8 @@ order.")
 		(setq org-outline-path-cache nil)
 		(while (re-search-forward descre nil t)
 		  (beginning-of-line)
-		  (looking-at org-complex-heading-regexp)
+		  (let ((case-fold-search nil))
+		    (looking-at org-complex-heading-regexp))
 		  (let ((begin (point))
 			(heading (match-string-no-properties 4)))
 		    (unless (or (and
@@ -11786,7 +11800,7 @@ optional argument USE-CACHE is non-nil, make use of a cache.  See
 Assume buffer is widened and point is on a headline."
   (or (and use-cache (cdr (assq (point) org-outline-path-cache)))
       (let ((p (point))
-	    (heading (progn
+	    (heading (let ((case-fold-search nil))
 		       (looking-at org-complex-heading-regexp)
 		       (if (not (match-end 4)) ""
 			 ;; Remove statistics cookies.
@@ -12469,7 +12483,8 @@ expands them."
   (interactive)
   (save-excursion
     (org-back-to-heading)
-    (looking-at org-complex-heading-regexp)
+    (let ((case-fold-search nil))
+      (looking-at org-complex-heading-regexp))
     (goto-char (or (match-end 3) (match-end 2) (match-end 1)))
     (skip-chars-forward " \t")
     (unless (memq (char-before) '(?\s ?\t)) (insert " "))
@@ -13075,10 +13090,10 @@ an entry to DONE when all children are done, and back to TODO when new
 entries are set to a TODO status.  Note that this hook is only called
 when there is a statistics cookie in the headline!
 
- \(defun org-summary-todo (n-done n-not-done)
+ (defun org-summary-todo (n-done n-not-done)
    \"Switch entry to DONE when all subentries are done, to TODO otherwise.\"
-   \(let (org-log-done org-log-states)   ; turn off logging
-     \(org-todo (if (= n-not-done 0) \"DONE\" \"TODO\"))))
+   (let (org-log-done org-log-states)   ; turn off logging
+     (org-todo (if (= n-not-done 0) \"DONE\" \"TODO\"))))
 ")
 
 (defvar org-todo-statistics-hook nil
@@ -15029,7 +15044,8 @@ If DATA is nil or the empty string, any tags will be removed."
   (when data
     (save-excursion
       (org-back-to-heading t)
-      (when (looking-at org-complex-heading-regexp)
+      (when (let ((case-fold-search nil))
+	      (looking-at org-complex-heading-regexp))
 	(if (match-end 5)
 	    (progn
 	      (goto-char (match-beginning 5))
@@ -15143,7 +15159,8 @@ When JUST-ALIGN is non-nil, only align tags."
 	  (unless (equal current tags)
 	    (save-excursion
 	      (beginning-of-line)
-	      (looking-at org-complex-heading-regexp)
+	      (let ((case-fold-search nil))
+		(looking-at org-complex-heading-regexp))
 	      ;; Remove current tags, if any.
 	      (when (match-end 5) (replace-match "" nil nil nil 5))
 	      ;; Insert new tags, if any.  Otherwise, remove trailing
@@ -15815,13 +15832,14 @@ strings."
 			props)))
 	      (when specific (throw 'exit props)))
 	    (when (or (not specific) (string= specific "ITEM"))
-	      (when (looking-at org-complex-heading-regexp)
-		(push (cons "ITEM"
-			    (let ((title (match-string-no-properties 4)))
-			      (if (org-string-nw-p title)
-				  (org-remove-tabs title)
-				"")))
-		      props))
+	      (let ((case-fold-search nil))
+		(when (looking-at org-complex-heading-regexp)
+		  (push (cons "ITEM"
+			      (let ((title (match-string-no-properties 4)))
+				(if (org-string-nw-p title)
+				    (org-remove-tabs title)
+				  "")))
+			props)))
 	      (when specific (throw 'exit props)))
 	    (when (or (not specific) (string= specific "TODO"))
 	      (let ((case-fold-search nil))
@@ -16652,9 +16670,9 @@ completion."
 If anything goes wrong, throw an error.
 You can wrap this call to catch the error like this:
 
-  \(condition-case msg
-      \(org-mobile-locate-entry (match-string 4))
-    \(error (nth 1 msg)))
+  (condition-case msg
+      (org-mobile-locate-entry (match-string 4))
+    (error (nth 1 msg)))
 
 The return value will then be either a string with the error message,
 or a marker if everything is OK.
@@ -21302,7 +21320,8 @@ With a non-nil optional argument, join it to the following one."
   (interactive "*P")
   (if (save-excursion
 	(beginning-of-line (if arg 1 0))
-	(looking-at org-complex-heading-regexp))
+	(let ((case-fold-search nil))
+	  (looking-at org-complex-heading-regexp)))
       ;; At headline.
       (let ((tags-column (when (match-beginning 5)
 			   (save-excursion (goto-char (match-beginning 5))
@@ -21369,7 +21388,8 @@ object (e.g., within a comment).  In these case, you need to use
      ;; Insert newline in heading, but preserve tags.
      ((and (not (bolp))
 	   (save-excursion (beginning-of-line)
-			   (looking-at org-complex-heading-regexp)))
+			   (let ((case-fold-search nil))
+			     (looking-at org-complex-heading-regexp))))
       ;; At headline.  Split line.  However, if point is on keyword,
       ;; priority cookie or tags, do not break any of them: add
       ;; a newline after the headline instead.
@@ -21377,10 +21397,7 @@ object (e.g., within a comment).  In these case, you need to use
 			      (save-excursion (goto-char (match-beginning 5))
 					      (current-column))))
 	    (string
-	     (when (and (match-end 4)
-			(>= (point)
-			    (or (match-end 3) (match-end 2) (1+ (match-end 1))))
-			(<= (point) (match-end 4)))
+	     (when (and (match-end 4) (org-point-in-group (point) 4))
 	       (delete-and-extract-region (point) (match-end 4)))))
 	;; Adjust tag alignment.
 	(cond
@@ -23788,7 +23805,7 @@ With argument N not nil or 1, move forward N - 1 lines first."
      ;; of line: point is at the beginning of a visual line.  Bail
      ;; out.
      ((and (bound-and-true-p visual-line-mode) (not (bolp))))
-     ((looking-at org-complex-heading-regexp)
+     ((let ((case-fold-search nil)) (looking-at org-complex-heading-regexp))
       ;; At a headline, special position is before the title, but
       ;; after any TODO keyword or priority cookie.
       (let ((refpos (min (1+ (or (match-end 3) (match-end 2) (match-end 1)))
@@ -23839,7 +23856,8 @@ With argument N not nil or 1, move forward N - 1 lines first."
      ((and special
 	   (save-excursion
 	     (beginning-of-line)
-	     (looking-at org-complex-heading-regexp))
+	     (let ((case-fold-search nil))
+	       (looking-at org-complex-heading-regexp)))
 	   (match-end 5))
       (let ((tags (save-excursion
 		    (goto-char (match-beginning 5))
@@ -25022,8 +25040,9 @@ ELEMENT is the element at point."
       ;; faster than relying on `org-element-at-point'.
       (and (save-excursion (beginning-of-line)
 			   (and (let ((case-fold-search t))
-				  (not (looking-at "\\*+ END[ \t]*$")))
-				(looking-at org-complex-heading-regexp)))
+				  (not (looking-at-p "\\*+ END[ \t]*$")))
+				(let ((case-fold-search nil))
+				  (looking-at org-complex-heading-regexp))))
 	   (match-beginning 4)
 	   (>= (point) (match-beginning 4))
 	   (or (not (match-beginning 5))

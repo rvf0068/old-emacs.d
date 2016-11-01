@@ -1405,8 +1405,9 @@ for export.  Return options as a plist."
 	 (cache (list
 		 (cons "TITLE"
 		       (or (org-entry-get (point) "EXPORT_TITLE" 'selective)
-			   (progn (looking-at org-complex-heading-regexp)
-				  (match-string-no-properties 4))))))
+			   (let ((case-fold-search nil))
+			     (looking-at org-complex-heading-regexp)
+			     (match-string-no-properties 4))))))
 	 ;; Look for both general keywords and back-end specific
 	 ;; options, with priority given to the latter.
 	 (options (append (and backend (org-export-get-all-options backend))
@@ -1912,6 +1913,7 @@ Return a string."
 			  (format "[BROKEN LINK: %s]" (nth 1 err)) info))
 		  (_ nil))))))
 	(let* ((type (org-element-type data))
+	       (parent (org-export-get-parent data))
 	       (results
 		(cond
 		 ;; Ignored element/object.
@@ -1965,12 +1967,11 @@ Return a string."
 				   ;; first line's indentation: there is
 				   ;; none and it might be misleading.
 				   (when (eq type 'paragraph)
-				     (let ((parent (org-export-get-parent data)))
-				       (and
-					(eq (car (org-element-contents parent))
-					    data)
-					(memq (org-element-type parent)
-					      '(footnote-definition item))))))))
+				     (and
+				      (eq (car (org-element-contents parent))
+					  data)
+				      (memq (org-element-type parent)
+					    '(footnote-definition item)))))))
 			       "")))
 			(broken-link-handler
 			 (funcall transcoder data
@@ -1986,17 +1987,14 @@ Return a string."
 	    ;; Append the same white space between elements or objects
 	    ;; as in the original buffer, and call appropriate filters.
 	    (t
-	     (let ((results
-		    (org-export-filter-apply-functions
-		     (plist-get info (intern (format ":filter-%s" type)))
-		     (let ((post-blank (or (org-element-property :post-blank data)
-					   0)))
-		       (if (memq type org-element-all-elements)
-			   (concat (org-element-normalize-string results)
-				   (make-string post-blank ?\n))
-			 (concat results (make-string post-blank ?\s))))
-		     info)))
-	       results)))
+	     (org-export-filter-apply-functions
+	      (plist-get info (intern (format ":filter-%s" type)))
+	      (let ((blank (or (org-element-property :post-blank data) 0)))
+		(if (eq (org-element-class data parent) 'object)
+		    (concat results (make-string blank ?\s))
+		  (concat (org-element-normalize-string results)
+			  (make-string blank ?\n))))
+	      info)))
 	   (plist-get info :exported-data))))))
 
 (defun org-export-data-with-backend (data backend info)
@@ -2031,7 +2029,8 @@ contents, as a string or nil.
 When optional argument WITH-AFFILIATED is non-nil, add affiliated
 keywords before output."
   (let ((type (org-element-type blob)))
-    (concat (and with-affiliated (memq type org-element-all-elements)
+    (concat (and with-affiliated
+		 (eq (org-element-class blob) 'element)
 		 (org-element--interpret-affiliated-keywords blob))
 	    (funcall (intern (format "org-element-%s-interpreter" type))
 		     blob contents))))

@@ -140,6 +140,30 @@ Some other text
        (lambda (object) (org-element-type (org-element-secondary-p object)))
        nil t))))
 
+(ert-deftest test-org-element/class ()
+  "Test `org-element-class' specifications."
+  ;; Regular tests.
+  (should (eq 'element (org-element-class '(paragraph nil) nil)))
+  (should (eq 'object (org-element-class '(target nil) nil)))
+  ;; Special types.
+  (should (eq 'element (org-element-class '(org-data nil) nil)))
+  (should (eq 'object (org-element-class "text" nil)))
+  (should (eq 'object (org-element-class '("secondary " "string") nil)))
+  ;; Pseudo elements.
+  (should (eq 'element (org-element-class '(foo nil) nil)))
+  (should (eq 'element (org-element-class '(foo nil) '(center-block nil))))
+  (should (eq 'element (org-element-class '(foo nil) '(org-data nil))))
+  ;; Pseudo objects.
+  (should (eq 'object (org-element-class '(foo nil) '(bold nil))))
+  (should (eq 'object (org-element-class '(foo nil) '(paragraph nil))))
+  (should (eq 'object (org-element-class '(foo nil) '("secondary"))))
+  (should
+   (eq 'object
+       (let* ((datum '(foo nil))
+	      (headline `(headline (:title (,datum)))))
+	 (org-element-put-property datum :parent headline)
+	 (org-element-class datum)))))
+
 (ert-deftest test-org-element/adopt-elements ()
   "Test `org-element-adopt-elements' specifications."
   ;; Adopt an element.
@@ -1583,6 +1607,12 @@ e^{i\\pi}+1=0
       (org-element-property
        :type
        (org-element-map (org-element-parse-buffer) 'link #'identity nil t)))))
+  ;; Pathological case: radio target of length 1 at beginning of line
+  ;; not followed by spaces.
+  (should
+   (org-test-with-temp-text "* <<<a>>>\n<point>a-bug"
+     (org-update-radio-target-regexp)
+     (org-element-parse-buffer)))
   ;; Standard link.
   ;;
   ;; ... with description.
@@ -3026,7 +3056,10 @@ DEADLINE: <2012-03-29 thu.> SCHEDULED: <2012-03-29 thu.> CLOSED: [2012-03-29 thu
 		 "http://orgmode.org\n"))
   ;; Angular links.
   (should (equal (org-test-parse-and-interpret "<http://orgmode.org>")
-		 "<http://orgmode.org>\n")))
+		 "<http://orgmode.org>\n"))
+  ;; Pathological case: link with a %-sign in description.
+  (should (equal (org-test-parse-and-interpret "[[file://path][%s]]")
+		 "[[file://path][%s]]\n")))
 
 (ert-deftest test-org-element/macro-interpreter ()
   "Test macro interpreter."

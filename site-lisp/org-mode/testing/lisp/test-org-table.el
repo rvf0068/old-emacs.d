@@ -106,18 +106,18 @@
   ;; See next ert-deftest how to group rows right.
   (org-test-table-target-expect
    "
-|       2 | replace |
-|       4 | replace |
-|       8 | replace |
+|       2 | header  |
+|       4 | header  |
+|       8 | header  |
 |---------+---------|
 | replace | replace |
 "
    "
-|  2 | replace |
-|  4 | replace |
-|  8 | replace |
-|----+---------|
-| 14 | 28      |
+|  2 | header |
+|  4 | header |
+|  8 | header |
+|----+--------|
+| 14 | 28     |
 "
    2
    ;; Calc formula
@@ -166,6 +166,27 @@
 | <-0x0ab.cf | >-36#0vw.yz | nan | uinf | -inf | inf |
 |         ab |          ab |  ab |   ab |   ab |  ab |
 "))
+
+(ert-deftest test-org-table/align-buffer-tables ()
+  "Align all tables when updating buffer."
+  (let ((before "
+|  a  b  |
+
+|  c  d  |
+")
+	(after "
+| a  b |
+
+| c  d |
+"))
+    (should (equal (org-test-with-temp-text before
+		     (org-table-recalculate-buffer-tables)
+		     (buffer-string))
+		   after))
+    (should (equal (org-test-with-temp-text before
+		     (org-table-iterate-buffer-tables)
+		     (buffer-string))
+		   after))))
 
 (defconst references/target-normal "
 | 0 | 1 | replace | replace | replace | replace | replace | replace |

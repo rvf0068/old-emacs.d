@@ -40,6 +40,7 @@
 (declare-function org-base-buffer "org" (buffer))
 (declare-function org-do-remove-indentation "org" (&optional n))
 (declare-function org-element-at-point "org-element" ())
+(declare-function org-element-class "org-element" (datum &optional parent))
 (declare-function org-element-context "org-element" (&optional element))
 (declare-function org-element-lineage "org-element"
 		  (blob &optional types with-self))
@@ -51,7 +52,6 @@
 (declare-function org-switch-to-buffer-other-window "org" (&rest args))
 (declare-function org-trim "org" (s &optional keep-lead))
 
-(defvar org-element-all-elements)
 (defvar org-inhibit-startup)
 
 (defcustom org-edit-src-turn-on-auto-save nil
@@ -380,7 +380,7 @@ spaces after it as being outside."
 	   (org-with-wide-buffer
 	    (goto-char (org-element-property :end datum))
 	    (skip-chars-backward " \r\t\n")
-	    (if (memq (org-element-type datum) org-element-all-elements)
+	    (if (eq (org-element-class datum) 'element)
 		(line-end-position)
 	      (point))))))
 

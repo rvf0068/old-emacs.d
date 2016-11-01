@@ -455,8 +455,10 @@ past the brackets."
 ;; high-level functions useful to modify a parse tree.
 ;;
 ;; `org-element-secondary-p' is a predicate used to know if a given
-;; object belongs to a secondary string.  `org-element-copy' returns
-;; an element or object, stripping its parent property in the process.
+;; object belongs to a secondary string.  `org-element-class' tells if
+;; some parsed data is an element or an object, handling pseudo
+;; elements and objects.  `org-element-copy' returns an element or
+;; object, stripping its parent property in the process.
 
 (defsubst org-element-type (element)
   "Return type of ELEMENT.
@@ -513,6 +515,32 @@ Return value is the property name, as a keyword, or nil."
       (dolist (p properties)
 	(and (memq object (org-element-property p parent))
 	     (throw 'exit p))))))
+
+(defun org-element-class (datum &optional parent)
+  "Return class for ELEMENT, as a symbol.
+Class is either `element' or `object'.  Optional argument PARENT
+is the element or object containing DATUM.  It defaults to the
+value of DATUM `:parent' property."
+  (let ((type (org-element-type datum))
+	(parent (or parent (org-element-property :parent datum))))
+    (cond
+     ;; Trivial cases.
+     ((memq type org-element-all-objects) 'object)
+     ((memq type org-element-all-elements) 'element)
+     ;; Special cases.
+     ((eq type 'org-data) 'element)
+     ((eq type 'plain-text) 'object)
+     ((not type) 'object)
+     ;; Pseudo object or elements.  Make a guess about its class.
+     ;; Basically a pseudo object is contained within another object,
+     ;; a secondary string or a container element.
+     ((not parent) 'element)
+     (t
+      (let ((parent-type (org-element-type parent)))
+	(cond ((not parent-type) 'object)
+	      ((memq parent-type org-element-object-containers) 'object)
+	      ((org-element-secondary-p datum) 'object)
+	      (t 'element)))))))
 
 (defsubst org-element-adopt-elements (parent &rest children)
   "Append elements to the contents of another element.
@@ -3194,7 +3222,12 @@ CONTENTS is the contents of the object, or nil."
 		   ;; cases.  This is also the default syntax when the
 		   ;; property is not defined, e.g., when the object
 		   ;; was crafted by the user.
-		   ((guard contents) (format "[[%%s][%s]]" contents))
+		   ((guard contents)
+		    (format "[[%%s][%s]]"
+			    ;; Since this is going to be used as
+			    ;; a format string, escape percent signs
+			    ;; in description.
+			    (replace-regexp-in-string "%" "%%" contents)))
 		   ((or `bracket
 			`nil
 			(guard (member type '("coderef" "custom-id" "fuzzy"))))
@@ -4174,7 +4207,7 @@ looking into captions:
 		    ;; them.
 		    (when (and with-affiliated
 			       (eq --category 'objects)
-			       (memq --type org-element-all-elements))
+			       (eq (org-element-class --data) 'element))
 		      (dolist (kwd-pair org-element--parsed-properties-alist)
 			(let ((kwd (car kwd-pair))
 			      (value (org-element-property (cdr kwd-pair) --data)))
@@ -4205,7 +4238,7 @@ looking into captions:
 			   (not (memq --type org-element-greater-elements))))
 		     ;; Looking for elements but --DATA is an object.
 		     ((and (eq --category 'elements)
-			   (memq --type org-element-all-objects)))
+			   (eq (org-element-class --data) 'object)))
 		     ;; In any other case, map contents.
 		     (t (mapc --walk-tree (org-element-contents --data))))))))))
       (catch :--map-first-match
@@ -4322,23 +4355,37 @@ RESTRICTION is a list of object types, as symbols, that should be
 looked after.  This function assumes that the buffer is narrowed
 to an appropriate container (e.g., a paragraph)."
   (if (memq 'table-cell restriction) (org-element-table-cell-parser)
-    (save-excursion
-      (let ((limit (and org-target-link-regexp
-			(save-excursion
-			  (or (bolp) (backward-char))
-			  (re-search-forward org-target-link-regexp nil t))
-			(match-beginning 1)))
-	    found)
+    (let* ((start (point))
+	   (limit
+	    (save-excursion
+	      (cond ((not org-target-link-regexp) nil)
+		    ((not (memq 'link restriction)) nil)
+		    ((progn
+		       (unless (bolp) (forward-char -1))
+		       (not (re-search-forward org-target-link-regexp nil t)))
+		     nil)
+		    ;; Since we moved backward, we do not want to
+		    ;; match again an hypothetical 1-character long
+		    ;; radio link before us.  Realizing that this can
+		    ;; only happen if such a radio link starts at
+		    ;; beginning of line, we prevent this here.
+		    ((and (= start (1+ (line-beginning-position)))
+			  (= start (match-end 1)))
+		     (and (re-search-forward org-target-link-regexp nil t)
+			  (match-beginning 1)))
+		    (t (match-beginning 1)))))
+	   found)
+      (save-excursion
 	(while (and (not found)
-		    (re-search-forward org-element--object-regexp limit t))
+		    (re-search-forward org-element--object-regexp limit 'move))
 	  (goto-char (match-beginning 0))
 	  (let ((result (match-string 0)))
 	    (setq found
 		  (cond
-		   ((eq (compare-strings result nil nil "call_" nil nil t) t)
+		   ((string-prefix-p "call_" result t)
 		    (and (memq 'inline-babel-call restriction)
 			 (org-element-inline-babel-call-parser)))
-		   ((eq (compare-strings result nil nil "src_" nil nil t) t)
+		   ((string-prefix-p "src_" result t)
 		    (and (memq 'inline-src-block restriction)
 			 (org-element-inline-src-block-parser)))
 		   (t
@@ -4400,9 +4447,8 @@ to an appropriate container (e.g., a paragraph)."
 			      (org-element-link-parser)))))))
 	    (or (eobp) (forward-char))))
 	(cond (found)
-	      ;; Radio link.
-	      ((and limit (memq 'link restriction))
-	       (goto-char limit) (org-element-link-parser)))))))
+	      (limit (org-element-link-parser))	;radio link
+	      (t nil))))))
 
 (defun org-element--parse-objects (beg end acc restriction &optional parent)
   "Parse objects between BEG and END and return recursive structure.
@@ -4422,7 +4468,7 @@ the list of objects itself."
       (let (next-object contents)
 	(while (and (not (eobp))
 		    (setq next-object (org-element--object-lex restriction)))
-	  ;; Text before any object.  Untabify it.
+	  ;; Text before any object.
 	  (let ((obj-beg (org-element-property :begin next-object)))
 	    (unless (= (point) obj-beg)
 	      (let ((text (buffer-substring-no-properties (point) obj-beg)))
@@ -4442,7 +4488,7 @@ the list of objects itself."
 		    next-object)
 		  contents)
 	    (goto-char obj-end)))
-	;; Text after last object.  Untabify it.
+	;; Text after last object.
 	(unless (eobp)
 	  (let ((text (buffer-substring-no-properties (point) end)))
 	    (push (if acc (org-element-put-property text :parent acc) text)
@@ -4529,17 +4575,11 @@ to interpret.  Return Org syntax as a string."
 		  ;; Build white spaces.  If no `:post-blank' property
 		  ;; is specified, assume its value is 0.
 		  (let ((blank (or (org-element-property :post-blank data) 0)))
-		    (if (or (memq type org-element-all-objects)
-			    (and parent
-				 (let ((type (org-element-type parent)))
-				   (or (not type)
-				       (memq type
-					     org-element-object-containers)))))
+		    (if (eq (org-element-class data parent) 'object)
 			(concat results (make-string blank ?\s))
-		      (concat
-		       (org-element--interpret-affiliated-keywords data)
-		       (org-element-normalize-string results)
-		       (make-string blank ?\n)))))))))
+		      (concat (org-element--interpret-affiliated-keywords data)
+			      (org-element-normalize-string results)
+			      (make-string blank ?\n)))))))))
     (funcall fun data nil)))
 
 (defun org-element--interpret-affiliated-keywords (element)
@@ -4781,7 +4821,7 @@ with `org-element--cache-compare'.  This cache is used in
 Key is an element, as returned by `org-element-at-point', and
 value is an alist where each association is:
 
-  \(PARENT COMPLETEP . OBJECTS)
+  (PARENT COMPLETEP . OBJECTS)
 
 where PARENT is an element or object, COMPLETEP is a boolean,
 non-nil when all direct children of parent are already cached and
@@ -4795,12 +4835,12 @@ contained within a paragraph
 
 If the paragraph is completely parsed, OBJECTS-DATA will be
 
-  \((PARAGRAPH t BOLD-OBJECT ENTITY-OBJECT)
-   \(BOLD-OBJECT t ENTITY-OBJECT))
+  ((PARAGRAPH t BOLD-OBJECT ENTITY-OBJECT)
+   (BOLD-OBJECT t ENTITY-OBJECT))
 
 whereas in a partially parsed paragraph, it could be
 
-  \((PARAGRAPH nil ENTITY-OBJECT))
+  ((PARAGRAPH nil ENTITY-OBJECT))
 
 This cache is used in `org-element-context'.")
 
@@ -4889,16 +4929,16 @@ the following rules:
     gets a new level.  Its value is the mean between LOWER and
     UPPER:
 
-      \(1 2) + (1 4) --> (1 3)
+      (1 2) + (1 4) --> (1 3)
 
   - If LOWER has no value to compare with, it is assumed that its
     value is `most-negative-fixnum'.  E.g.,
 
-      \(1 1) + (1 1 2)
+      (1 1) + (1 1 2)
 
     is equivalent to
 
-      \(1 1 m) + (1 1 2)
+      (1 1 m) + (1 1 2)
 
     where m is `most-negative-fixnum'.  Likewise, if UPPER is
     short of levels, the current value is `most-positive-fixnum'.
@@ -4906,18 +4946,18 @@ the following rules:
   - If they differ from only one, the new key inherits from
     current LOWER level and fork it at the next level.  E.g.,
 
-      \(2 1) + (3 3)
+      (2 1) + (3 3)
 
     is equivalent to
 
-      \(2 1) + (2 M)
+      (2 1) + (2 M)
 
     where M is `most-positive-fixnum'.
 
   - If the key is only one level long, it is returned as an
     integer:
 
-      \(1 2) + (3 2) --> 2
+      (1 2) + (3 2) --> 2
 
 When they are not equals, the function assumes that LOWER is
 lesser than UPPER, per `org-element--cache-key-less-p'."
@@ -5832,15 +5872,16 @@ Providing it allows for quicker computation."
 	       (throw 'objects-forbidden element)))))
 	;; At an headline or inlinetask, objects are in title.
 	((memq type '(headline inlinetask))
-	 (goto-char (org-element-property :begin element))
-	 (looking-at org-complex-heading-regexp)
-	 (let ((end (match-end 4)))
-	   (if (not end) (throw 'objects-forbidden element)
-	     (goto-char (match-beginning 4))
-	     (when (let (case-fold-search) (looking-at org-comment-string))
-	       (goto-char (match-end 0)))
-	     (if (>= (point) end) (throw 'objects-forbidden element)
-	       (narrow-to-region (point) end)))))
+	 (let ((case-fold-search nil))
+	   (goto-char (org-element-property :begin element))
+	   (looking-at org-complex-heading-regexp)
+	   (let ((end (match-end 4)))
+	     (if (not end) (throw 'objects-forbidden element)
+	       (goto-char (match-beginning 4))
+	       (when (looking-at org-comment-string)
+		 (goto-char (match-end 0)))
+	       (if (>= (point) end) (throw 'objects-forbidden element)
+		 (narrow-to-region (point) end))))))
 	;; At a paragraph, a table-row or a verse block, objects are
 	;; located within their contents.
 	((memq type '(paragraph table-row verse-block))
