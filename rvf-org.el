@@ -130,7 +130,7 @@
        (define-key org-mode-map ,symb ',func-name)
        #',func-name)))
 
-(mathcal-org "O")
+(mathcal-org "A")
 
 ;; from Nicolas Richard <theonewiththeevillook@yahoo.fr>
 ;; Date: Fri, 8 Mar 2013 16:23:02 +0100
