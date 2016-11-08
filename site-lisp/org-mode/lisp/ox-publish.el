@@ -1204,32 +1204,34 @@ the file including them will be republished as well."
 	 (pstamp (org-publish-cache-get key))
 	 (org-inhibit-startup t)
 	 (visiting (find-buffer-visiting filename))
-	 included-files-ctime buf)
+	 (buf (find-file-noselect (expand-file-name filename)))
+	 included-files-ctime)
     (when (equal (file-name-extension filename) "org")
-      (setq buf (find-file (expand-file-name filename)))
-      (with-current-buffer buf
-	(goto-char (point-min))
-	(while (re-search-forward "^[ \t]*#\\+INCLUDE:" nil t)
-	  (let* ((element (org-element-at-point))
-		 (included-file
-                  (and (eq (org-element-type element) 'keyword)
-                       (let ((value (org-element-property :value element)))
-                         (and value
-                              (string-match
-			       "\\`\\(\".+?\"\\|\\S-+\\)\\(?:\\s-+\\|$\\)"
-			       value)
-                              (let ((m (match-string 1 value)))
-                                (org-unbracket-string
-				 "\"" "\""
-				 ;; Ignore search suffix.
-                                 (if (string-match "\\(::\\(.*?\\)\\)\"?\\'" m)
-                                     (substring m 0 (match-beginning 0))
-                                   m))))))))
-	    (when included-file
-	      (push (org-publish-cache-ctime-of-src
-		     (expand-file-name included-file))
-		    included-files-ctime)))))
-      (unless visiting (kill-buffer buf)))
+      (unwind-protect
+	  (with-current-buffer buf
+	    (goto-char (point-min))
+	    (while (re-search-forward "^[ \t]*#\\+INCLUDE:" nil t)
+	      (let* ((element (org-element-at-point))
+		     (included-file
+		      (and (eq (org-element-type element) 'keyword)
+			   (let ((value (org-element-property :value element)))
+			     (and value
+				  (string-match
+				   "\\`\\(\".+?\"\\|\\S-+\\)\\(?:\\s-+\\|$\\)"
+				   value)
+				  (let ((m (match-string 1 value)))
+				    (org-unbracket-string
+				     "\"" "\""
+				     ;; Ignore search suffix.
+				     (if (string-match "\\(::\\(.*?\\)\\)\"?\\'"
+						       m)
+					 (substring m 0 (match-beginning 0))
+				       m))))))))
+		(when included-file
+		  (push (org-publish-cache-ctime-of-src
+			 (expand-file-name included-file))
+			included-files-ctime)))))
+	(unless visiting (kill-buffer buf))))
     (or (null pstamp)
 	(let ((ctime (org-publish-cache-ctime-of-src filename)))
 	  (or (< pstamp ctime)
@@ -1250,9 +1252,9 @@ will be created.  Return VALUE."
 (defun org-publish-cache-get-file-property
   (filename property &optional default no-create project-name)
   "Return the value for a PROPERTY of file FILENAME in publishing cache.
-Use cache file of PROJECT-NAME. Return the value of that PROPERTY
-or DEFAULT, if the value does not yet exist.  If the entry will
-be created, unless NO-CREATE is not nil."
+Use cache file of PROJECT-NAME.  Return the value of that PROPERTY,
+or DEFAULT, if the value does not yet exist.  Create the entry,
+if necessary, unless NO-CREATE is non-nil."
   ;; Evtl. load the requested cache file:
   (if project-name (org-publish-initialize-cache project-name))
   (let ((pl (org-publish-cache-get filename)) retval)
@@ -1268,15 +1270,16 @@ be created, unless NO-CREATE is not nil."
 
 (defun org-publish-cache-get (key)
   "Return the value stored in `org-publish-cache' for key KEY.
-Returns nil, if no value or nil is found, or the cache does not
-exist."
+Return nil, if no value or nil is found.  Raise an error if the
+cache does not exist."
   (unless org-publish-cache
     (error "`org-publish-cache-get' called, but no cache present"))
   (gethash key org-publish-cache))
 
 (defun org-publish-cache-set (key value)
   "Store KEY VALUE pair in `org-publish-cache'.
-Returns value on success, else nil."
+Returns value on success, else nil.  Raise an error if the cache
+does not exist."
   (unless org-publish-cache
     (error "`org-publish-cache-set' called, but no cache present"))
   (puthash key value org-publish-cache))
