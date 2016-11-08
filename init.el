@@ -67,6 +67,7 @@
 (setq cdlatex-math-modify-alist
       '(
 	( ?B    "\\mathbb"           nil        t   nil nil )
+	( ?a    "\\overrightarrow"   nil        t   nil nil )
 	)
       )
 
