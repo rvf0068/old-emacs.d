@@ -1,6 +1,6 @@
 ;;; ox.el --- Export Framework for Org Mode          -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2017 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -882,6 +882,29 @@ HTML code while every other back-end will ignore it."
 	       (cl-every #'consp x)
 	       (cl-every #'stringp (mapcar #'car x))
 	       (cl-every #'stringp (mapcar #'cdr x)))))
+
+(defcustom org-export-global-macros nil
+  "Alist between macro names and expansion templates.
+
+This variable defines macro expansion templates available
+globally.  Associations follow the pattern
+
+  (NAME . TEMPLATE)
+
+where NAME is a string beginning with a letter and consisting of
+alphanumeric characters only.
+
+TEMPLATE is the string to which the macro is going to be
+expanded.  Inside, \"$1\", \"$2\"... are place-holders for
+macro's arguments.  Moreover, if the template starts with
+\"(eval\", it will be parsed as an Elisp expression and evaluated
+accordingly."
+  :group 'org-export-general
+  :version "25.2"
+  :package-version '(Org . "9.1")
+  :type '(repeat
+	  (cons (string :tag "Name")
+		(string :tag "Template"))))
 
 (defcustom org-export-coding-system nil
   "Coding system for the exported file."
@@ -2007,18 +2030,24 @@ channel.
 Unlike to `org-export-with-backend', this function will
 recursively convert DATA using BACKEND translation table."
   (when (symbolp backend) (setq backend (org-export-get-backend backend)))
-  (org-export-data
-   data
-   ;; Set-up a new communication channel with translations defined in
-   ;; BACKEND as the translate table and a new hash table for
-   ;; memoization.
-   (org-combine-plists
-    info
-    (list :back-end backend
-	  :translate-alist (org-export-get-all-transcoders backend)
-	  ;; Size of the hash table is reduced since this function
-	  ;; will probably be used on small trees.
-	  :exported-data (make-hash-table :test 'eq :size 401)))))
+  ;; Set-up a new communication channel with translations defined in
+  ;; BACKEND as the translate table and a new hash table for
+  ;; memoization.
+  (let ((new-info
+	 (org-combine-plists
+	  info
+	  (list :back-end backend
+		:translate-alist (org-export-get-all-transcoders backend)
+		;; Size of the hash table is reduced since this
+		;; function will probably be used on small trees.
+		:exported-data (make-hash-table :test 'eq :size 401)))))
+    (prog1 (org-export-data data new-info)
+      ;; Preserve `:internal-references', as those do not depend on
+      ;; the back-end used; we need to make sure that any new
+      ;; reference when the temporary back-end was active gets through
+      ;; the default one.
+      (plist-put info :internal-references
+		 (plist-get new-info :internal-references)))))
 
 (defun org-export-expand (blob contents &optional with-affiliated)
   "Expand a parsed element or object to its original state.
@@ -2472,20 +2501,24 @@ channel, as a plist.  It must return a string or nil.")
 (defun org-export-filter-apply-functions (filters value info)
   "Call every function in FILTERS.
 
-Functions are called with arguments VALUE, current export
-back-end's name and INFO.  A function returning a nil value will
-be skipped.  If it returns the empty string, the process ends and
-VALUE is ignored.
+Functions are called with three arguments: a value, the export
+back-end name and the communication channel.  First function in
+FILTERS is called with VALUE as its first argument.  Second
+function in FILTERS is called with the previous result as its
+value, etc.
+
+Functions returning nil are skipped.  Any function returning the
+empty string ends the process, which returns the empty string.
 
 Call is done in a LIFO fashion, to be sure that developer
 specified filters, if any, are called first."
-  (catch 'exit
+  (catch :exit
     (let* ((backend (plist-get info :back-end))
 	   (backend-name (and backend (org-export-backend-name backend))))
       (dolist (filter filters value)
 	(let ((result (funcall filter value backend-name info)))
-	  (cond ((not result) value)
-		((equal value "") (throw 'exit nil))
+	  (cond ((not result))
+		((equal result "") (throw :exit ""))
 		(t (setq value result))))))))
 
 (defun org-export-install-filters (info)
@@ -3003,14 +3036,14 @@ Return code as a string."
   (save-excursion
     (save-restriction
       ;; Narrow buffer to an appropriate region or subtree for
-      ;; parsing.  If parsing subtree, be sure to remove main headline
-      ;; too.
+      ;; parsing.  If parsing subtree, be sure to remove main
+      ;; headline, planning data and property drawer.
       (cond ((org-region-active-p)
 	     (narrow-to-region (region-beginning) (region-end)))
 	    (subtreep
 	     (org-narrow-to-subtree)
 	     (goto-char (point-min))
-	     (forward-line)
+	     (org-end-of-meta-data)
 	     (narrow-to-region (point) (point-max))))
       ;; Initialize communication channel with original buffer
       ;; attributes, unavailable in its copy.
@@ -3036,13 +3069,15 @@ Return code as a string."
 	 (org-export-expand-include-keyword)
 	 (org-export--delete-comments)
 	 (org-macro-initialize-templates)
-	 (org-macro-replace-all org-macro-templates nil parsed-keywords)
+	 (org-macro-replace-all
+	  (append org-macro-templates org-export-global-macros)
+	  nil parsed-keywords)
 	 ;; Refresh buffer properties and radio targets after
 	 ;; potentially invasive previous changes.  Likewise, do it
 	 ;; again after executing Babel code.
 	 (org-set-regexps-and-options)
 	 (org-update-radio-target-regexp)
-	 (when org-export-babel-evaluate
+	 (when org-export-use-babel
 	   (org-babel-exp-process-buffer)
 	   (org-set-regexps-and-options)
 	   (org-update-radio-target-regexp))
@@ -3672,18 +3707,20 @@ the communication channel used for export, as a plist."
   (when (symbolp backend) (setq backend (org-export-get-backend backend)))
   (org-export-barf-if-invalid-backend backend)
   (let ((type (org-element-type data)))
-    (if (memq type '(nil org-data)) (error "No foreign transcoder available")
-      (let* ((all-transcoders (org-export-get-all-transcoders backend))
-	     (transcoder (cdr (assq type all-transcoders))))
-	(if (not (functionp transcoder))
-	    (error "No foreign transcoder available")
-	  (funcall
-	   transcoder data contents
-	   (org-combine-plists
-	    info (list
-		  :back-end backend
-		  :translate-alist all-transcoders
-		  :exported-data (make-hash-table :test #'eq :size 401)))))))))
+    (when (memq type '(nil org-data)) (error "No foreign transcoder available"))
+    (let* ((all-transcoders (org-export-get-all-transcoders backend))
+	   (transcoder (cdr (assq type all-transcoders))))
+      (unless (functionp transcoder) (error "No foreign transcoder available"))
+      (let ((new-info
+	     (org-combine-plists
+	      info (list
+		    :back-end backend
+		    :translate-alist all-transcoders
+		    :exported-data (make-hash-table :test #'eq :size 401)))))
+	;; `:internal-references' are shared across back-ends.
+	(prog1 (funcall transcoder data contents new-info)
+	  (plist-put info :internal-references
+		     (plist-get new-info :internal-references)))))))
 
 
 ;;;; For Export Snippets
@@ -4148,12 +4185,56 @@ the provided rules is non-nil.  The default rule is
 This only applies to links without a description."
   (and (not (org-element-contents link))
        (let ((case-fold-search t))
-	 (catch 'exit
-	   (dolist (rule (or rules org-export-default-inline-image-rule))
-	     (and (string= (org-element-property :type link) (car rule))
-		  (string-match-p (cdr rule)
-				  (org-element-property :path link))
-		  (throw 'exit t)))))))
+	 (cl-some (lambda (rule)
+		    (and (string= (org-element-property :type link) (car rule))
+			 (string-match-p (cdr rule)
+					 (org-element-property :path link))))
+		  (or rules org-export-default-inline-image-rule)))))
+
+(defun org-export-insert-image-links (data info &optional rules)
+  "Insert image links in DATA.
+
+Org syntax does not support nested links.  Nevertheless, some
+export back-ends support images as descriptions of links.  Since
+images are really links to image files, we need to make an
+exception about links nesting.
+
+This function recognizes links whose contents are really images
+and turn them into proper nested links.  It is meant to be used
+as a parse tree filter in back-ends supporting such constructs.
+
+DATA is a parse tree.  INFO is the current state of the export
+process, as a plist.
+
+A description is a valid images if it matches any rule in RULES,
+if non-nil, or `org-export-default-inline-image-rule' otherwise.
+See `org-export-inline-image-p' for more information about the
+structure of RULES.
+
+Return modified DATA."
+  (let ((link-re (format "\\`\\(?:%s\\|%s\\)\\'"
+			 org-plain-link-re
+			 org-angle-link-re))
+	(case-fold-search t))
+    (org-element-map data 'link
+      (lambda (l)
+	(let ((contents (org-element-interpret-data (org-element-contents l))))
+	  (when (and (org-string-nw-p contents)
+		     (string-match link-re contents))
+	    (let ((type (match-string 1 contents))
+		  (path (match-string 2 contents)))
+	      (when (cl-some (lambda (rule)
+			       (and (string= type (car rule))
+				    (string-match-p (cdr rule) path)))
+			     (or rules org-export-default-inline-image-rule))
+		;; Replace contents with image link.
+		(org-element-adopt-elements
+		 (org-element-set-contents l nil)
+		 (with-temp-buffer
+		   (save-excursion (insert contents))
+		   (org-element-link-parser))))))))
+      info nil nil t))
+  data)
 
 (defun org-export-resolve-coderef (ref info)
   "Resolve a code reference REF.
@@ -4167,18 +4248,15 @@ error if no block contains REF."
 	(lambda (el)
 	  (with-temp-buffer
 	    (insert (org-trim (org-element-property :value el)))
-	    (let* ((label-fmt (regexp-quote
-			       (or (org-element-property :label-fmt el)
-				   org-coderef-label-format)))
-		   (ref-re
-		    (format "^.*?\\S-.*?\\([ \t]*\\(%s\\)\\)[ \t]*$"
-			    (format label-fmt ref))))
+	    (let* ((label-fmt (or (org-element-property :label-fmt el)
+				  org-coderef-label-format))
+		   (ref-re (org-src-coderef-regexp label-fmt ref)))
 	      ;; Element containing REF is found.  Resolve it to
 	      ;; either a label or a line number, as needed.
 	      (when (re-search-backward ref-re nil t)
-		(cond
-		 ((org-element-property :use-labels el) ref)
-		 (t (+ (or (org-export-get-loc el info) 0) (line-number-at-pos))))))))
+		(if (org-element-property :use-labels el) ref
+		  (+ (or (org-export-get-loc el info) 0)
+		     (line-number-at-pos)))))))
 	info 'first-match)
       (signal 'org-link-broken (list ref))))
 
@@ -4263,12 +4341,10 @@ Assume LINK type is \"fuzzy\".  White spaces are not
 significant."
   (let* ((search-cells (org-export-string-to-search-cell
 			(org-link-unescape (org-element-property :path link))))
-	 (link-cache
-	  (or (plist-get info :resolve-fuzzy-link-cache)
-	      (plist-get (plist-put info
-				    :resolve-fuzzy-link-cache
-				    (make-hash-table :test #'equal))
-			 :resolve-fuzzy-link-cache)))
+	 (link-cache (or (plist-get info :resolve-fuzzy-link-cache)
+			 (let ((table (make-hash-table :test #'eq)))
+			   (plist-put info :resolve-fuzzy-link-cache table)
+			   table)))
 	 (cached (gethash search-cells link-cache 'not-found)))
     (if (not (eq cached 'not-found)) cached
       (let ((matches
@@ -4385,19 +4461,35 @@ reference consists of alphanumeric characters only."
     (or (car (rassq datum cache))
 	(let* ((crossrefs (plist-get info :crossrefs))
 	       (cells (org-export-search-cells datum))
-	       ;; If any other published document relies on an
-	       ;; association between a search cell and a reference,
-	       ;; make sure to preserve it.  See
-	       ;; `org-publish-resolve-external-link' for details.
-	       (new (or (cdr (cl-some (lambda (c) (assoc c crossrefs)) cells))
+	       ;; Preserve any pre-existing association between
+	       ;; a search cell and a reference, i.e., when some
+	       ;; previously published document referenced a location
+	       ;; within current file (see
+	       ;; `org-publish-resolve-external-link').
+	       ;;
+	       ;; However, there is no guarantee that search cells are
+	       ;; unique, e.g., there might be duplicate custom ID or
+	       ;; two headings with the same title in the file.
+	       ;;
+	       ;; As a consequence, before re-using any reference to
+	       ;; an element or object, we check that it doesn't refer
+	       ;; to a previous element or object.
+	       (new (or (cl-some
+			 (lambda (cell)
+			   (let ((stored (cdr (assoc cell crossrefs))))
+			     (when stored
+			       (let ((old (org-export-format-reference stored)))
+				 (and (not (assoc old cache)) stored)))))
+			 cells)
 			(org-export-new-reference cache)))
 	       (reference-string (org-export-format-reference new)))
 	  ;; Cache contains both data already associated to
 	  ;; a reference and in-use internal references, so as to make
 	  ;; unique references.
 	  (dolist (cell cells) (push (cons cell new) cache))
-	  ;; Keep an associated related to DATUM as not every object
-	  ;; and element can be associated to a search cell.
+	  ;; Retain a direct association between reference string and
+	  ;; DATUM since (1) not every object or element can be given
+	  ;; a search cell (2) it permits quick lookup.
 	  (push (cons reference-string datum) cache)
 	  (plist-put info :internal-references cache)
 	  reference-string))))
@@ -4656,19 +4748,20 @@ code."
 All special columns will be ignored during export."
   ;; The table has a special column when every first cell of every row
   ;; has an empty value or contains a symbol among "/", "#", "!", "$",
-  ;; "*" "_" and "^".  Though, do not consider a first row containing
-  ;; only empty cells as special.
-  (let ((special-column-p 'empty))
+  ;; "*" "_" and "^".  Though, do not consider a first column
+  ;; containing only empty cells as special.
+  (let ((special-column? 'empty))
     (catch 'exit
       (dolist (row (org-element-contents table))
 	(when (eq (org-element-property :type row) 'standard)
 	  (let ((value (org-element-contents
 			(car (org-element-contents row)))))
-	    (cond ((member value '(("/") ("#") ("!") ("$") ("*") ("_") ("^")))
-		   (setq special-column-p 'special))
-		  ((not value))
+	    (cond ((member value
+			   '(("/") ("#") ("!") ("$") ("*") ("_") ("^")))
+		   (setq special-column? 'special))
+		  ((null value))
 		  (t (throw 'exit nil))))))
-      (eq special-column-p 'special))))
+      (eq special-column? 'special))))
 
 (defun org-export-table-has-header-p (table info)
   "Non-nil when TABLE has a header.
@@ -4676,26 +4769,28 @@ All special columns will be ignored during export."
 INFO is a plist used as a communication channel.
 
 A table has a header when it contains at least two row groups."
-  (let ((cache (or (plist-get info :table-header-cache)
-		   (plist-get (setq info
-				    (plist-put info :table-header-cache
-					       (make-hash-table :test 'eq)))
-			      :table-header-cache))))
-    (or (gethash table cache)
-	(let ((rowgroup 1) row-flag)
-	  (puthash
-	   table
-	   (org-element-map table 'table-row
-	     (lambda (row)
-	       (cond
-		((> rowgroup 1) t)
-		((and row-flag (eq (org-element-property :type row) 'rule))
-		 (cl-incf rowgroup) (setq row-flag nil))
-		((and (not row-flag) (eq (org-element-property :type row)
-					 'standard))
-		 (setq row-flag t) nil)))
-	     info 'first-match)
-	   cache)))))
+  (let* ((cache (or (plist-get info :table-header-cache)
+		    (let ((table (make-hash-table :test #'eq)))
+		      (plist-put info :table-header-cache table)
+		      table)))
+	 (cached (gethash table cache 'no-cache)))
+    (if (not (eq cached 'no-cache)) cached
+      (let ((rowgroup 1) row-flag)
+	(puthash table
+		 (org-element-map table 'table-row
+		   (lambda (row)
+		     (cond
+		      ((> rowgroup 1) t)
+		      ((and row-flag
+			    (eq (org-element-property :type row) 'rule))
+		       (cl-incf rowgroup)
+		       (setq row-flag nil))
+		      ((and (not row-flag)
+			    (eq (org-element-property :type row) 'standard))
+		       (setq row-flag t)
+		       nil)))
+		   info 'first-match)
+		 cache)))))
 
 (defun org-export-table-row-is-special-p (table-row _)
   "Non-nil if TABLE-ROW is considered special.
@@ -4736,21 +4831,24 @@ INFO is a plist used as the communication channel.
 Return value is the group number, as an integer, or nil for
 special rows and rows separators.  First group is also table's
 header."
-  (let ((cache (or (plist-get info :table-row-group-cache)
-		   (plist-get (setq info
-				    (plist-put info :table-row-group-cache
-					       (make-hash-table :test 'eq)))
-			      :table-row-group-cache))))
-    (cond ((gethash table-row cache))
-	  ((eq (org-element-property :type table-row) 'rule) nil)
-	  (t (let ((group 0) row-flag)
-	       (org-element-map (org-export-get-parent table-row) 'table-row
-		 (lambda (row)
-		   (if (eq (org-element-property :type row) 'rule)
-		       (setq row-flag nil)
-		     (unless row-flag (cl-incf group) (setq row-flag t)))
-		   (when (eq table-row row) (puthash table-row group cache)))
-		 info 'first-match))))))
+  (when (eq (org-element-property :type table-row) 'standard)
+    (let* ((cache (or (plist-get info :table-row-group-cache)
+		      (let ((table (make-hash-table :test #'eq)))
+			(plist-put info :table-row-group-cache table)
+			table)))
+	   (cached (gethash table-row cache 'no-cache)))
+      (if (not (eq cached 'no-cache)) cached
+	;; First time a row is queried, populate cache with all the
+	;; rows from the table.
+	(let ((group 0) row-flag)
+	  (org-element-map (org-export-get-parent table-row) 'table-row
+	    (lambda (row)
+	      (if (eq (org-element-property :type row) 'rule)
+		  (setq row-flag nil)
+		(unless row-flag (cl-incf group) (setq row-flag t))
+		(puthash row group cache)))
+	    info))
+	(gethash table-row cache)))))
 
 (defun org-export-table-cell-width (table-cell info)
   "Return TABLE-CELL contents width.
@@ -4765,10 +4863,9 @@ same column as TABLE-CELL, or nil."
 	 (columns (length cells))
 	 (column (- columns (length (memq table-cell cells))))
 	 (cache (or (plist-get info :table-cell-width-cache)
-		    (plist-get (setq info
-				     (plist-put info :table-cell-width-cache
-						(make-hash-table :test 'eq)))
-			       :table-cell-width-cache)))
+		    (let ((table (make-hash-table :test #'eq)))
+		      (plist-put info :table-cell-width-cache table)
+		      table)))
 	 (width-vector (or (gethash table cache)
 			   (puthash table (make-vector columns 'empty) cache)))
 	 (value (aref width-vector column)))
@@ -4809,10 +4906,9 @@ Possible values are `left', `right' and `center'."
 	 (columns (length cells))
 	 (column (- columns (length (memq table-cell cells))))
 	 (cache (or (plist-get info :table-cell-alignment-cache)
-		    (plist-get (setq info
-				     (plist-put info :table-cell-alignment-cache
-						(make-hash-table :test 'eq)))
-			       :table-cell-alignment-cache)))
+		    (let ((table (make-hash-table :test #'eq)))
+		      (plist-put info :table-cell-alignment-cache table)
+		      table)))
 	 (align-vector (or (gethash table cache)
 			   (puthash table (make-vector columns nil) cache))))
     (or (aref align-vector column)
@@ -5015,17 +5111,24 @@ INFO is a plist used as a communication channel."
 (defun org-export-table-row-number (table-row info)
   "Return TABLE-ROW number.
 INFO is a plist used as a communication channel.  Return value is
-zero-based and ignores separators.  The function returns nil for
-special columns and separators."
-  (when (and (eq (org-element-property :type table-row) 'standard)
-	     (not (org-export-table-row-is-special-p table-row info)))
-    (let ((number 0))
-      (org-element-map (org-export-get-parent-table table-row) 'table-row
-	(lambda (row)
-	  (cond ((eq row table-row) number)
-		((eq (org-element-property :type row) 'standard)
-		 (cl-incf number) nil)))
-	info 'first-match))))
+zero-indexed and ignores separators.  The function returns nil
+for special rows and separators."
+  (when (eq (org-element-property :type table-row) 'standard)
+    (let* ((cache (or (plist-get info :table-row-number-cache)
+		      (let ((table (make-hash-table :test #'eq)))
+			(plist-put info :table-row-number-cache table)
+			table)))
+	   (cached (gethash table-row cache 'no-cache)))
+      (if (not (eq cached 'no-cache)) cached
+	;; First time a row is queried, populate cache with all the
+	;; rows from the table.
+	(let ((number -1))
+	  (org-element-map (org-export-get-parent-table table-row) 'table-row
+	    (lambda (row)
+	      (when (eq (org-element-property :type row) 'standard)
+		(puthash row (cl-incf number) cache)))
+	    info))
+	(gethash table-row cache)))))
 
 (defun org-export-table-dimensions (table info)
   "Return TABLE dimensions.
@@ -5198,7 +5301,19 @@ Return a list of src-block elements with a caption."
 ;; `org-export-smart-quotes-alist'.
 
 (defconst org-export-smart-quotes-alist
-  '(("da"
+  '(("ar"
+     (primary-opening
+      :utf-8 "«" :html "&laquo;" :latex "\\guillemotleft{}"
+      :texinfo "@guillemetleft{}")
+     (primary-closing
+      :utf-8 "»" :html "&raquo;" :latex "\\guillemotright{}"
+      :texinfo "@guillemetright{}")
+     (secondary-opening :utf-8 "‹" :html "&lsaquo;" :latex "\\guilsinglleft{}"
+			:texinfo "@guilsinglleft{}")
+     (secondary-closing :utf-8 "›" :html "&rsaquo;" :latex "\\guilsinglright{}"
+			:texinfo "@guilsinglright{}")
+     (apostrophe :utf-8 "’" :html "&rsquo;"))
+    ("da"
      ;; one may use: »...«, "...", ›...‹, or '...'.
      ;; http://sproget.dk/raad-og-regler/retskrivningsregler/retskrivningsregler/a7-40-60/a7-58-anforselstegn/
      ;; LaTeX quotes require Babel!
@@ -5522,6 +5637,7 @@ them."
   '(("%e %n: %c"
      ("fr" :default "%e %n : %c" :html "%e&nbsp;%n&nbsp;: %c"))
     ("Author"
+     ("ar" :default "تأليف")
      ("ca" :default "Autor")
      ("cs" :default "Autor")
      ("da" :default "Forfatter")
@@ -5547,6 +5663,7 @@ them."
      ("zh-CN" :html "&#20316;&#32773;" :utf-8 "作者")
      ("zh-TW" :html "&#20316;&#32773;" :utf-8 "作者"))
     ("Continued from previous page"
+     ("ar" :default "تتمة الصفحة السابقة")
      ("de" :default "Fortsetzung von vorheriger Seite")
      ("es" :html "Contin&uacute;a de la p&aacute;gina anterior" :ascii "Continua de la pagina anterior" :default "Continúa de la página anterior")
      ("fr" :default "Suite de la page précédente")
@@ -5557,6 +5674,7 @@ them."
      ("ru" :html "(&#1055;&#1088;&#1086;&#1076;&#1086;&#1083;&#1078;&#1077;&#1085;&#1080;&#1077;)"
       :utf-8 "(Продолжение)"))
     ("Continued on next page"
+     ("ar" :default "التتمة في الصفحة التالية")
      ("de" :default "Fortsetzung nächste Seite")
      ("es" :html "Contin&uacute;a en la siguiente p&aacute;gina" :ascii "Continua en la siguiente pagina" :default "Continúa en la siguiente página")
      ("fr" :default "Suite page suivante")
@@ -5567,6 +5685,7 @@ them."
      ("ru" :html "(&#1055;&#1088;&#1086;&#1076;&#1086;&#1083;&#1078;&#1077;&#1085;&#1080;&#1077; &#1089;&#1083;&#1077;&#1076;&#1091;&#1077;&#1090;)"
       :utf-8 "(Продолжение следует)"))
     ("Date"
+     ("ar" :default "بتاريخ")
      ("ca" :default "Data")
      ("cs" :default "Datum")
      ("da" :default "Dato")
@@ -5591,6 +5710,7 @@ them."
      ("zh-CN" :html "&#26085;&#26399;" :utf-8 "日期")
      ("zh-TW" :html "&#26085;&#26399;" :utf-8 "日期"))
     ("Equation"
+     ("ar" :default "معادلة")
      ("da" :default "Ligning")
      ("de" :default "Gleichung")
      ("es" :ascii "Ecuacion" :html "Ecuaci&oacute;n" :default "Ecuación")
@@ -5607,6 +5727,7 @@ them."
      ("sv" :default "Ekvation")
      ("zh-CN" :html "&#26041;&#31243;" :utf-8 "方程"))
     ("Figure"
+     ("ar" :default "شكل")
      ("da" :default "Figur")
      ("de" :default "Abbildung")
      ("es" :default "Figura")
@@ -5621,6 +5742,7 @@ them."
      ("sv" :default "Illustration")
      ("zh-CN" :html "&#22270;" :utf-8 "图"))
     ("Figure %d:"
+     ("ar" :default "شكل %d:")
      ("da" :default "Figur %d")
      ("de" :default "Abbildung %d:")
      ("es" :default "Figura %d:")
@@ -5636,6 +5758,7 @@ them."
      ("sv" :default "Illustration %d")
      ("zh-CN" :html "&#22270;%d&nbsp;" :utf-8 "图%d "))
     ("Footnotes"
+     ("ar" :default "الهوامش")
      ("ca" :html "Peus de p&agrave;gina")
      ("cs" :default "Pozn\xe1mky pod carou")
      ("da" :default "Fodnoter")
@@ -5662,6 +5785,7 @@ them."
      ("zh-CN" :html "&#33050;&#27880;" :utf-8 "脚注")
      ("zh-TW" :html "&#33139;&#35387;" :utf-8 "腳註"))
     ("List of Listings"
+     ("ar" :default "قائمة بالبرامج")
      ("da" :default "Programmer")
      ("de" :default "Programmauflistungsverzeichnis")
      ("es" :ascii "Indice de Listados de programas" :html "&Iacute;ndice de Listados de programas" :default "Índice de Listados de programas")
@@ -5674,6 +5798,7 @@ them."
       :utf-8 "Список распечаток")
      ("zh-CN" :html "&#20195;&#30721;&#30446;&#24405;" :utf-8 "代码目录"))
     ("List of Tables"
+     ("ar" :default "قائمة بالجداول")
      ("da" :default "Tabeller")
      ("de" :default "Tabellenverzeichnis")
      ("es" :ascii "Indice de tablas" :html "&Iacute;ndice de tablas" :default "Índice de tablas")
@@ -5690,6 +5815,7 @@ them."
      ("sv" :default "Tabeller")
      ("zh-CN" :html "&#34920;&#26684;&#30446;&#24405;" :utf-8 "表格目录"))
     ("Listing"
+     ("ar" :default "برنامج")
      ("da" :default "Program")
      ("de" :default "Programmlisting")
      ("es" :default "Listado de programa")
@@ -5703,6 +5829,7 @@ them."
       :utf-8 "Распечатка")
      ("zh-CN" :html "&#20195;&#30721;" :utf-8 "代码"))
     ("Listing %d:"
+     ("ar" :default "برنامج %d:")
      ("da" :default "Program %d")
      ("de" :default "Programmlisting %d")
      ("es" :default "Listado de programa %d")
@@ -5716,10 +5843,18 @@ them."
       :utf-8 "Распечатка %d.:")
      ("zh-CN" :html "&#20195;&#30721;%d&nbsp;" :utf-8 "代码%d "))
     ("References"
+     ("ar" :default "المراجع")
      ("fr" :ascii "References" :default "Références")
      ("de" :default "Quellen")
      ("es" :default "Referencias"))
+    ("See figure %s"
+     ("fr" :default "cf. figure %s"
+      :html "cf.&nbsp;figure&nbsp;%s" :latex "cf.~figure~%s"))
+    ("See listing %s"
+     ("fr" :default "cf. programme %s"
+      :html "cf.&nbsp;programme&nbsp;%s" :latex "cf.~programme~%s"))
     ("See section %s"
+     ("ar" :default "انظر قسم %s")
      ("da" :default "jævnfør afsnit %s")
      ("de" :default "siehe Abschnitt %s")
      ("es" :ascii "Vea seccion %s" :html "Vea secci&oacute;n %s" :default "Vea sección %s")
@@ -5731,7 +5866,11 @@ them."
      ("ru" :html "&#1057;&#1084;. &#1088;&#1072;&#1079;&#1076;&#1077;&#1083; %s"
       :utf-8 "См. раздел %s")
      ("zh-CN" :html "&#21442;&#35265;&#31532;%s&#33410;" :utf-8 "参见第%s节"))
+    ("See table %s"
+     ("fr" :default "cf. tableau %s"
+      :html "cf.&nbsp;tableau&nbsp;%s" :latex "cf.~tableau~%s"))
     ("Table"
+     ("ar" :default "جدول")
      ("de" :default "Tabelle")
      ("es" :default "Tabla")
      ("et" :default "Tabel")
@@ -5743,6 +5882,7 @@ them."
       :utf-8 "Таблица")
      ("zh-CN" :html "&#34920;" :utf-8 "表"))
     ("Table %d:"
+     ("ar" :default "جدول %d:")
      ("da" :default "Tabel %d")
      ("de" :default "Tabelle %d")
      ("es" :default "Tabla %d")
@@ -5759,6 +5899,7 @@ them."
      ("sv" :default "Tabell %d")
      ("zh-CN" :html "&#34920;%d&nbsp;" :utf-8 "表%d "))
     ("Table of Contents"
+     ("ar" :default "قائمة المحتويات")
      ("ca" :html "&Iacute;ndex")
      ("cs" :default "Obsah")
      ("da" :default "Indhold")
@@ -5785,6 +5926,7 @@ them."
      ("zh-CN" :html "&#30446;&#24405;" :utf-8 "目录")
      ("zh-TW" :html "&#30446;&#37636;" :utf-8 "目錄"))
     ("Unknown reference"
+     ("ar" :default "مرجع غير معرّف")
      ("da" :default "ukendt reference")
      ("de" :default "Unbekannter Verweis")
      ("es" :default "Referencia desconocida")
@@ -6082,29 +6224,37 @@ directory.
 Return file name as a string."
   (let* ((visited-file (buffer-file-name (buffer-base-buffer)))
 	 (base-name
-	  ;; File name may come from EXPORT_FILE_NAME subtree
-	  ;; property.
-	  (file-name-sans-extension
-	   (or (and subtreep (org-entry-get nil "EXPORT_FILE_NAME" 'selective))
-	       ;; File name may be extracted from buffer's associated
-	       ;; file, if any.
-	       (and visited-file (file-name-nondirectory visited-file))
-	       ;; Can't determine file name on our own: Ask user.
-	       (read-file-name
-		"Output file: " pub-dir nil nil nil
-		(lambda (name)
-		  (string= (file-name-extension name t) extension))))))
+	  (concat
+	   (file-name-sans-extension
+	    (or
+	     ;; Check EXPORT_FILE_NAME subtree property.
+	     (and subtreep (org-entry-get nil "EXPORT_FILE_NAME" 'selective))
+	     ;; Check #+EXPORT_FILE_NAME keyword.
+	     (org-with-point-at (point-min)
+	       (catch :found
+		 (let ((case-fold-search t))
+		   (while (re-search-forward
+			   "^[ \t]*#\\+EXPORT_FILE_NAME:[ \t]+\\S-" nil t)
+		     (let ((element (org-element-at-point)))
+		       (when (eq 'keyword (org-element-type element))
+			 (throw :found
+				(org-element-property :value element))))))))
+	     ;; Extract from buffer's associated file, if any.
+	     (and visited-file (file-name-nondirectory visited-file))
+	     ;; Can't determine file name on our own: ask user.
+	     (read-file-name
+	      "Output file: " pub-dir nil nil nil
+	      (lambda (n) (string= extension (file-name-extension n t))))))
+	   extension))
 	 (output-file
 	  ;; Build file name.  Enforce EXTENSION over whatever user
 	  ;; may have come up with.  PUB-DIR, if defined, always has
 	  ;; precedence over any provided path.
 	  (cond
-	   (pub-dir
-	    (concat (file-name-as-directory pub-dir)
-		    (file-name-nondirectory base-name)
-		    extension))
-	   ((file-name-absolute-p base-name) (concat base-name extension))
-	   (t (concat (file-name-as-directory ".") base-name extension)))))
+	   (pub-dir (concat (file-name-as-directory pub-dir)
+			    (file-name-nondirectory base-name)))
+	   ((file-name-absolute-p base-name) base-name)
+	   (t base-name))))
     ;; If writing to OUTPUT-FILE would overwrite original file, append
     ;; EXTENSION another time to final name.
     (if (and visited-file (file-equal-p visited-file output-file))

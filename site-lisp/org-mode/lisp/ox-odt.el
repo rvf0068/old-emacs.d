@@ -1,6 +1,6 @@
 ;;; ox-odt.el --- OpenDocument Text Exporter for Org Mode -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2017 Free Software Foundation, Inc.
 
 ;; Author: Jambunathan K <kjambunathan at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -85,7 +85,8 @@
   :filters-alist '((:filter-parse-tree
 		    . (org-odt--translate-latex-fragments
 		       org-odt--translate-description-lists
-		       org-odt--translate-list-tables)))
+		       org-odt--translate-list-tables
+		       org-odt--translate-image-links)))
   :menu-entry
   '(?o "Export to ODT"
        ((?o "As ODT file" org-odt-export-to-odt)
@@ -847,7 +848,7 @@ ON-OR-OFF                 := t | nil
 For example, with the following configuration
 
 \(setq org-odt-table-styles
-      '((\"TableWithHeaderRowsAndColumns\" \"Custom\"
+      \\='((\"TableWithHeaderRowsAndColumns\" \"Custom\"
          ((use-first-row-styles . t)
           (use-first-column-styles . t)))
         (\"TableWithHeaderColumns\" \"Custom\"
@@ -3687,6 +3688,11 @@ contextual information."
 
 ;;; Filters
 
+;;; Images
+
+(defun org-odt--translate-image-links (data _backend info)
+  (org-export-insert-image-links data info org-odt-inline-image-rules))
+
 ;;;; LaTeX fragments
 
 (defun org-odt--translate-latex-fragments (tree _backend info)
@@ -3741,9 +3747,9 @@ contextual information."
 		 (org-link
 		  (let ((link (with-temp-buffer
 				(insert latex-frag)
-				(org-format-latex cache-subdir cache-dir
-						  nil display-msg
-						  nil processing-type)
+				(org-format-latex cache-subdir nil nil cache-dir
+						  nil display-msg nil
+						  processing-type)
 				(buffer-substring-no-properties
 				 (point-min) (point-max)))))
 		    (if (string-match-p "file:\\([^]]*\\)" link) link

@@ -39,16 +39,18 @@
 ;; Define the backend itself
 (org-export-define-derived-backend 'confluence 'ascii
   :translate-alist '((bold . org-confluence-bold)
+		     (code . org-confluence-code)
 		     (example-block . org-confluence-example-block)
 		     (fixed-width . org-confluence-fixed-width)
 		     (footnote-definition . org-confluence-empty)
 		     (footnote-reference . org-confluence-empty)
 		     (headline . org-confluence-headline)
 		     (italic . org-confluence-italic)
-                     (item . org-confluence-item)
+		     (item . org-confluence-item)
 		     (link . org-confluence-link)
 		     (paragraph . org-confluence-paragraph)
 		     (property-drawer . org-confluence-property-drawer)
+		     (quote-block . org-confluence-quote-block)
 		     (section . org-confluence-section)
 		     (src-block . org-confluence-src-block)
 		     (strike-through . org-confluence-strike-through)
@@ -56,7 +58,8 @@
 		     (table-cell . org-confluence-table-cell)
 		     (table-row . org-confluence-table-row)
 		     (template . org-confluence-template)
-		     (underline . org-confluence-underline)))
+		     (underline . org-confluence-underline)
+		     (verbatim . org-confluence-verbatim)))
 
 (defcustom org-confluence-lang-alist
   '(("sh" . "bash"))
@@ -79,12 +82,28 @@
   (format "_%s_" contents))
 
 (defun org-confluence-item (item contents info)
-  (concat (make-string (1+ (org-confluence--li-depth item)) ?\-)
-          " "
-          (org-trim contents)))
+  (let* ((plain-list (org-export-get-parent item))
+         (type (org-element-property :type plain-list))
+         (bullet (if (eq type 'ordered) ?\# ?\-)))
+    (concat (make-string (1+ (org-confluence--li-depth item)) bullet)
+            " "
+    (if (eq type 'descriptive)
+ (concat "*"
+ (org-export-data (org-element-property :tag item) info)
+ "* - "))
+            (org-trim contents))))
 
 (defun org-confluence-fixed-width (fixed-width contents info)
-  (format "\{\{%s\}\}" contents))
+  (org-confluence--block
+   "none"
+   "Confluence"
+   (org-trim (org-element-property :value fixed-width))))
+
+(defun org-confluence-verbatim (verbatim contents info)
+  (format "\{\{%s\}\}" (org-element-property :value verbatim)))
+
+(defun org-confluence-code (code contents info)
+  (format "\{\{%s\}\}" (org-element-property :value code)))
 
 (defun org-confluence-headline (headline contents info)
   (let ((low-level-rank (org-export-low-level-p headline info))
@@ -116,6 +135,9 @@ a communication channel."
 (defun org-confluence-property-drawer (property-drawer contents info)
   (and (org-string-nw-p contents)
        (format "\{\{%s\}\}" contents)))
+
+(defun org-confluence-quote-block (quote-block contents info)
+  (format "{quote}\n%s{quote}" contents))
 
 (defun org-confluence-section (section contents info)
   contents)

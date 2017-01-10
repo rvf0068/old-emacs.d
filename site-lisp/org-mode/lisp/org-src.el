@@ -1,6 +1,6 @@
 ;;; org-src.el --- Source code examples in Org       -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2017 Free Software Foundation, Inc.
 ;;
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;;	   Bastien Guerry <bzg@gnu.org>
@@ -765,7 +765,7 @@ white spaces.  Match group 2 contains the same string without any
 surrounding space.  Match group 3 contains the label.
 
 A coderef format regexp can only match at the end of a line."
-  (format "\\S-\\([ \t]*\\(%s\\)[ \t]*\\)$"
+  (format "\\([ \t]*\\(%s\\)[ \t]*\\)$"
 	  (replace-regexp-in-string
 	   "%s"
 	   (if label (regexp-quote label) "\\([-a-zA-Z0-9_][-a-zA-Z0-9_ ]*\\)")

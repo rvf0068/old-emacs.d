@@ -1154,7 +1154,7 @@
 	  (org-test-with-temp-text ""
 	    (org-insert-heading)
 	    (buffer-string))))
-  ;; At the beginning of a line, turn it into a headline
+  ;; At the beginning of a line, turn it into a headline.
   (should
    (equal "* P"
 	  (org-test-with-temp-text "<point>P"
@@ -1182,13 +1182,13 @@
 	    (buffer-string))))
   ;; In the middle of a headline, split it if allowed.
   (should
-   (equal "* H\n* 1"
+   (equal "* H\n* 1\n"
 	  (org-test-with-temp-text "* H<point>1"
 	    (let ((org-M-RET-may-split-line '((headline . t))))
 	      (org-insert-heading))
 	    (buffer-string))))
   (should
-   (equal "* H1\n* "
+   (equal "* H1\n* \n"
 	  (org-test-with-temp-text "* H<point>1"
 	    (let ((org-M-RET-may-split-line '((headline . nil))))
 	      (org-insert-heading))
@@ -1196,70 +1196,53 @@
   ;; However, splitting cannot happen on TODO keywords, priorities or
   ;; tags.
   (should
-   (equal "* TODO H1\n* "
+   (equal "* TODO H1\n* \n"
 	  (org-test-with-temp-text "* TO<point>DO H1"
 	    (let ((org-M-RET-may-split-line '((headline . t))))
 	      (org-insert-heading))
 	    (buffer-string))))
   (should
-   (equal "* [#A] H1\n* "
+   (equal "* [#A] H1\n* \n"
 	  (org-test-with-temp-text "* [#<point>A] H1"
 	    (let ((org-M-RET-may-split-line '((headline . t))))
 	      (org-insert-heading))
 	    (buffer-string))))
   (should
-   (equal "* H1 :tag:\n* "
+   (equal "* H1 :tag:\n* \n"
 	  (org-test-with-temp-text "* H1 :ta<point>g:"
 	    (let ((org-M-RET-may-split-line '((headline . t))))
 	      (org-insert-heading))
 	    (buffer-string))))
-  ;; When on a list, insert an item instead, unless called with an
-  ;; universal argument or if list is invisible.  In this case, create
-  ;; a new headline after contents.
+  ;; New headline level depends on the level of the headline above.
   (should
-   (equal "* H\n- item\n- "
-	  (org-test-with-temp-text "* H\n- item<point>"
-	    (let ((org-insert-heading-respect-content nil))
+   (equal "** H\n** P"
+	  (org-test-with-temp-text "** H\n<point>P"
+	    (org-insert-heading)
+	    (buffer-string))))
+  (should
+   (equal "** H\nPara\n** graph"
+	  (org-test-with-temp-text "** H\nPara<point>graph"
+	    (let ((org-M-RET-may-split-line '((default . t))))
 	      (org-insert-heading))
 	    (buffer-string))))
   (should
-   (equal "* H\n- item\n- item 2\n* "
-	  (org-test-with-temp-text "* H\n- item<point>\n- item 2"
-	    (let ((org-insert-heading-respect-content nil))
-	      (org-insert-heading '(4)))
+   (equal "** \n** H"
+	  (org-test-with-temp-text "** H"
+	    (org-insert-heading)
 	    (buffer-string))))
-  (should
-   (equal "* H\n- item\n* "
-	  (org-test-with-temp-text "* H\n- item"
-	    (org-cycle)
-	    (goto-char (point-max))
-	    (let ((org-insert-heading-respect-content nil)) (org-insert-heading))
-	    (buffer-string))))
-  ;; Preserve list visibility when inserting an item.
-  (should
-   (equal
-    '(outline outline)
-    (org-test-with-temp-text "- A\n  - B\n- C\n  - D"
-      (let ((org-cycle-include-plain-lists t))
-	(org-cycle)
-	(forward-line 2)
-	(org-cycle)
-	(let ((org-insert-heading-respect-content nil)) (org-insert-heading))
-	(list (get-char-property (line-beginning-position 0) 'invisible)
-	      (get-char-property (line-end-position 2) 'invisible))))))
   ;; When called with one universal argument, insert a new headline at
   ;; the end of the current subtree, independently on the position of
   ;; point.
   (should
    (equal
-    "* H1\n** H2\n* "
+    "* H1\n** H2\n* \n"
     (org-test-with-temp-text "* H1\n** H2"
       (let ((org-insert-heading-respect-content nil))
 	(org-insert-heading '(4)))
       (buffer-string))))
   (should
    (equal
-    "* H1\n** H2\n* "
+    "* H1\n** H2\n* \n"
     (org-test-with-temp-text "* H<point>1\n** H2"
       (let ((org-insert-heading-respect-content nil))
 	(org-insert-heading '(4)))
@@ -1267,7 +1250,7 @@
   ;; When called with two universal arguments, insert a new headline
   ;; at the end of the grandparent subtree.
   (should
-   (equal "* H1\n** H3\n- item\n** H2\n** "
+   (equal "* H1\n** H3\n- item\n** H2\n** \n"
 	  (org-test-with-temp-text "* H1\n** H3\n- item<point>\n** H2"
 	    (let ((org-insert-heading-respect-content nil))
 	      (org-insert-heading '(16)))
@@ -1275,7 +1258,7 @@
   ;; When optional TOP-LEVEL argument is non-nil, always insert
   ;; a level 1 heading.
   (should
-   (equal "* H1\n** H2\n* "
+   (equal "* H1\n** H2\n* \n"
 	  (org-test-with-temp-text "* H1\n** H2<point>"
 	    (org-insert-heading nil nil t)
 	    (buffer-string))))
@@ -1284,9 +1267,34 @@
 	  (org-test-with-temp-text "* H1\n- item<point>"
 	    (org-insert-heading nil nil t)
 	    (buffer-string))))
+  ;; Obey `org-blank-before-new-entry'.
+  (should
+   (equal "* H1\n\n* \n"
+	  (org-test-with-temp-text "* H1<point>"
+	    (let ((org-blank-before-new-entry '((heading . t))))
+	      (org-insert-heading))
+	    (buffer-string))))
+  (should
+   (equal "* H1\n* \n"
+	  (org-test-with-temp-text "* H1<point>"
+	    (let ((org-blank-before-new-entry '((heading . nil))))
+	      (org-insert-heading))
+	    (buffer-string))))
+  (should
+   (equal "* H1\n* H2\n* \n"
+	  (org-test-with-temp-text "* H1\n* H2<point>"
+	    (let ((org-blank-before-new-entry '((heading . auto))))
+	      (org-insert-heading))
+	    (buffer-string))))
+  (should
+   (equal "* H1\n\n* H2\n\n* \n"
+	  (org-test-with-temp-text "* H1\n\n* H2<point>"
+	    (let ((org-blank-before-new-entry '((heading . auto))))
+	      (org-insert-heading))
+	    (buffer-string))))
   ;; Corner case: correctly insert a headline after an empty one.
   (should
-   (equal "* \n* "
+   (equal "* \n* \n"
 	  (org-test-with-temp-text "* <point>"
 	    (org-insert-heading)
 	    (buffer-string)))))
@@ -1300,16 +1308,19 @@
      (nth 2 (org-heading-components))))
   ;; Add headline at the end of the first subtree
   (should
-   (org-test-with-temp-text "* H1\nH1Body\n** H2\nH2Body"
-     (search-forward "H1Body")
-     (org-insert-todo-heading-respect-content)
-     (and (eobp) (org-at-heading-p))))
+   (equal
+    "* TODO \n"
+    (org-test-with-temp-text "* H1\nH1Body<point>\n** H2\nH2Body"
+      (org-insert-todo-heading-respect-content)
+      (buffer-substring-no-properties (line-beginning-position) (point-max)))))
   ;; In a list, do not create a new item.
   (should
-   (org-test-with-temp-text "* H\n- an item\n- another one"
-     (search-forward "an ")
-     (org-insert-todo-heading-respect-content)
-     (and (eobp) (org-at-heading-p)))))
+   (equal
+    "* TODO \n"
+    (org-test-with-temp-text "* H\n- an item\n- another one"
+      (search-forward "an ")
+      (org-insert-todo-heading-respect-content)
+      (buffer-substring-no-properties (line-beginning-position) (point-max))))))
 
 (ert-deftest test-org/clone-with-time-shift ()
   "Test `org-clone-subtree-with-time-shift'."
@@ -2098,7 +2109,8 @@ SCHEDULED: <2014-03-04 tue.>"
      (let ((org-link-search-must-match-exact-headline t)) (org-open-at-point))
      (looking-at "\\* Test")))
   ;; Heading match should not care about spaces, cookies, TODO
-  ;; keywords, priorities, and tags.
+  ;; keywords, priorities, and tags.  However, TODO keywords are
+  ;; case-sensitive.
   (should
    (let ((first-line
 	  "** TODO [#A] [/]  Test [1/2] [33%] 1 \t  2 [%] :work:urgent: "))
@@ -2108,23 +2120,42 @@ SCHEDULED: <2014-03-04 tue.>"
 	     (org-todo-regexp "TODO"))
 	 (org-open-at-point))
        (looking-at (regexp-quote first-line)))))
+  (should-error
+   (org-test-with-temp-text "** todo Test 1 2\nFoo Bar\n<point>[[*Test 1 2]]"
+     (let ((org-link-search-must-match-exact-headline nil)
+	   (org-todo-regexp "TODO"))
+       (org-open-at-point))))
   ;; Heading match should still be exact.
   (should-error
-   (let ((first-line
-	  "** TODO [#A] [/]  Test [1/2] [33%] 1 \t  2 [%] :work:urgent: "))
-     (org-test-with-temp-text
-	 (concat first-line "\nFoo Bar\n<point>[[*Test 1]]")
-       (let ((org-link-search-must-match-exact-headline nil)
-	     (org-todo-regexp "TODO"))
-	 (org-open-at-point)))))
+   (org-test-with-temp-text "
+** TODO [#A] [/]  Test [1/2] [33%] 1 \t  2 [%] :work:urgent:
+Foo Bar
+<point>[[*Test 1]]"
+     (let ((org-link-search-must-match-exact-headline nil)
+	   (org-todo-regexp "TODO"))
+       (org-open-at-point))))
+  (should
+   (org-test-with-temp-text "* Test 1 2 3\n** Test 1 2\n<point>[[*Test 1 2]]"
+     (let ((org-link-search-must-match-exact-headline nil)
+	   (org-todo-regexp "TODO"))
+       (org-open-at-point))
+     (looking-at-p (regexp-quote "** Test 1 2"))))
   ;; Heading match ignores COMMENT keyword.
   (should
    (org-test-with-temp-text "[[*Test]]\n* COMMENT Test"
      (org-open-at-point)
      (looking-at "\\* COMMENT Test")))
+  (should
+   (org-test-with-temp-text "[[*Test]]\n* TODO COMMENT Test"
+     (org-open-at-point)
+     (looking-at "\\* TODO COMMENT Test")))
   ;; Correctly un-hexify fuzzy links.
   (should
    (org-test-with-temp-text "* With space\n[[*With%20space][With space<point>]]"
+     (org-open-at-point)
+     (bobp)))
+  (should
+   (org-test-with-temp-text "* [1]\n[[*%5B1%5D<point>]]"
      (org-open-at-point)
      (bobp))))
 
@@ -3232,18 +3263,27 @@ Outside."
   ;; Error when trying to move first element of buffer.
   (should-error
    (org-test-with-temp-text "Paragraph 1.\n\nParagraph 2."
-     (org-drag-element-backward)))
+     (org-drag-element-backward))
+   :type 'user-error)
   ;; Error when trying to swap nested elements.
   (should-error
    (org-test-with-temp-text "#+BEGIN_CENTER\nTest.\n#+END_CENTER"
      (forward-line)
-     (org-drag-element-backward)))
+     (org-drag-element-backward))
+   :type 'user-error)
   ;; Error when trying to swap an headline element and a non-headline
   ;; element.
   (should-error
    (org-test-with-temp-text "Test.\n* Head 1"
      (forward-line)
-     (org-drag-element-backward)))
+     (org-drag-element-backward))
+   :type 'user-error)
+  ;; Error when called before first element.
+  (should-error
+   (org-test-with-temp-text "\n"
+     (forward-line)
+     (org-drag-element-backward))
+   :type 'user-error)
   ;; Preserve visibility of elements and their contents.
   (should
    (equal '((63 . 82) (26 . 48))
@@ -3275,7 +3315,13 @@ Text.
   ;;    headline.
   (org-test-with-temp-text "Test.\n* Head 1"
     (should-error (org-drag-element-forward)))
-  ;; 4. Otherwise, swap elements, preserving column and blank lines
+  ;; 4. Error when called before first element.
+  (should-error
+   (org-test-with-temp-text "\n"
+     (forward-line)
+     (org-drag-element-backward))
+   :type 'user-error)
+  ;; 5. Otherwise, swap elements, preserving column and blank lines
   ;;    between elements.
   (org-test-with-temp-text "Paragraph 1\n\n\nPara2\n\nPara3"
     (search-forward "graph")
@@ -5108,6 +5154,24 @@ Paragraph<point>"
      (org-hide-block-toggle-maybe)))
   (should-not
    (org-test-with-temp-text "Paragraph" (org-hide-block-toggle-maybe))))
+
+(ert-deftest test-org/set-tags ()
+  "Test `org-set-tags' specifications."
+  ;; Tags set via fast-tag-selection should be visible afterwards
+  (should
+   (let ((org-tag-alist '(("NEXT" . ?n)))
+	 (org-fast-tag-selection-single-key t))
+     (cl-letf (((symbol-function 'read-char-exclusive) (lambda () ?n))
+	       ((symbol-function 'window-width) (lambda (&rest args) 100)))
+       (org-test-with-temp-text "<point>* Headline\nAnd its content\n* And another headline\n\nWith some content"
+	 ;; Show only headlines
+	 (org-content)
+	 ;; Set NEXT tag on current entry
+	 (org-set-tags nil nil)
+	 ;; Move point to that NEXT tag
+	 (search-forward "NEXT") (backward-word)
+	 ;; And it should be visible (i.e. no overlays)
+	 (not (overlays-at (point))))))))
 
 (ert-deftest test-org/show-set-visibility ()
   "Test `org-show-set-visibility' specifications."

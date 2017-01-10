@@ -1,6 +1,6 @@
 ;;; org-capture.el --- Fast note taking in Org       -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2017 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -56,6 +56,7 @@
 (declare-function org-decrypt-entry "org-crypt" ())
 (declare-function org-encrypt-entry "org-crypt" ())
 (declare-function org-table-analyze "org-table" ())
+(declare-function org-table-current-dline "org-table" ())
 (declare-function org-table-goto-line "org-table" (N))
 
 (defvar org-end-time-was-given)

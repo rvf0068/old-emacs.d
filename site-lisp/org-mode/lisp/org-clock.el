@@ -1,6 +1,6 @@
 ;;; org-clock.el --- The time clocking code for Org mode -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -679,7 +679,7 @@ If not, show simply the clocked time like 01:50."
 				   "] (" (replace-regexp-in-string "%" "%%" org-clock-heading) ")")
 			  'face 'org-mode-line-clock)))
 	  (format clockstr work-done-str))
-      (propertize (concat "[" (org-minutes-to-clocksum-string clocked-time)
+      (propertize (concat " [" (org-minutes-to-clocksum-string clocked-time)
 			  "]" (format " (%s)" org-clock-heading))
 		  'face 'org-mode-line-clock))))
 
@@ -2370,6 +2370,7 @@ the currently selected interval size."
 		    (`file-with-archives
 		     (and buffer-file-name
 			  (org-add-archive-files (list buffer-file-name))))
+		    ((pred consp) scope)
 		    (_ (or (buffer-file-name) (current-buffer)))))
 	   (block (plist-get params :block))
 	   (ts (plist-get params :tstart))
@@ -2430,8 +2431,7 @@ the currently selected interval size."
 	     ;; Even though `file-with-archives' can consist of
 	     ;; multiple files, we consider this is one extended file
 	     ;; instead.
-	     (cond ((eq scope 'file-with-archives) nil)
-		   ((consp files)))))
+	     (and (consp files) (not (eq scope 'file-with-archives)))))
 
 	(funcall formatter
 		 origin
@@ -2852,23 +2852,16 @@ TOTAL s a time string like 10:21 specifying the total times.
 STRINGS is a list of strings that should be checked for a time.
 The first string that does have a time will be used.
 This function is made for clock tables."
-  (let ((re "\\([0-9]+\\):\\([0-9]+\\)")
-	tot s)
-    (save-match-data
-      (catch 'exit
-	(if (not (string-match re total))
-	    (throw 'exit 0.)
-	  (setq tot (+ (string-to-number (match-string 2 total))
-		       (* 60 (string-to-number (match-string 1 total)))))
-	  (if (= tot 0.) (throw 'exit 0.)))
-	(while (setq s (pop strings))
-	  (if (string-match "\\([0-9]+\\):\\([0-9]+\\)" s)
-	      (throw 'exit
-		     (/ (* 100.0 (+ (string-to-number (match-string 2 s))
-				    (* 60 (string-to-number
-					   (match-string 1 s)))))
-			tot))))
-	0))))
+  (save-match-data
+    (let ((total (org-duration-string-to-minutes total)))
+      (if (= total 0) 0
+	(cl-some (lambda (s)
+		   ;; Any number can express a duration.  See
+		   ;; `org-hh:mm-string-to-minutes' for details.
+		   (and (string-match-p "[0-9]" s)
+			(/ (* 100.0 (org-duration-string-to-minutes s))
+			   total)))
+		 strings)))))
 
 ;; Saving and loading the clock
 
@@ -2962,9 +2955,9 @@ The details of what will be saved are regulated by the variable
 (defun org-clock-load ()
   "Load clock-related data from disk, maybe resuming a stored clock."
   (when (and org-clock-persist (not org-clock-loaded))
-    (if (file-readable-p org-clock-persist-file)
-	(message "Restoring clock data")
-      (message "Not restoring clock data; %S not found" org-clock-persist-file)
+    (if (not (file-readable-p org-clock-persist-file))
+	(message "Not restoring clock data; %S not found" org-clock-persist-file)
+      (message "Restoring clock data")
       ;; Load history.
       (load-file org-clock-persist-file)
       (setq org-clock-loaded t)

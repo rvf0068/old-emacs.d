@@ -1,6 +1,6 @@
 ;;; org-macs.el --- Top-level Definitions for Org -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2004-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -194,11 +194,11 @@ program is needed for, so that the error message can be more informative."
        (<= (match-beginning n) pos)
        (>= (match-end n) pos)))
 
-(defun org-match-line (re)
-  "Looking-at at the beginning of the current line."
+(defun org-match-line (regexp)
+  "Match REGEXP at the beginning of the current line."
   (save-excursion
-    (goto-char (point-at-bol))
-    (looking-at re)))
+    (beginning-of-line)
+    (looking-at regexp)))
 
 (defun org-plist-delete (plist property)
   "Delete PROPERTY from PLIST.

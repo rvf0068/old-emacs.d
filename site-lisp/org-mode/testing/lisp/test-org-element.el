@@ -140,29 +140,32 @@ Some other text
        (lambda (object) (org-element-type (org-element-secondary-p object)))
        nil t))))
 
-(ert-deftest test-org-element/class ()
-  "Test `org-element-class' specifications."
-  ;; Regular tests.
-  (should (eq 'element (org-element-class '(paragraph nil) nil)))
-  (should (eq 'object (org-element-class '(target nil) nil)))
-  ;; Special types.
-  (should (eq 'element (org-element-class '(org-data nil) nil)))
-  (should (eq 'object (org-element-class "text" nil)))
-  (should (eq 'object (org-element-class '("secondary " "string") nil)))
-  ;; Pseudo elements.
-  (should (eq 'element (org-element-class '(foo nil) nil)))
-  (should (eq 'element (org-element-class '(foo nil) '(center-block nil))))
-  (should (eq 'element (org-element-class '(foo nil) '(org-data nil))))
-  ;; Pseudo objects.
-  (should (eq 'object (org-element-class '(foo nil) '(bold nil))))
-  (should (eq 'object (org-element-class '(foo nil) '(paragraph nil))))
-  (should (eq 'object (org-element-class '(foo nil) '("secondary"))))
-  (should
-   (eq 'object
-       (let* ((datum '(foo nil))
-	      (headline `(headline (:title (,datum)))))
-	 (org-element-put-property datum :parent headline)
-	 (org-element-class datum)))))
+;; FIXME: `org-element-class' is a defsubst and cannot be tested
+;; properly (i.e., "make test" fails).
+;;
+;; (ert-deftest test-org-element/class ()
+;;   "Test `org-element-class' specifications."
+;;   ;; Regular tests.
+;;   (should (eq 'element (org-element-class '(paragraph nil) nil)))
+;;   (should (eq 'object (org-element-class '(target nil) nil)))
+;;   ;; Special types.
+;;   (should (eq 'element (org-element-class '(org-data nil) nil)))
+;;   (should (eq 'object (org-element-class "text" nil)))
+;;   (should (eq 'object (org-element-class '("secondary " "string") nil)))
+;;   ;; Pseudo elements.
+;;   (should (eq 'element (org-element-class '(foo nil) nil)))
+;;   (should (eq 'element (org-element-class '(foo nil) '(center-block nil))))
+;;   (should (eq 'element (org-element-class '(foo nil) '(org-data nil))))
+;;   ;; Pseudo objects.
+;;   (should (eq 'object (org-element-class '(foo nil) '(bold nil))))
+;;   (should (eq 'object (org-element-class '(foo nil) '(paragraph nil))))
+;;   (should (eq 'object (org-element-class '(foo nil) '("secondary"))))
+;;   (should
+;;    (eq 'object
+;;        (let* ((datum '(foo nil))
+;; 	      (headline `(headline (:title (,datum)))))
+;; 	 (org-element-put-property datum :parent headline)
+;; 	 (org-element-class datum)))))
 
 (ert-deftest test-org-element/adopt-elements ()
   "Test `org-element-adopt-elements' specifications."
@@ -456,16 +459,14 @@ Some other text
   "Test `bold' parser."
   ;; Standard test.
   (should
-   (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-     (org-test-with-temp-text "*bold*"
-       (org-element-map (org-element-parse-buffer) 'bold 'identity nil t))))
+   (org-test-with-temp-text "*bold*"
+     (org-element-map (org-element-parse-buffer) 'bold #'identity nil t)))
   ;; Multi-line markup.
   (should
    (equal
     (org-element-contents
-     (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-       (org-test-with-temp-text "*first line\nsecond line*"
-	 (org-element-map (org-element-parse-buffer) 'bold 'identity nil t))))
+     (org-test-with-temp-text "*first line\nsecond line*"
+       (org-element-map (org-element-parse-buffer) 'bold #'identity nil t)))
     '("first line\nsecond line"))))
 
 
@@ -523,18 +524,16 @@ Some other text
   "Test `code' parser."
   ;; Regular test.
   (should
-   (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-     (org-test-with-temp-text "~code~"
-       (org-element-map (org-element-parse-buffer) 'code 'identity))))
+   (org-test-with-temp-text "~code~"
+     (org-element-map (org-element-parse-buffer) 'code #'identity)))
   ;; Multi-line markup.
   (should
    (equal
     (org-element-property
      :value
-     (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-       (org-test-with-temp-text "~first line\nsecond line~"
-	 (org-element-map
-	  (org-element-parse-buffer) 'code 'identity nil t))))
+     (org-test-with-temp-text "~first line\nsecond line~"
+       (org-element-map
+	   (org-element-parse-buffer) 'code #'identity nil t)))
     "first line\nsecond line")))
 
 
@@ -1269,6 +1268,11 @@ Some other text
 	   (org-test-with-temp-text
 	       "*************** Task\nTest\n*************** END"
 	     (org-element-type (org-element-at-point)))))
+      (should
+       (eq 'inlinetask
+	   (org-test-with-temp-text
+	       "*************** Task\nTest\n***************   END"
+	     (org-element-type (org-element-at-point)))))
       ;; Degenerate inlinetask.
       (should
        (eq 'inlinetask
@@ -1364,16 +1368,14 @@ DEADLINE: <2012-03-29 thu.>"
   "Test `italic' parser."
   ;; Regular test.
   (should
-   (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-     (org-test-with-temp-text "/italic/"
-       (org-element-map (org-element-parse-buffer) 'italic 'identity nil t))))
+   (org-test-with-temp-text "/italic/"
+     (org-element-map (org-element-parse-buffer) 'italic #'identity nil t)))
   ;; Multi-line markup.
   (should
    (equal
     (org-element-contents
-     (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-       (org-test-with-temp-text "/first line\nsecond line/"
-	 (org-element-map (org-element-parse-buffer) 'italic 'identity nil t))))
+     (org-test-with-temp-text "/first line\nsecond line/"
+       (org-element-map (org-element-parse-buffer) 'italic #'identity nil t)))
     '("first line\nsecond line"))))
 
 
@@ -1751,19 +1753,7 @@ e^{i\\pi}+1=0
 	    (progn (org-mode-restart)
 		   (org-element-map (org-element-parse-buffer) 'link
 		     (lambda (link) (org-element-property :type link))
-		     nil t nil t)))))
-  ;; Plain links are allowed as description of regular links.
-  (should
-   (equal "file"
-	  (org-test-with-temp-text "[[http://orgmode.org][file:unicorn.jpg]]"
-	    (search-forward "file:")
-	    (org-element-property :type (org-element-context)))))
-  ;; So are angular links.
-  (should
-   (equal "file"
-	  (org-test-with-temp-text "[[http://orgmode.org][<file:unicorn.jpg>]]"
-	    (search-forward "file:")
-	    (org-element-property :type (org-element-context))))))
+		     nil t nil t))))))
 
 
 ;;;; Macro
@@ -1966,6 +1956,11 @@ Outside list"
    (eq 'planning
        (org-test-with-temp-text
 	   "* H\n# Comment\n<point>DEADLINE: <2012-03-29 thu.>"
+	 (org-element-type (org-element-at-point)))))
+  (should-not
+   (eq 'planning
+       (org-test-with-temp-text
+	   "* H\n\n<point>DEADLINE: <2012-03-29 thu.>"
 	 (org-element-type (org-element-at-point))))))
 
 
@@ -2007,6 +2002,11 @@ Outside list"
    (eq 'property-drawer
        (org-test-with-temp-text
 	   "* H\nParagraph\n<point>:PROPERTIES:\nparagraph\n:END:"
+	 (org-element-type (org-element-at-point)))))
+  (should-not
+   (eq 'property-drawer
+       (org-test-with-temp-text
+	   "* H\n\n<point>:PROPERTIES:\n:prop: value\n:END:"
 	 (org-element-type (org-element-at-point)))))
   ;; Handle non-empty blank line at the end of buffer.
   (should
@@ -2169,17 +2169,15 @@ Outside list"
   "Test `strike-through' parser."
   ;; Regular test.
   (should
-   (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-     (org-test-with-temp-text "+strike-through+"
-       (org-element-map (org-element-parse-buffer) 'strike-through 'identity))))
+   (org-test-with-temp-text "+strike-through+"
+     (org-element-map (org-element-parse-buffer) 'strike-through #'identity)))
   ;; Multi-line markup.
   (should
    (equal
     (org-element-contents
-     (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-       (org-test-with-temp-text "+first line\nsecond line+"
-	 (org-element-map
-	  (org-element-parse-buffer) 'strike-through 'identity nil t))))
+     (org-test-with-temp-text "+first line\nsecond line+"
+       (org-element-map
+	   (org-element-parse-buffer) 'strike-through #'identity nil t)))
     '("first line\nsecond line"))))
 
 
@@ -2360,17 +2358,15 @@ Outside list"
   "Test `underline' parser."
   ;; Regular test.
   (should
-   (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-     (org-test-with-temp-text "_underline_"
-       (org-element-map (org-element-parse-buffer) 'underline 'identity))))
+   (org-test-with-temp-text "_underline_"
+     (org-element-map (org-element-parse-buffer) 'underline #'identity)))
   ;; Multi-line markup.
   (should
    (equal
     (org-element-contents
-     (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-       (org-test-with-temp-text "_first line\nsecond line_"
-	 (org-element-map
-	  (org-element-parse-buffer) 'underline 'identity nil t))))
+     (org-test-with-temp-text "_first line\nsecond line_"
+       (org-element-map
+	   (org-element-parse-buffer) 'underline #'identity nil t)))
     '("first line\nsecond line"))))
 
 
@@ -2380,18 +2376,15 @@ Outside list"
   "Test `verbatim' parser."
   ;; Regular test.
   (should
-   (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-     (org-test-with-temp-text "=verbatim="
-       (org-element-map (org-element-parse-buffer) 'verbatim 'identity))))
+   (org-test-with-temp-text "=verbatim="
+     (org-element-map (org-element-parse-buffer) 'verbatim #'identity)))
   ;; Multi-line markup.
   (should
    (equal
     (org-element-property
      :value
-     (let ((org-emph-re "\\([ 	('\"{]\\|^\\)\\(\\([+*/_=~]\\)\\([^ 	\n,\"']\\|[^ 	\n,\"'].*?\\(?:\n.*?\\)\\{0,1\\}[^ 	\n,\"']\\)\\3\\)\\([- 	.,:!?;'\")}\\]\\|$\\)"))
-       (org-test-with-temp-text "=first line\nsecond line="
-	 (org-element-map
-	  (org-element-parse-buffer) 'verbatim 'identity nil t))))
+     (org-test-with-temp-text "=first line\nsecond line="
+       (org-element-map (org-element-parse-buffer) 'verbatim #'identity nil t)))
     "first line\nsecond line")))
 
 

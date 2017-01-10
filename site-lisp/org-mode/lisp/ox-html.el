@@ -1,6 +1,6 @@
 ;;; ox-html.el --- HTML Back-End for Org Export Engine -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2011-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <carsten at orgmode dot org>
 ;;      Jambunathan K <kjambunathan at gmail dot com>
@@ -101,6 +101,7 @@
     (verbatim . org-html-verbatim)
     (verse-block . org-html-verse-block))
   :filters-alist '((:filter-options . org-html-infojs-install-script)
+		   (:filter-parse-tree . org-html-image-link-filter)
 		   (:filter-final-output . org-html-final-function))
   :menu-entry
   '(?h "Export to HTML"
@@ -1875,25 +1876,24 @@ INFO is a plist used as a communication channel."
 	    (setq template (replace-match val t t template))))))))
 
 (defun org-html-format-spec (info)
-  "Return format specification for elements that can be
-used in the preamble or postamble."
-  `((?t . ,(org-export-data (plist-get info :title) info))
-    (?s . ,(org-export-data (plist-get info :subtitle) info))
-    (?d . ,(org-export-data (org-export-get-date info) info))
-    (?T . ,(format-time-string
-	    (plist-get info :html-metadata-timestamp-format)))
-    (?a . ,(org-export-data (plist-get info :author) info))
-    (?e . ,(mapconcat
-	    (lambda (e)
-	      (format "<a href=\"mailto:%s\">%s</a>" e e))
-	    (split-string (plist-get info :email)  ",+ *")
-	    ", "))
-    (?c . ,(plist-get info :creator))
-    (?C . ,(let ((file (plist-get info :input-file)))
-	     (format-time-string
-	      (plist-get info :html-metadata-timestamp-format)
-	      (when file (nth 5 (file-attributes file))))))
-    (?v . ,(or (plist-get info :html-validation-link) ""))))
+  "Return format specification for preamble and postamble.
+INFO is a plist used as a communication channel."
+  (let ((timestamp-format (plist-get info :html-metadata-timestamp-format)))
+    `((?t . ,(org-export-data (plist-get info :title) info))
+      (?s . ,(org-export-data (plist-get info :subtitle) info))
+      (?d . ,(org-export-data (org-export-get-date info timestamp-format)
+			      info))
+      (?T . ,(format-time-string timestamp-format))
+      (?a . ,(org-export-data (plist-get info :author) info))
+      (?e . ,(mapconcat
+	      (lambda (e) (format "<a href=\"mailto:%s\">%s</a>" e e))
+	      (split-string (plist-get info :email)  ",+ *")
+	      ", "))
+      (?c . ,(plist-get info :creator))
+      (?C . ,(let ((file (plist-get info :input-file)))
+	       (format-time-string timestamp-format
+				   (and file (nth 5 (file-attributes file))))))
+      (?v . ,(or (plist-get info :html-validation-link) "")))))
 
 (defun org-html--build-pre/postamble (type info)
   "Return document preamble or postamble as a string, or nil.
@@ -2835,6 +2835,9 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
   (concat (org-html-close-tag "br" nil info) "\n"))
 
 ;;;; Link
+
+(defun org-html-image-link-filter (data _backend info)
+  (org-export-insert-image-links data info org-html-inline-image-rules))
 
 (defun org-html-inline-image-p (link info)
   "Non-nil when LINK is meant to appear as an image.

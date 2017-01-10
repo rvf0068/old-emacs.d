@@ -1,6 +1,6 @@
 ;;; org-mouse.el --- Better mouse support for Org -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2006-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2017 Free Software Foundation, Inc.
 
 ;; Author: Piotr Zielinski <piotr dot zielinski at gmail dot com>
 ;; Maintainer: Carsten Dominik <carsten at orgmode dot org>
@@ -516,7 +516,6 @@ SCHEDULED: or DEADLINE: or ANYTHINGLIKETHIS:"
      ["Check Phrase ..." org-occur]
      "--"
      ["Display Agenda" org-agenda-list t]
-     ["Display Timeline" org-timeline t]
      ["Display TODO List" org-todo-list t]
      ("Display Tags"
       ,@(org-mouse-keyword-menu

@@ -1,6 +1,6 @@
 ;;; org-element.el --- Parser for Org Syntax         -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2012-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2017 Free Software Foundation, Inc.
 
 ;; Author: Nicolas Goaziou <n.goaziou at gmail dot com>
 ;; Keywords: outlines, hypermedia, calendar, wp
@@ -356,8 +356,8 @@ Don't modify it, set `org-element-affiliated-keywords' instead.")
       ;; a link description.  Also ignore radio-targets and line
       ;; breaks.
       (link bold code entity export-snippet inline-babel-call inline-src-block
-	    italic latex-fragment macro simple-link statistics-cookie
-	    strike-through subscript superscript underline verbatim)
+	    italic latex-fragment macro statistics-cookie strike-through
+	    subscript superscript underline verbatim)
       (paragraph ,@standard-set)
       ;; Remove any variable object from radio target as it would
       ;; prevent it from being properly recognized.
@@ -516,7 +516,7 @@ Return value is the property name, as a keyword, or nil."
 	(and (memq object (org-element-property p parent))
 	     (throw 'exit p))))))
 
-(defun org-element-class (datum &optional parent)
+(defsubst org-element-class (datum &optional parent)
   "Return class for ELEMENT, as a symbol.
 Class is either `element' or `object'.  Optional argument PARENT
 is the element or object containing DATUM.  It defaults to the
@@ -1018,15 +1018,14 @@ Assume point is at beginning of the headline."
 	   (standard-props (org-element--get-node-properties))
 	   (time-props (org-element--get-time-properties))
 	   (end (min (save-excursion (org-end-of-subtree t t)) limit))
-	   (pos-after-head (progn (forward-line) (point)))
 	   (contents-begin (save-excursion
+			     (forward-line)
 			     (skip-chars-forward " \r\t\n" end)
 			     (and (/= (point) end) (line-beginning-position))))
 	   (contents-end (and contents-begin
 			      (progn (goto-char end)
 				     (skip-chars-backward " \r\t\n")
-				     (forward-line)
-				     (point)))))
+				     (line-beginning-position 2)))))
       (let ((headline
 	     (list 'headline
 		   (nconc
@@ -1035,7 +1034,7 @@ Assume point is at beginning of the headline."
 			  :end end
 			  :pre-blank
 			  (if (not contents-begin) 0
-			    (count-lines pos-after-head contents-begin))
+			    (1- (count-lines begin contents-begin)))
 			  :contents-begin contents-begin
 			  :contents-end contents-end
 			  :level level
@@ -1043,9 +1042,10 @@ Assume point is at beginning of the headline."
 			  :tags tags
 			  :todo-keyword todo
 			  :todo-type todo-type
-			  :post-blank (count-lines
-				       (or contents-end pos-after-head)
-				       end)
+			  :post-blank
+			  (if contents-end
+			      (count-lines contents-end end)
+			    (1- (count-lines begin end)))
 			  :footnote-section-p footnote-section-p
 			  :archivedp archivedp
 			  :commentedp commentedp
@@ -1116,10 +1116,11 @@ CONTENTS is the contents of the element."
   "Parse an inline task.
 
 Return a list whose CAR is `inlinetask' and CDR is a plist
-containing `:title', `:begin', `:end', `:contents-begin' and
-`:contents-end', `:level', `:priority', `:raw-value', `:tags',
-`:todo-keyword', `:todo-type', `:scheduled', `:deadline',
-`:closed', `:post-blank' and `:post-affiliated' keywords.
+containing `:title', `:begin', `:end', `:pre-blank',
+`:contents-begin' and `:contents-end', `:level', `:priority',
+`:raw-value', `:tags', `:todo-keyword', `:todo-type',
+`:scheduled', `:deadline', `:closed', `:post-blank' and
+`:post-affiliated' keywords.
 
 The plist also contains any property set in the property drawer,
 with its name in upper cases and colons added at the
@@ -1157,18 +1158,20 @@ Assume point is at beginning of the inline task."
 	   (task-end (save-excursion
 		       (end-of-line)
 		       (and (re-search-forward org-outline-regexp-bol limit t)
-			    (looking-at-p "END[ \t]*$")
+			    (looking-at-p "[ \t]*END[ \t]*$")
 			    (line-beginning-position))))
 	   (standard-props (and task-end (org-element--get-node-properties)))
 	   (time-props (and task-end (org-element--get-time-properties)))
-	   (contents-begin (progn (forward-line)
-				  (and task-end (< (point) task-end) (point))))
+	   (contents-begin (and task-end
+				(< (point) task-end)
+				(progn
+				  (forward-line)
+				  (skip-chars-forward " \t\n")
+				  (line-beginning-position))))
 	   (contents-end (and contents-begin task-end))
-	   (before-blank (if (not task-end) (point)
-			   (goto-char task-end)
-			   (forward-line)
-			   (point)))
-	   (end (progn (skip-chars-forward " \r\t\n" limit)
+	   (end (progn (when task-end (goto-char task-end))
+		       (forward-line)
+		       (skip-chars-forward " \r\t\n" limit)
 		       (if (eobp) (point) (line-beginning-position))))
 	   (inlinetask
 	    (list 'inlinetask
@@ -1176,6 +1179,9 @@ Assume point is at beginning of the inline task."
 		   (list :raw-value raw-value
 			 :begin begin
 			 :end end
+			 :pre-blank
+			 (if (not contents-begin) 0
+			   (1- (count-lines begin contents-begin)))
 			 :contents-begin contents-begin
 			 :contents-end contents-end
 			 :level level
@@ -1183,7 +1189,7 @@ Assume point is at beginning of the inline task."
 			 :tags tags
 			 :todo-keyword todo
 			 :todo-type todo-type
-			 :post-blank (count-lines before-blank end)
+			 :post-blank (1- (count-lines (or task-end begin) end))
 			 :post-affiliated begin)
 		   time-props
 		   standard-props))))
@@ -2748,7 +2754,7 @@ keywords.  Otherwise, return nil.
 Assume point is at the first tilde marker."
   (save-excursion
     (unless (bolp) (backward-char 1))
-    (when (looking-at org-emph-re)
+    (when (looking-at org-verbatim-re)
       (let ((begin (match-beginning 2))
 	    (value (match-string-no-properties 4))
 	    (post-blank (progn (goto-char (match-end 2))
@@ -3759,7 +3765,7 @@ and cdr is a plist with `:value', `:begin', `:end' and
 Assume point is at the first equal sign marker."
   (save-excursion
     (unless (bolp) (backward-char 1))
-    (when (looking-at org-emph-re)
+    (when (looking-at org-verbatim-re)
       (let ((begin (match-beginning 2))
 	    (value (match-string-no-properties 4))
 	    (post-blank (progn (goto-char (match-end 2))
@@ -3839,10 +3845,14 @@ element it has to parse."
 	 (or (save-excursion (org-with-limited-levels (outline-next-heading)))
 	     limit)))
        ;; Planning.
-       ((and (eq mode 'planning) (looking-at org-planning-line-re))
+       ((and (eq mode 'planning)
+	     (eq ?* (char-after (line-beginning-position 0)))
+	     (looking-at org-planning-line-re))
 	(org-element-planning-parser limit))
        ;; Property drawer.
        ((and (memq mode '(planning property-drawer))
+	     (eq ?* (char-after (line-beginning-position
+				 (if (eq mode 'planning) 0 -1))))
 	     (looking-at org-property-drawer-re))
 	(org-element-property-drawer-parser limit))
        ;; When not at bol, point is at the beginning of an item or
@@ -4420,8 +4430,7 @@ to an appropriate container (e.g., a paragraph)."
 				    (org-element-target-parser)))
 			 (or (and (memq 'timestamp restriction)
 				  (org-element-timestamp-parser))
-			     (and (or (memq 'link restriction)
-				      (memq 'simple-link restriction))
+			     (and (memq 'link restriction)
 				  (org-element-link-parser)))))
 		      (?\\
 		       (if (eq (aref result 1) ?\\)
@@ -4442,8 +4451,7 @@ to an appropriate container (e.g., a paragraph)."
 			     (and (memq 'statistics-cookie restriction)
 				  (org-element-statistics-cookie-parser)))))
 		      ;; This is probably a plain link.
-		      (_ (and (or (memq 'link restriction)
-				  (memq 'simple-link restriction))
+		      (_ (and (memq 'link restriction)
 			      (org-element-link-parser)))))))
 	    (or (eobp) (forward-char))))
 	(cond (found)
