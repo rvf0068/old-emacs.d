@@ -1324,6 +1324,14 @@
 
 (ert-deftest test-org/clone-with-time-shift ()
   "Test `org-clone-subtree-with-time-shift'."
+  ;; Raise an error before first heading.
+  (should-error
+   (org-test-with-temp-text ""
+     (org-clone-subtree-with-time-shift 1)))
+  ;; Raise an error on invalid number of clones.
+  (should-error
+   (org-test-with-temp-text "* Clone me"
+     (org-clone-subtree-with-time-shift -1)))
   ;; Clone non-repeating once.
   (should
    (equal "\
@@ -1367,7 +1375,33 @@
 	    (org-clone-subtree-with-time-shift 0 "+2d")
 	    (replace-regexp-in-string
 	     "\\( [.A-Za-z]+\\)\\( \\+[0-9][hdmwy]\\)?>" "" (buffer-string)
-	     nil nil 1)))))
+	     nil nil 1))))
+  ;; Clone with blank SHIFT argument.
+  (should
+   (string-prefix-p
+    "* H <2012-03-29"
+    (org-test-with-temp-text "* H <2012-03-29 Thu><point>"
+      (org-clone-subtree-with-time-shift 1 "")
+      (buffer-substring-no-properties (line-beginning-position 2)
+				      (line-end-position 2)))))
+  ;; Find time stamps before point.  If SHIFT is not specified, ask
+  ;; for a time shift.
+  (should
+   (string-prefix-p
+    "* H <2012-03-30"
+    (org-test-with-temp-text "* H <2012-03-29 Thu><point>"
+      (org-clone-subtree-with-time-shift 1 "+1d")
+      (buffer-substring-no-properties (line-beginning-position 2)
+				      (line-end-position 2)))))
+  (should
+   (string-prefix-p
+    "* H <2014-03-05"
+    (org-test-with-temp-text "* H <2014-03-04 Tue><point>"
+      (cl-letf (((symbol-function 'read-from-minibuffer)
+		 (lambda (&rest args) "+1d")))
+	(org-clone-subtree-with-time-shift 1))
+      (buffer-substring-no-properties (line-beginning-position 2)
+				      (line-end-position 2))))))
 
 
 ;;; Fixed-Width Areas
@@ -1479,10 +1513,19 @@
    (equal "H"
 	  (org-test-with-temp-text "* H\nText<point>"
 	    (org-get-heading))))
-  ;; Without any optional argument, return TODO keywords and tags.
+  ;; Without any optional argument, return TODO keyword, priority
+  ;; cookie, COMMENT keyword and tags.
   (should
    (equal "TODO H"
 	  (org-test-with-temp-text "#+TODO: TODO | DONE\n* TODO H<point>"
+	    (org-get-heading))))
+  (should
+   (equal "[#A] H"
+	  (org-test-with-temp-text "* [#A] H"
+	    (org-get-heading))))
+  (should
+   (equal "COMMENT H"
+	  (org-test-with-temp-text "* COMMENT H"
 	    (org-get-heading))))
   (should
    (equal "H :tag:"
@@ -1511,11 +1554,39 @@
    (equal "Todo H"
 	  (org-test-with-temp-text "#+TODO: TODO | DONE\n* Todo H<point>"
 	    (org-get-heading nil t))))
+  ;; With NO-PRIORITY, ignore priority.
+  (should
+   (equal "H"
+	  (org-test-with-temp-text "* [#A] H"
+	    (org-get-heading nil nil t))))
+  (should
+   (equal "H"
+	  (org-test-with-temp-text "* H"
+	    (org-get-heading nil nil t))))
+  (should
+   (equal "TODO H"
+	  (org-test-with-temp-text "* TODO [#A] H"
+	    (org-get-heading nil nil t))))
+  ;; With NO-COMMENT, ignore COMMENT keyword.
+  (should
+   (equal "H"
+	  (org-test-with-temp-text "* COMMENT H"
+	    (org-get-heading nil nil nil t))))
+  (should
+   (equal "H"
+	  (org-test-with-temp-text "* H"
+	    (org-get-heading nil nil nil t))))
+  (should
+   (equal "TODO [#A] H"
+	  (org-test-with-temp-text "* TODO [#A] COMMENT H"
+	    (org-get-heading nil nil nil t))))
   ;; On an empty headline, return value is consistent.
   (should (equal "" (org-test-with-temp-text "* " (org-get-heading))))
   (should (equal "" (org-test-with-temp-text "* " (org-get-heading t))))
   (should (equal "" (org-test-with-temp-text "* " (org-get-heading nil t))))
-  (should (equal "" (org-test-with-temp-text "* " (org-get-heading t t)))))
+  (should (equal "" (org-test-with-temp-text "* " (org-get-heading nil nil t))))
+  (should
+   (equal "" (org-test-with-temp-text "* " (org-get-heading nil nil nil t)))))
 
 (ert-deftest test-org/in-commented-heading-p ()
   "Test `org-in-commented-heading-p' specifications."
@@ -3267,21 +3338,18 @@ Outside."
    :type 'user-error)
   ;; Error when trying to swap nested elements.
   (should-error
-   (org-test-with-temp-text "#+BEGIN_CENTER\nTest.\n#+END_CENTER"
-     (forward-line)
+   (org-test-with-temp-text "#+BEGIN_CENTER\n<point>Test.\n#+END_CENTER"
      (org-drag-element-backward))
    :type 'user-error)
   ;; Error when trying to swap an headline element and a non-headline
   ;; element.
   (should-error
-   (org-test-with-temp-text "Test.\n* Head 1"
-     (forward-line)
+   (org-test-with-temp-text "Test.\n<point>* Head 1"
      (org-drag-element-backward))
-   :type 'user-error)
+   :type 'error)
   ;; Error when called before first element.
   (should-error
-   (org-test-with-temp-text "\n"
-     (forward-line)
+   (org-test-with-temp-text "\n<point>"
      (org-drag-element-backward))
    :type 'user-error)
   ;; Preserve visibility of elements and their contents.
@@ -3299,7 +3367,14 @@ Text.
 	    (search-backward "- item 1")
 	    (org-drag-element-backward)
 	    (mapcar (lambda (ov) (cons (overlay-start ov) (overlay-end ov)))
-		    (overlays-in (point-min) (point-max)))))))
+		    (overlays-in (point-min) (point-max))))))
+  ;; Pathological case: handle call with point in blank lines right
+  ;; after a headline.
+  (should
+   (equal "* H2\n* H1\nText\n\n"
+	  (org-test-with-temp-text "* H1\nText\n* H2\n\n<point>"
+	    (org-drag-element-backward)
+	    (buffer-string)))))
 
 (ert-deftest test-org/drag-element-forward ()
   "Test `org-drag-element-forward' specifications."
@@ -3755,6 +3830,35 @@ Text.
 	(org-promote))
       (forward-line)
       (org-get-indentation)))))
+
+(ert-deftest test-org/org-get-valid-level ()
+  "Test function `org-get-valid-level' specifications."
+  (let ((org-odd-levels-only nil))
+    (should (equal 1 (org-get-valid-level 0 0)))
+    (should (equal 1 (org-get-valid-level 0 1)))
+    (should (equal 2 (org-get-valid-level 0 2)))
+    (should (equal 3 (org-get-valid-level 0 3)))
+    (should (equal 1 (org-get-valid-level 1 0)))
+    (should (equal 2 (org-get-valid-level 1 1)))
+    (should (equal 23 (org-get-valid-level 1 22)))
+    (should (equal 1 (org-get-valid-level 1 -1)))
+    (should (equal 1 (org-get-valid-level 2 -1))))
+  (let ((org-odd-levels-only t))
+    (should (equal 1 (org-get-valid-level 0 0)))
+    (should (equal 1 (org-get-valid-level 0 1)))
+    (should (equal 3 (org-get-valid-level 0 2)))
+    (should (equal 5 (org-get-valid-level 0 3)))
+    (should (equal 1 (org-get-valid-level 1 0)))
+    (should (equal 3 (org-get-valid-level 1 1)))
+    (should (equal 3 (org-get-valid-level 2 1)))
+    (should (equal 5 (org-get-valid-level 3 1)))
+    (should (equal 5 (org-get-valid-level 4 1)))
+    (should (equal 43 (org-get-valid-level 1 21)))
+    (should (equal 1 (org-get-valid-level 1 -1)))
+    (should (equal 1 (org-get-valid-level 2 -1)))
+    (should (equal 1 (org-get-valid-level 3 -1)))
+    (should (equal 3 (org-get-valid-level 4 -1)))
+    (should (equal 3 (org-get-valid-level 5 -1)))))
 
 
 ;;; Planning

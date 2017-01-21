@@ -8015,29 +8015,30 @@ So this will delete or add empty lines."
     (insert empty-lines)
     (move-to-column column)))
 
-(defun org-get-heading (&optional no-tags no-todo)
+(defun org-get-heading (&optional no-tags no-todo no-priority no-comment)
   "Return the heading of the current entry, without the stars.
 When NO-TAGS is non-nil, don't include tags.
-When NO-TODO is non-nil, don't include TODO keywords."
+When NO-TODO is non-nil, don't include TODO keywords.
+When NO-PRIORITY is non-nil, don't include priority cookie.
+When NO-COMMENT is non-nil, don't include COMMENT string."
   (save-excursion
     (org-back-to-heading t)
     (let ((case-fold-search nil))
-      (cond
-       ((and no-tags no-todo)
-	(looking-at org-complex-heading-regexp)
-	;; Return value has to be a string, but match group 4 is
-	;; optional.
-	(or (match-string 4) ""))
-       (no-tags
-	(looking-at (concat org-outline-regexp
-			    "\\(.*?\\)"
-			    "\\(?:[ \t]+:[[:alnum:]:_@#%]+:\\)?[ \t]*$"))
-	(match-string 1))
-       (no-todo
-	(looking-at org-todo-line-regexp)
-	(match-string 3))
-       (t (looking-at org-heading-regexp)
-	  (match-string 2))))))
+      (looking-at org-complex-heading-regexp)
+      (let ((todo (and (not no-todo) (match-string 2)))
+	    (priority (and (not no-priority) (match-string 3)))
+	    (headline (pcase (match-string 4)
+			(`nil "")
+			((and (guard no-comment) h)
+			 (replace-regexp-in-string
+			  (eval-when-compile
+			    (format "\\`%s[ \t]+" org-comment-string))
+			  "" h))
+			(h h)))
+	    (tags (and (not no-tags) (match-string 5))))
+	(mapconcat #'identity
+		   (delq nil (list todo priority headline tags))
+		   " ")))))
 
 (defvar orgstruct-mode)   ; defined below
 
@@ -8262,13 +8263,14 @@ time to headlines when structure editing, based on the value of
   (if org-odd-levels-only 2 1))
 
 (defun org-get-valid-level (level &optional change)
-  "Rectify a level change under the influence of `org-odd-levels-only'
-LEVEL is a current level, CHANGE is by how much the level should be
-modified.  Even if CHANGE is nil, LEVEL may be returned modified because
-even level numbers will become the next higher odd number."
+  "Rectify a level change under the influence of `org-odd-levels-only'.
+LEVEL is a current level, CHANGE is by how much the level should
+be modified.  Even if CHANGE is nil, LEVEL may be returned
+modified because even level numbers will become the next higher
+odd number.  Returns values greater than 0."
   (if org-odd-levels-only
       (cond ((or (not change) (= 0 change)) (1+ (* 2 (/ level 2))))
-	    ((> change 0) (1+ (* 2 (/ (+ level (* 2 change)) 2))))
+	    ((> change 0) (1+ (* 2 (/ (+ (1- level) (* 2 change)) 2))))
 	    ((< change 0) (max 1 (1+ (* 2 (/ (+ level (* 2 change)) 2))))))
     (max 1 (+ level (or change 0)))))
 
@@ -8888,77 +8890,79 @@ subtree has a repeater.  Setting N to 0, then, can be used to
 remove the repeater from a subtree and create a shifted clone
 with the original repeater."
   (interactive "nNumber of clones to produce: ")
-  (let ((shift
-	 (or shift
-	     (if (and (not (equal current-prefix-arg '(4)))
-		      (save-excursion
-			(re-search-forward org-ts-regexp-both
-					   (save-excursion
-					     (org-end-of-subtree t)
-					     (point)) t)))
-		 (read-from-minibuffer
-		  "Date shift per clone (e.g. +1w, empty to copy unchanged): ")
-	       ""))) ;; No time shift
-	(n-no-remove -1)
-	(drawer-re org-drawer-regexp)
-	(org-clock-re (format "^[ \t]*%s.*$" org-clock-string))
-	beg end template task idprop
-	shift-n shift-what doshift nmin nmax)
-    (unless (wholenump n)
-      (user-error "Invalid number of replications %s" n))
-    (when (and (setq doshift (and (stringp shift) (string-match "\\S-" shift)))
-	       (not (string-match "\\`[ \t]*\\+?\\([0-9]+\\)\\([hdwmy]\\)[ \t]*\\'"
-				  shift)))
-      (user-error "Invalid shift specification %s" shift))
-    (when doshift
-      (setq shift-n (string-to-number (match-string 1 shift))
-	    shift-what (cdr (assoc (match-string 2 shift)
-				   '(("d" . day) ("w" . week)
-				     ("m" . month) ("y" . year))))))
-    (when (eq shift-what 'week) (setq shift-n (* 7 shift-n) shift-what 'day))
-    (setq nmin 1 nmax n)
-    (org-back-to-heading t)
-    (setq beg (point))
-    (setq idprop (org-entry-get nil "ID"))
-    (org-end-of-subtree t t)
-    (or (bolp) (insert "\n"))
-    (setq end (point))
-    (setq template (buffer-substring beg end))
-    (when (and doshift
-	       (string-match "<[^<>\n]+ [.+]?\\+[0-9]+[hdwmy][^<>\n]*>" template))
-      (delete-region beg end)
-      (setq end beg)
-      (setq nmin 0 nmax (1+ nmax) n-no-remove nmax))
-    (goto-char end)
-    (cl-loop for n from nmin to nmax do
-	     ;; prepare clone
-	     (with-temp-buffer
-	       (insert template)
-	       (org-mode)
-	       (goto-char (point-min))
-	       (org-show-subtree)
-	       (and idprop (if org-clone-delete-id
-			       (org-entry-delete nil "ID")
-			     (org-id-get-create t)))
-	       (unless (= n 0)
-		 (while (re-search-forward org-clock-re nil t)
-		   (kill-whole-line))
-		 (goto-char (point-min))
-		 (while (re-search-forward drawer-re nil t)
-		   (org-remove-empty-drawer-at (point))))
-	       (goto-char (point-min))
-	       (when doshift
-		 (while (re-search-forward org-ts-regexp-both nil t)
-		   (org-timestamp-change (* n shift-n) shift-what))
-		 (unless (= n n-no-remove)
-		   (goto-char (point-min))
-		   (while (re-search-forward org-ts-regexp nil t)
-		     (save-excursion
-		       (goto-char (match-beginning 0))
-		       (when (looking-at "<[^<>\n]+\\( +[.+]?\\+[0-9]+[hdwmy]\\)")
-			 (delete-region (match-beginning 1) (match-end 1)))))))
-	       (setq task (buffer-string)))
-	     (insert task))
+  (unless (wholenump n) (user-error "Invalid number of replications %s" n))
+  (when (org-before-first-heading-p) (user-error "No subtree to clone"))
+  (let* ((beg (save-excursion (org-back-to-heading t) (point)))
+	 (end-of-tree (save-excursion (org-end-of-subtree t t) (point)))
+	 (shift
+	  (or shift
+	      (if (and (not (equal current-prefix-arg '(4)))
+		       (save-excursion
+			 (goto-char beg)
+			 (re-search-forward org-ts-regexp-both end-of-tree t)))
+		  (read-from-minibuffer
+		   "Date shift per clone (e.g. +1w, empty to copy unchanged): ")
+		"")))			;No time shift
+	 (doshift
+	  (and (org-string-nw-p shift)
+	       (or (string-match "\\`[ \t]*\\+?\\([0-9]+\\)\\([dwmy]\\)[ \t]*\\'"
+				 shift)
+		   (user-error "Invalid shift specification %s" shift)))))
+    (goto-char end-of-tree)
+    (unless (bolp) (insert "\n"))
+    (let* ((end (point))
+	   (template (buffer-substring beg end))
+	   (shift-n (and doshift (string-to-number (match-string 1 shift))))
+	   (shift-what (pcase (and doshift (match-string 2 shift))
+			 (`nil nil)
+			 ("d" 'day)
+			 ("w" (setq shift-n (* 7 shift-n)) 'day)
+			 ("m" 'month)
+			 ("y" 'year)
+			 (_ (error "Unsupported time unit"))))
+	   (nmin 1)
+	   (nmax n)
+	   (n-no-remove -1)
+	   (idprop (org-entry-get nil "ID")))
+      (when (and doshift
+		 (string-match-p "<[^<>\n]+ [.+]?\\+[0-9]+[hdwmy][^<>\n]*>"
+				 template))
+	(delete-region beg end)
+	(setq end beg)
+	(setq nmin 0)
+	(setq nmax (1+ nmax))
+	(setq n-no-remove nmax))
+      (goto-char end)
+      (cl-loop for n from nmin to nmax do
+	       (insert
+		;; Prepare clone.
+		(with-temp-buffer
+		  (insert template)
+		  (org-mode)
+		  (goto-char (point-min))
+		  (org-show-subtree)
+		  (and idprop (if org-clone-delete-id
+				  (org-entry-delete nil "ID")
+				(org-id-get-create t)))
+		  (unless (= n 0)
+		    (while (re-search-forward org-clock-line-re nil t)
+		      (delete-region (line-beginning-position)
+				     (line-beginning-position 2)))
+		    (goto-char (point-min))
+		    (while (re-search-forward org-drawer-regexp nil t)
+		      (org-remove-empty-drawer-at (point))))
+		  (goto-char (point-min))
+		  (when doshift
+		    (while (re-search-forward org-ts-regexp-both nil t)
+		      (org-timestamp-change (* n shift-n) shift-what))
+		    (unless (= n n-no-remove)
+		      (goto-char (point-min))
+		      (while (re-search-forward org-ts-regexp nil t)
+			(save-excursion
+			  (goto-char (match-beginning 0))
+			  (when (looking-at "<[^<>\n]+\\( +[.+]?\\+[0-9]+[hdwmy]\\)")
+			    (delete-region (match-beginning 1) (match-end 1)))))))
+		  (buffer-string)))))
     (goto-char beg)))
 
 ;;; Outline Sorting
@@ -10821,13 +10825,8 @@ link in a property drawer line."
 		      (>= (point) (match-beginning 5)))))
 	  (org-tags-view arg (substring (match-string 5) 0 -1)))
 	 ((eq type 'link)
-	  ;; When link is located within the description of another
-	  ;; link (e.g., an inline image), always open the parent
-	  ;; link.
-	  (let* ((link (let ((up (org-element-property :parent context)))
-			 (if (eq (org-element-type up) 'link) up context)))
-		 (type (org-element-property :type link))
-		 (path (org-link-unescape (org-element-property :path link))))
+	  (let ((type (org-element-property :type context))
+		(path (org-link-unescape (org-element-property :path context))))
 	    ;; Switch back to REFERENCE-BUFFER needed when called in
 	    ;; a temporary buffer through `org-open-link-from-string'.
 	    (with-current-buffer (or reference-buffer (current-buffer))
@@ -10842,8 +10841,8 @@ link in a property drawer line."
 		  ;; ("open" function called with a single argument).
 		  ;; If no such function is found, fallback to
 		  ;; `org-open-file'.
-		  (let* ((option (org-element-property :search-option link))
-			 (app (org-element-property :application link))
+		  (let* ((option (org-element-property :search-option context))
+			 (app (org-element-property :application context))
 			 (dedicated-function
 			  (org-link-get-parameter
 			   (if app (concat type "+" app) type)
@@ -10874,15 +10873,15 @@ link in a property drawer line."
 			 (org-with-wide-buffer
 			  (if (equal type "radio")
 			      (org-search-radio-target
-			       (org-element-property :path link))
+			       (org-element-property :path context))
 			    (org-link-search
 			     (if (member type '("custom-id" "coderef"))
-				 (org-element-property :raw-link link)
+				 (org-element-property :raw-link context)
 			       path)
 			     ;; Prevent fuzzy links from matching
 			     ;; themselves.
 			     (and (equal type "fuzzy")
-				  (+ 2 (org-element-property :begin link)))))
+				  (+ 2 (org-element-property :begin context)))))
 			  (point))))
 		    (unless (and (<= (point-min) destination)
 				 (>= (point-max) destination))
@@ -11147,7 +11146,8 @@ of matched result, which is either `dedicated' or `fuzzy'."
 			  org-comment-string
 			  (mapconcat #'regexp-quote words ".+")))
 		 (cookie-re "\\[[0-9]*\\(?:%\\|/[0-9]*\\)\\]")
-		 (comment-re (format "\\`%s[ \t]+" org-comment-string)))
+		 (comment-re (eval-when-compile
+			       (format "\\`%s[ \t]+" org-comment-string))))
 	     (goto-char (point-min))
 	     (catch :found
 	       (while (re-search-forward title-re nil t)
@@ -11156,7 +11156,7 @@ of matched result, which is either `dedicated' or `fuzzy'."
 			       (replace-regexp-in-string
 				cookie-re ""
 				(replace-regexp-in-string
-				 comment-re "" (org-get-heading t t)))))
+				 comment-re "" (org-get-heading t t t)))))
 		   (throw :found t)))
 	       nil)))
       (beginning-of-line)
@@ -11365,12 +11365,19 @@ If the file does not exist, an error is thrown."
 		     (search (concat file "::" search))
 		     (t file)))
 	 (dlink (downcase link))
-	 (old-buffer (current-buffer))
-	 (old-pos (point))
-	 (old-mode major-mode)
 	 (ext
 	  (and (string-match "\\`.*?\\.\\([a-zA-Z0-9]+\\(\\.gz\\)?\\)\\'" dfile)
 	       (match-string 1 dfile)))
+	 (save-position-maybe
+	  (let ((old-buffer (current-buffer))
+		(old-pos (point))
+		(old-mode major-mode))
+	    (lambda ()
+	      (and (derived-mode-p 'org-mode)
+		   (eq old-mode 'org-mode)
+		   (or (not (eq old-buffer (current-buffer)))
+		       (not (eq old-pos (point))))
+		   (org-mark-ring-push old-pos old-buffer)))))
 	 cmd link-match-data)
     (cond
      ((member in-emacs '((16) system))
@@ -11444,7 +11451,12 @@ If the file does not exist, an error is thrown."
       (widen)
       (cond (line (org-goto-line line)
 		  (when (derived-mode-p 'org-mode) (org-reveal)))
-	    (search (org-link-search search))))
+	    (search (condition-case err
+			(org-link-search search)
+		      ;; Save position before error-ing out so user
+		      ;; can easily move back to the original buffer.
+		      (error (funcall save-position-maybe)
+			     (error (nth 1 err)))))))
      ((functionp cmd)
       (save-match-data
 	(set-match-data link-match-data)
@@ -11453,23 +11465,18 @@ If the file does not exist, an error is thrown."
 	  ;; FIXME: Remove this check when most default installations
 	  ;; of Emacs have at least Org 9.0.
 	  ((debug wrong-number-of-arguments wrong-type-argument
-	    invalid-function)
+		  invalid-function)
 	   (user-error "Please see Org News for version 9.0 about \
 `org-file-apps'--Lisp error: %S" cmd)))))
      ((consp cmd)
       ;; FIXME: Remove this check when most default installations of
-      ;; Emacs have at least Org 9.0.
-      ;; Heads-up instead of silently fall back to
-      ;; `org-link-frame-setup' for an old usage of `org-file-apps'
-      ;; with sexp instead of a function for `cmd'.
+      ;; Emacs have at least Org 9.0.  Heads-up instead of silently
+      ;; fall back to `org-link-frame-setup' for an old usage of
+      ;; `org-file-apps' with sexp instead of a function for `cmd'.
       (user-error "Please see Org News for version 9.0 about \
 `org-file-apps'--Error: Deprecated usage of %S" cmd))
      (t (funcall (cdr (assq 'file org-link-frame-setup)) file)))
-    (and (derived-mode-p 'org-mode)
-	 (eq old-mode 'org-mode)
-	 (or (not (eq old-buffer (current-buffer)))
-	     (not (eq old-pos (point))))
-	 (org-mark-ring-push old-pos old-buffer))))
+    (funcall save-position-maybe)))
 
 (defun org-file-apps-entry-match-against-dlink-p (entry)
   "This function returns non-nil if `entry' uses a regular
@@ -11969,7 +11976,6 @@ prefix argument (`C-u C-u C-u C-c C-w')."
 	       (if pos
 		   (progn
 		     (goto-char pos)
-		     (looking-at org-outline-regexp)
 		     (setq level (org-get-valid-level (funcall outline-level) 1))
 		     (goto-char
 		      (if reversed
@@ -24595,29 +24601,34 @@ Move to the previous element at the same level, when possible."
 (defun org-drag-element-backward ()
   "Move backward element at point."
   (interactive)
-  (if (org-with-limited-levels (org-at-heading-p)) (org-move-subtree-up)
-    (let* ((elem (or (org-element-at-point)
-		     (user-error "No element at point")))
-	   (prev-elem
-	    (save-excursion
-	      (goto-char (org-element-property :begin elem))
-	      (skip-chars-backward " \r\t\n")
-	      (unless (bobp)
-		(let* ((beg (org-element-property :begin elem))
-		       (prev (org-element-at-point))
-		       (up prev))
-		  (while (and (setq up (org-element-property :parent up))
-			      (<= (org-element-property :end up) beg))
-		    (setq prev up))
-		  prev)))))
-      ;; Error out if no previous element or previous element is
-      ;; a parent of the current one.
-      (if (or (not prev-elem) (org-element-nested-p elem prev-elem))
-	  (user-error "Cannot drag element backward")
-	(let ((pos (point)))
-	  (org-element-swap-A-B prev-elem elem)
-	  (goto-char (+ (org-element-property :begin prev-elem)
-			(- pos (org-element-property :begin elem)))))))))
+  (let ((elem (or (org-element-at-point)
+		  (user-error "No element at point"))))
+    (if (eq (org-element-type elem) 'headline)
+	;; Preserve point when moving a whole tree, even if point was
+	;; on blank lines below the headline.
+	(let ((offset (skip-chars-backward " \t\n")))
+	  (unwind-protect (org-move-subtree-up)
+	    (forward-char (- offset))))
+      (let ((prev-elem
+	     (save-excursion
+	       (goto-char (org-element-property :begin elem))
+	       (skip-chars-backward " \r\t\n")
+	       (unless (bobp)
+		 (let* ((beg (org-element-property :begin elem))
+			(prev (org-element-at-point))
+			(up prev))
+		   (while (and (setq up (org-element-property :parent up))
+			       (<= (org-element-property :end up) beg))
+		     (setq prev up))
+		   prev)))))
+	;; Error out if no previous element or previous element is
+	;; a parent of the current one.
+	(if (or (not prev-elem) (org-element-nested-p elem prev-elem))
+	    (user-error "Cannot drag element backward")
+	  (let ((pos (point)))
+	    (org-element-swap-A-B prev-elem elem)
+	    (goto-char (+ (org-element-property :begin prev-elem)
+			  (- pos (org-element-property :begin elem))))))))))
 
 (defun org-drag-element-forward ()
   "Move forward element at point."
