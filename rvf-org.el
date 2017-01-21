@@ -1,4 +1,5 @@
 (require 'org-protocol)
+(require 'org-mime)
 
 (require 'ob-latex)
 (require 'ob-org)
@@ -328,3 +329,71 @@ When called twice, replace the previously inserted \\(\\) by one $."
 
 ;; see http://stackoverflow.com/a/19818134/577007
 (put 'org-beamer-verbatim-elements 'safe-local-variable (lambda (xx) t))
+
+;; configuration to use org-mime to send subtrees
+;; see https://lists.gnu.org/archive/html/emacs-orgmode/2016-10/msg00477.html
+;; or http://kitchingroup.cheme.cmu.edu/blog/2016/10/29/Sending-html-emails-from-org-mode-with-org-mime/
+;;
+;; One sets the property :MAIL_FMT: to html, and the property
+;; :MAIL_TO: to the address to send. Then org-mime-subtree prepares
+;; the mail buffer.
+
+(defun org-mime-subtree ()
+  "Create an email buffer containing the current org-mode subtree
+  exported to a org format or to the format specified by the
+  MAIL_FMT property of the subtree."
+  (interactive)
+  (org-mime-send-subtree
+   (or (org-entry-get nil "MAIL_FMT" org-mime-use-property-inheritance) 'org))
+  (message-goto-to))
+
+(defun org-mime-compose (body fmt file &optional to subject headers)
+  (require 'message)
+  (let ((bhook
+	 (lambda (body fmt)
+	   (let ((hook (intern (concat "org-mime-pre-"
+				       (symbol-name fmt)
+				       "-hook"))))
+	     (if (> (eval `(length ,hook)) 0)
+		 (with-temp-buffer
+		   (insert body)
+		   (goto-char (point-min))
+		   (eval `(run-hooks ',hook))
+		   (buffer-string))
+	       body))))
+	(fmt (if (symbolp fmt) fmt (intern fmt)))
+	(files (org-element-map (org-element-parse-buffer) 'link
+		 (lambda (link)
+		   (when (string= (org-element-property :type link) "file")
+		     (file-truename (org-element-property :path link)))))))
+    (compose-mail to subject headers nil)
+    (message-goto-body)
+    (cond
+     ((eq fmt 'org)
+      (require 'ox-org)
+      (insert (org-export-string-as
+	       (org-babel-trim (funcall bhook body 'org)) 'org t)))
+     ((eq fmt 'ascii)
+      (require 'ox-ascii)
+      (insert (org-export-string-as
+	       (concat "#+Title:\n" (funcall bhook body 'ascii)) 'ascii t)))
+     ((or (eq fmt 'html) (eq fmt 'html-ascii))
+      (require 'ox-ascii)
+      (require 'ox-org)
+      (let* ((org-link-file-path-type 'absolute)
+	     ;; we probably don't want to export a huge style file
+	     (org-export-htmlize-output-type 'inline-css)
+	     (org-html-with-latex 'dvipng)
+	     (html-and-images
+	      (org-mime-replace-images
+	       (org-export-string-as (funcall bhook body 'html) 'html t)))
+	     (images (cdr html-and-images))
+	     (html (org-mime-apply-html-hook (car html-and-images))))
+	(insert (org-mime-multipart
+		 (org-export-string-as
+		  (org-babel-trim
+		   (funcall bhook body (if (eq fmt 'html) 'org 'ascii)))
+		  (if (eq fmt 'html) 'org 'ascii) t)
+		 html)
+		(mapconcat 'identity images "\n")))))
+    (mapc #'mml-attach-file files)))
