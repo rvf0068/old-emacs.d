@@ -184,7 +184,7 @@ When called twice, replace the previously inserted \\(\\) by one $."
 (setq org-export-copy-to-kill-ring nil)
 (setq org-export-with-tags nil)
 (setq org-latex-listings t)
-(setq org-latex-pdf-process '("texi2dvi -p -b -V %f"))
+;; (setq org-latex-pdf-process '("texi2dvi -p -b -V %f"))
 (setq org-log-done 'note)
 (setq org-publish-timestamp-directory "~/Dropbox/org/org-timestamps/")
 (setq org-return-follows-link t)
