@@ -36,6 +36,7 @@
     magit
     markdown-mode
     move-text
+    ob-ipython
     org-board
     org-journal
     org-pomodoro
