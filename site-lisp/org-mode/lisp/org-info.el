@@ -113,18 +113,35 @@ See `org-info-emacs-documents' and `org-info-other-documents' for details."
 	((cdr (assoc filename org-info-other-documents)))
 	(t (concat filename ".html"))))
 
+(defun org-info--expand-node-name (node)
+  "Expand Info NODE to HTML cross reference."
+  ;; See (info "(texinfo) HTML Xref Node Name Expansion") for the
+  ;; expansion rule.
+  (let ((node (replace-regexp-in-string
+	       "\\([ \t\n\r]+\\)\\|\\([^a-zA-Z0-9]\\)"
+	       (lambda (m)
+		 (if (match-end 1) "-" (format "_%04x" (string-to-char m))))
+	       (org-trim node))))
+    (cond ((string= node "") "")
+	  ((string-match-p "\\`[0-9]" node) (concat "g_t" node))
+	  (t node))))
+
 (defun org-info-export (path desc format)
   "Export an info link.
 See `org-link-parameters' for details about PATH, DESC and FORMAT."
-  (when (eq format 'html)
-    (or (string-match "\\(.*\\)[#:]:?\\(.*\\)" path)
-	(string-match "\\(.*\\)" path))
-    (let ((filename (match-string 1 path))
-	  (node (or (match-string 2 path) "Top")))
-      (format "<a href=\"%s#%s\">%s</a>"
-	      (org-info-map-html-url filename)
-	      (replace-regexp-in-string " " "-" node)
-	      (or desc path)))))
+  (let* ((parts (split-string path "[#:]:?"))
+	 (manual (car parts))
+	 (node (or (nth 1 parts) "Top")))
+    (pcase format
+      (`html
+       (format "<a href=\"%s#%s\">%s</a>"
+	       (org-info-map-html-url manual)
+	       (org-info--expand-node-name node)
+	       (or desc path)))
+      (`texinfo
+       (let ((title (or desc "")))
+	 (format "@ref{%s,%s,,%s,}" node title manual)))
+      (_ nil))))
 
 (provide 'org-info)
 

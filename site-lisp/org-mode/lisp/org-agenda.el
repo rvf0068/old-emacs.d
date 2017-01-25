@@ -4775,43 +4775,6 @@ used by user-defined selections using `org-agenda-skip-function'.")
 This variable should not be set directly, but custom commands can bind it
 in the options section.")
 
-(defun org-agenda-skip-entry-when-regexp-matches ()
-  "Check if the current entry contains match for `org-agenda-skip-regexp'.
-If yes, it returns the end position of this entry, causing agenda commands
-to skip the entry but continuing the search in the subtree.  This is a
-function that can be put into `org-agenda-skip-function' for the duration
-of a command."
-  (let ((end (save-excursion (org-end-of-subtree t)))
-	skip)
-    (save-excursion
-      (setq skip (re-search-forward org-agenda-skip-regexp end t)))
-    (and skip end)))
-
-(defun org-agenda-skip-subtree-when-regexp-matches ()
-  "Check if the current subtree contains match for `org-agenda-skip-regexp'.
-If yes, it returns the end position of this tree, causing agenda commands
-to skip this subtree.  This is a function that can be put into
-`org-agenda-skip-function' for the duration of a command."
-  (let ((end (save-excursion (org-end-of-subtree t)))
-	skip)
-    (save-excursion
-      (setq skip (re-search-forward org-agenda-skip-regexp end t)))
-    (and skip end)))
-
-(defun org-agenda-skip-entry-when-regexp-matches-in-subtree ()
-  "Check if the current subtree contains match for `org-agenda-skip-regexp'.
-If yes, it returns the end position of the current entry (NOT the tree),
-causing agenda commands to skip the entry but continuing the search in
-the subtree.  This is a function that can be put into
-`org-agenda-skip-function' for the duration of a command.  An important
-use of this function is for the stuck project list."
-  (let ((end (save-excursion (org-end-of-subtree t)))
-	(entry-end (save-excursion (outline-next-heading) (1- (point))))
-	skip)
-    (save-excursion
-      (setq skip (re-search-forward org-agenda-skip-regexp end t)))
-    (and skip entry-end)))
-
 (defun org-agenda-skip-entry-if (&rest conditions)
   "Skip entry if any of CONDITIONS is true.
 See `org-agenda-skip-if' for details."
@@ -4947,45 +4910,44 @@ Stuck projects are project that have no next actions.  For the definitions
 of what a project is and how to check if it stuck, customize the variable
 `org-stuck-projects'."
   (interactive)
-  (let* ((org-agenda-skip-function
-	  'org-agenda-skip-entry-when-regexp-matches-in-subtree)
-	 ;; We could have used org-agenda-skip-if here.
-	 (org-agenda-overriding-header
+  (let* ((org-agenda-overriding-header
 	  (or org-agenda-overriding-header "List of stuck projects: "))
 	 (matcher (nth 0 org-stuck-projects))
 	 (todo (nth 1 org-stuck-projects))
-	 (todo-wds (if (member "*" todo)
-		       (progn
-			 (org-agenda-prepare-buffers (org-agenda-files
-						      nil 'ifmode))
-			 (org-delete-all
-			  org-done-keywords-for-agenda
-			  (copy-sequence org-todo-keywords-for-agenda)))
-		     todo))
-	 (todo-re (concat "^\\*+[ \t]+\\("
-			  (mapconcat 'identity todo-wds "\\|")
-			  "\\)\\>"))
 	 (tags (nth 2 org-stuck-projects))
-	 (tags-re (if (member "*" tags)
-		      (concat org-outline-regexp-bol
-			      ".*:[[:alnum:]_@#%]+:[ \t]*$")
-		    (if tags
-			(concat org-outline-regexp-bol
-				".*:\\("
-				(mapconcat #'identity tags "\\|")
-				"\\):[[:alnum:]_@#%:]*[ \t]*$"))))
-	 (gen-re (nth 3 org-stuck-projects))
-	 (re-list
-	  (delq nil
-		(list
-		 (if todo todo-re)
-		 (if tags tags-re)
-		 (and gen-re (stringp gen-re) (string-match "\\S-" gen-re)
-		      gen-re)))))
-    (setq org-agenda-skip-regexp
-	  (if re-list
-	      (mapconcat 'identity re-list "\\|")
-	    (error "No information how to identify unstuck projects")))
+	 (gen-re (org-string-nw-p (nth 3 org-stuck-projects)))
+	 (todo-wds
+	  (if (not (member "*" todo)) todo
+	    (org-agenda-prepare-buffers (org-agenda-files nil 'ifmode))
+	    (org-delete-all org-done-keywords-for-agenda
+			    (copy-sequence org-todo-keywords-for-agenda))))
+	 (todo-re (and todo
+		       (format "^\\*+[ \t]+\\(%s\\)\\>"
+			       (mapconcat #'identity todo-wds "\\|"))))
+	 (tags-re (cond ((null tags) nil)
+			((member "*" tags)
+			 (eval-when-compile
+			   (concat org-outline-regexp-bol
+				   ".*:[[:alnum:]_@#%]+:[ \t]*$")))
+			(tags (concat org-outline-regexp-bol
+				      ".*:\\("
+				      (mapconcat #'identity tags "\\|")
+				      "\\):[[:alnum:]_@#%:]*[ \t]*$"))
+			(t nil)))
+	 (re-list (delq nil (list todo-re tags-re gen-re)))
+	 (skip-re
+	  (if (null re-list)
+	      (error "Missing information to identify unstuck projects")
+	    (mapconcat #'identity re-list "\\|")))
+	 (org-agenda-skip-function
+	  ;; Skip entry if `org-agenda-skip-regexp' matches anywhere
+	  ;; in the subtree.
+	  `(lambda ()
+	     (and (save-excursion
+		    (let ((case-fold-search nil))
+		      (re-search-forward
+		       ,skip-re (save-excursion (org-end-of-subtree t)) t)))
+		  (progn (outline-next-heading) (point))))))
     (org-tags-view nil matcher)
     (setq org-agenda-buffer-name (buffer-name))
     (with-current-buffer org-agenda-buffer-name

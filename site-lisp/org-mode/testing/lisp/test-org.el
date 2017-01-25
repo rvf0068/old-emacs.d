@@ -4220,7 +4220,12 @@ Paragraph<point>"
      (org-entry-delete (point) "A")))
   (should-not
    (org-test-with-temp-text "* H\n:PROPERTIES:\n:A: 1\n:B: 2\n:END:"
-     (org-entry-delete (point) "C"))))
+     (org-entry-delete (point) "C")))
+  ;; Special properties cannot be located in a drawer.  Allow to
+  ;; remove them anyway, in case of user error.
+  (should
+   (org-test-with-temp-text "* H\n:PROPERTIES:\n:SCHEDULED: 1\n:END:"
+     (org-entry-delete (point) "SCHEDULED"))))
 
 (ert-deftest test-org/entry-get ()
   "Test `org-entry-get' specifications."
@@ -4464,7 +4469,12 @@ Paragraph<point>"
   (should
    (equal "[2014-03-04 tue.]"
 	  (org-test-with-temp-text "* Entry\n<2012-03-29 thu.>[2014-03-04 tue.]"
-	    (cdr (assoc "TIMESTAMP_IA" (org-entry-properties nil "TIMESTAMP_IA"))))))
+	    (cdr (assoc "TIMESTAMP_IA"
+			(org-entry-properties nil "TIMESTAMP_IA"))))))
+  (should-not
+   (equal "<2012-03-29 thu.>"
+	  (org-test-with-temp-text "* Current\n* Next\n<2012-03-29 thu.>"
+	    (cdr (assoc "TIMESTAMP" (org-entry-properties))))))
   ;; Get standard properties.
   (should
    (equal "1"

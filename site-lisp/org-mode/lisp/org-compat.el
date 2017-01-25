@@ -35,8 +35,10 @@
 (declare-function org-at-table.el-p "org" (&optional table-type))
 (declare-function org-element-at-point "org-element" ())
 (declare-function org-element-type "org-element" (element))
+(declare-function org-end-of-subtree "org" (&optional invisible-ok to-heading))
 (declare-function org-link-set-parameters "org" (type &rest rest))
 (declare-function org-table-end (&optional table-type))
+(declare-function outline-next-heading "outline" ())
 (declare-function table--at-cell-p "table" (position &optional object at-column))
 
 (defvar org-table-any-border-regexp)
@@ -294,6 +296,47 @@ You could use brackets to delimit on what part the link will be.
  'org-publish-sitemap-file-entry-format
  "set `:sitemap-format-entry' in `org-publish-project-alist' instead."
  "Org 9.1")
+
+(defvar org-agenda-skip-regexp)
+(defun org-agenda-skip-entry-when-regexp-matches ()
+  "Check if the current entry contains match for `org-agenda-skip-regexp'.
+If yes, it returns the end position of this entry, causing agenda commands
+to skip the entry but continuing the search in the subtree.  This is a
+function that can be put into `org-agenda-skip-function' for the duration
+of a command."
+  (declare (obsolete "use `org-agenda-skip-if' instead." "Org 9.1"))
+  (let ((end (save-excursion (org-end-of-subtree t)))
+	skip)
+    (save-excursion
+      (setq skip (re-search-forward org-agenda-skip-regexp end t)))
+    (and skip end)))
+
+(defun org-agenda-skip-subtree-when-regexp-matches ()
+  "Check if the current subtree contains match for `org-agenda-skip-regexp'.
+If yes, it returns the end position of this tree, causing agenda commands
+to skip this subtree.  This is a function that can be put into
+`org-agenda-skip-function' for the duration of a command."
+  (declare (obsolete "use `org-agenda-skip-if' instead." "Org 9.1"))
+  (let ((end (save-excursion (org-end-of-subtree t)))
+	skip)
+    (save-excursion
+      (setq skip (re-search-forward org-agenda-skip-regexp end t)))
+    (and skip end)))
+
+(defun org-agenda-skip-entry-when-regexp-matches-in-subtree ()
+  "Check if the current subtree contains match for `org-agenda-skip-regexp'.
+If yes, it returns the end position of the current entry (NOT the tree),
+causing agenda commands to skip the entry but continuing the search in
+the subtree.  This is a function that can be put into
+`org-agenda-skip-function' for the duration of a command.  An important
+use of this function is for the stuck project list."
+  (declare (obsolete "use `org-agenda-skip-if' instead." "Org 9.1"))
+  (let ((end (save-excursion (org-end-of-subtree t)))
+	(entry-end (save-excursion (outline-next-heading) (1- (point))))
+	skip)
+    (save-excursion
+      (setq skip (re-search-forward org-agenda-skip-regexp end t)))
+    (and skip entry-end)))
 
 ;;;; Obsolete link types
 
