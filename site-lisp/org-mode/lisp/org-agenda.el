@@ -469,8 +469,8 @@ match    What to search for:
 settings  A list of option settings, similar to that in a let form, so like
           this: ((opt1 val1) (opt2 val2) ...).   The values will be
           evaluated at the moment of execution, so quote them when needed.
-files     A list of files file to write the produced agenda buffer to
-          with the command `org-store-agenda-views'.
+files     A list of files to write the produced agenda buffer to with
+          the command `org-store-agenda-views'.
           If a file name ends in \".html\", an HTML version of the buffer
           is written out.  If it ends in \".ps\", a postscript version is
           produced.  Otherwise, only the plain text is written to the file.
@@ -1256,7 +1256,7 @@ When set to the symbol `next' only the first future repeat is shown."
 	  (const :tag "Show all repeated entries" t)
 	  (const :tag "Show next repeated entry" next)
 	  (const :tag "Do not show repeated entries" nil))
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.1")
   :safe #'symbolp)
 
@@ -1277,7 +1277,7 @@ entries with these TODO keywords."
 	  (const :tag "Prefer base date" nil)
 	  (repeat :tag "Prefer last repeat for entries with these TODO keywords"
 		  (string :tag "TODO keyword")))
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.1")
   :safe (lambda (x) (or (booleanp x) (consp x))))
 
@@ -1954,7 +1954,7 @@ category, you can use:
   "When non-nil, switch to columns view right after creating the agenda."
   :group 'org-agenda-column-view
   :type 'boolean
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.0")
   :safe #'booleanp)
 
@@ -5889,21 +5889,25 @@ specification like [h]h:mm."
 	       (pos (1- (match-beginning 1)))
 	       (todo-state (save-match-data (org-get-todo-state)))
 	       (done? (member todo-state org-done-keywords))
+               (sexp? (string-prefix-p "%%" s))
 	       ;; DEADLINE is the deadline date for the entry.  It is
 	       ;; either the base date or the last repeat, according
 	       ;; to `org-agenda-prefer-last-repeat'.
 	       (deadline
-		(if (or (eq org-agenda-prefer-last-repeat t)
-			(member todo-state org-agenda-prefer-last-repeat))
-		    (org-agenda--timestamp-to-absolute
-		     s today 'past (current-buffer) pos)
-		  (org-agenda--timestamp-to-absolute s)))
+		(cond
+		 (sexp? (org-agenda--timestamp-to-absolute s current))
+		 ((or (eq org-agenda-prefer-last-repeat t)
+		      (member todo-state org-agenda-prefer-last-repeat))
+		  (org-agenda--timestamp-to-absolute
+		   s today 'past (current-buffer) pos))
+		 (t (org-agenda--timestamp-to-absolute s))))
 	       ;; REPEAT is the future repeat closest from CURRENT,
 	       ;; according to `org-agenda-show-future-repeats'. If
 	       ;; the latter is nil, or if the time stamp has no
 	       ;; repeat part, default to DEADLINE.
 	       (repeat
 		(cond
+		 (sexp? deadline)
 		 ((<= current today) deadline)
 		 ((not org-agenda-show-future-repeats) deadline)
 		 (t
@@ -6052,21 +6056,25 @@ scheduled items with an hour specification like [h]h:mm."
 	       (pos (1- (match-beginning 1)))
 	       (todo-state (save-match-data (org-get-todo-state)))
 	       (donep (member todo-state org-done-keywords))
+	       (sexp? (string-prefix-p "%%" s))
 	       ;; SCHEDULE is the scheduled date for the entry.  It is
 	       ;; either the bare date or the last repeat, according
 	       ;; to `org-agenda-prefer-last-repeat'.
 	       (schedule
-		(if (or (eq org-agenda-prefer-last-repeat t)
-			(member todo-state org-agenda-prefer-last-repeat))
-		    (org-agenda--timestamp-to-absolute
-		     s today 'past (current-buffer) pos)
-		  (org-agenda--timestamp-to-absolute s)))
+		(cond
+		 (sexp? (org-agenda--timestamp-to-absolute s current))
+		 ((or (eq org-agenda-prefer-last-repeat t)
+		      (member todo-state org-agenda-prefer-last-repeat))
+		  (org-agenda--timestamp-to-absolute
+		   s today 'past (current-buffer) pos))
+		 (t (org-agenda--timestamp-to-absolute s))))
 	       ;; REPEAT is the future repeat closest from CURRENT,
 	       ;; according to `org-agenda-show-future-repeats'. If
 	       ;; the latter is nil, or if the time stamp has no
 	       ;; repeat part, default to SCHEDULE.
 	       (repeat
 		(cond
+		 (sexp? schedule)
 		 ((<= current today) schedule)
 		 ((not org-agenda-show-future-repeats) schedule)
 		 (t
@@ -8166,7 +8174,7 @@ When called with a prefix argument, include all archive files as well."
 	       (t ""))
 	      (if (or org-agenda-category-filter
 		      (get 'org-agenda-category-filter :preset-filter))
-	      	  '(:eval (propertize
+		  '(:eval (propertize
 	      		   (concat " <"
 	      			   (mapconcat
 	      			    'identity
