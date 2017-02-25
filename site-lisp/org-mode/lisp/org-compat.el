@@ -195,6 +195,9 @@ Counting starts at 1."
   'org-agenda-today-p "Org 9.0")
 (define-obsolete-function-alias 'org-babel-examplize-region
   'org-babel-examplify-region "Org 9.0")
+(define-obsolete-variable-alias 'org-babel-capitalize-example-region-markers
+  'org-babel-uppercase-example-markers "Org 9.1")
+
 (define-obsolete-function-alias 'org-babel-trim 'org-trim "Org 9.0")
 (define-obsolete-variable-alias 'org-html-style 'org-html-head "24.4")
 (define-obsolete-function-alias 'org-insert-columns-dblock
@@ -481,6 +484,14 @@ Pass COLUMN and FORCE to `move-to-column'."
       #'font-lock-ensure
     (lambda (&optional _beg _end)
       (with-no-warnings (font-lock-fontify-buffer)))))
+
+;; `file-local-name' was added in Emacs 26.1.
+(defalias 'org-babel-local-file-name
+  (if (fboundp 'file-local-name)
+      'file-local-name
+    (lambda (file)
+      "Return the local name component of FILE."
+      (or (file-remote-p file 'localname) file))))
 
 (defmacro org-no-popups (&rest body)
   "Suppress popup windows.

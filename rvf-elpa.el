@@ -39,6 +39,7 @@
     ob-ipython
     org-board
     org-journal
+    org-mime
     org-pomodoro
     org-ref
     org2blog

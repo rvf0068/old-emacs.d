@@ -266,7 +266,7 @@ t       accept as input and present for editing"
   "Non-nil means increment when copying current field with \
 `\\[org-table-copy-down]'."
   :group 'org-table-calculation
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3")
   :type '(choice
 	  (const :tag "Use the difference between the current and the above fields" t)
@@ -379,7 +379,7 @@ portability of tables."
   "Non-nil means that evaluation of a field formula can add new
 columns if an out-of-bounds field is being set."
   :group 'org-table-calculation
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3")
   :type '(choice
 	  (const :tag "Setting an out-of-bounds field generates an error (default)" nil)
@@ -408,7 +408,7 @@ The function can be slow on larger regions; this safety feature
 prevents it from hanging emacs."
   :group 'org-table-import-export
   :type 'integer
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3"))
 
 (defconst org-table-auto-recalculate-regexp "^[ \t]*| *# *\\(|\\|$\\)"
@@ -1251,21 +1251,21 @@ Return t when the line exists, nil if it does not exist."
 
 (defun org-table-get-field (&optional n replace)
   "Return the value of the field in column N of current row.
-N defaults to current field.
-If REPLACE is a string, replace field with this value.  The return value
-is always the old value."
-  (and n (org-table-goto-column n))
+N defaults to current column.  If REPLACE is a string, replace
+field with this value.  The return value is always the old
+value."
+  (when n (org-table-goto-column n))
   (skip-chars-backward "^|\n")
-  (backward-char 1)
-  (if (looking-at "|[^|\r\n]*")
-      (let* ((pos (match-beginning 0))
-	     (val (buffer-substring (1+ pos) (match-end 0))))
-	(if replace
-	    (replace-match (concat "|" (if (equal replace "") " " replace))
-			   t t))
-	(goto-char (min (point-at-eol) (+ 2 pos)))
-	val)
-    (forward-char 1) ""))
+  (if (or (bolp) (looking-at-p "[ \t]*$"))
+      ;; Before first column or after last one.
+      ""
+    (looking-at "[^|\r\n]*")
+    (let* ((pos (match-beginning 0))
+	   (val (buffer-substring pos (match-end 0))))
+      (when replace
+	(replace-match (if (equal replace "") " " replace) t t))
+      (goto-char (min (line-end-position) (1+ pos)))
+      val)))
 
 ;;;###autoload
 (defun org-table-field-info (_arg)
@@ -1317,6 +1317,7 @@ is always the old value."
 
 (defun org-table-current-column ()
   "Find out which column we are in."
+  (interactive)
   (save-excursion
     (let ((column 0) (pos (point)))
       (beginning-of-line)

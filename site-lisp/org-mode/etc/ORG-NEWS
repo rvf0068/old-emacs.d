@@ -25,12 +25,14 @@ into
 
 *** Deleted contributed packages
 
-=org-ebib.el= and =org-bullets.el= have been deleted from the contrib/ directory.
+=org-ebib.el, =org-bullets.el= and =org-mime.el= have been deleted
+from the contrib/ directory.
 
 You can now find them here :
 
 - https://github.com/joostkremers/ebib
 - https://github.com/sabof/org-bullets
+- https://github.com/org-mime/org-mime
 
 *** Removal of ~:sitemap-sans-extension~
 
@@ -61,6 +63,12 @@ to the following
 list as their first argument.
 
 ** New features
+*** ~org-edit-special~ can edit LaTeX environments
+
+Using ~C-c '~ on a LaTeX environment opens a sub-editing buffer.  By
+default, major mode in that buffer is ~latex-mode~, but it can be
+changed by configuring ~org-src-lang-modes~.
+
 *** Agenda
 **** New variable : ~org-agenda-show-future-repeats~
 **** New variable : ~org-agenda-prefer-last-repeat~
@@ -218,6 +226,13 @@ document with ~org-mark-ring-goto~ (default binding =C-c &=).
 *** ~org-get-heading~ accepts two more optional arguments
 
 See docstring for details.
+
+*** New option ~org-babel-uppercase-example-markers~
+
+This variable is a ~defcustom~ and replaces the variable
+~org-babel-capitalize-example-region-markers~, which is a ~defvar~ and
+is now obselete.
+
 * Version 9.0
 
 ** Incompatible changes

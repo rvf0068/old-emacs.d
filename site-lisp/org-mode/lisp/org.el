@@ -790,7 +790,7 @@ Adding a back-end to this list will also pull the back-end it
 depends on, if any."
   :group 'org
   :group 'org-export
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.0")
   :initialize 'custom-initialize-set
   :set (lambda (var val)
@@ -1205,7 +1205,7 @@ make it harder to edit the location of the match.  In such
 a case, use the command `org-reveal' (`\\[org-reveal]') to show
 more context."
   :group 'org-reveal-location
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.0")
   :type '(choice
 	  (const :tag "Canonical" t)
@@ -1426,7 +1426,7 @@ argument is a symbol.  After a global state change, it can have the values
 the values `folded', `children', or `subtree'."
   :group 'org-cycle
   :type 'hook
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3"))
 
 (defgroup org-edit-structure nil
@@ -1693,7 +1693,7 @@ The highlights created by `org-toggle-latex-fragment' always need
 If set to `smart' the search will be case-insensitive only if it
 doesn't specify any upper case character."
   :group 'org-sparse-trees
-  :version "25.2"
+  :version "26.1"
   :type '(choice
 	  (const :tag "Case-sensitive" nil)
 	  (const :tag "Case-insensitive" t)
@@ -1786,7 +1786,6 @@ The value of this is taken from the #+LINK lines.")
     ("http" :follow (lambda (path) (browse-url (concat "http:" path))))
     ("https" :follow (lambda (path) (browse-url (concat "https:" path))))
     ("mailto" :follow (lambda (path) (browse-url (concat "mailto:" path))))
-    ("message" :follow (lambda (path) (browse-url (concat "message:" path))))
     ("news" :follow (lambda (path) (browse-url (concat "news:" path))))
     ("shell" :follow org--open-shell-link))
   "An alist of properties that defines all the links in Org mode.
@@ -1827,7 +1826,9 @@ activation.  The function must accept (link-start link-end path bracketp)
 as arguments."
   :group 'org-link
   :type '(alist :tag "Link display parameters"
-		:value-type plist))
+		:value-type plist)
+  :version "26.1"
+  :package-version '(Org . "9.1"))
 
 (defun org-link-get-parameter (type key)
   "Get TYPE link property for KEY.
@@ -3827,14 +3828,14 @@ in this variable)."
 	  (regexp :tag "Properties matched by regexp")))
 
 (defun org-property-inherit-p (property)
-  "Check if PROPERTY is one that should be inherited."
+  "Return a non-nil value if PROPERTY should be inherited."
   (cond
    ((eq org-use-property-inheritance t) t)
    ((not org-use-property-inheritance) nil)
    ((stringp org-use-property-inheritance)
     (string-match org-use-property-inheritance property))
    ((listp org-use-property-inheritance)
-    (member property org-use-property-inheritance))
+    (member-ignore-case property org-use-property-inheritance))
    (t (error "Invalid setting of `org-use-property-inheritance'"))))
 
 (defcustom org-columns-default-format "%25ITEM %TODO %3PRIORITY %TAGS"
@@ -4080,7 +4081,7 @@ When using LaTeXML set this option to
 All available processes and theirs documents can be found in
 `org-preview-latex-process-alist', which see."
   :group 'org-latex
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.0")
   :type 'symbol)
 
@@ -4170,7 +4171,7 @@ Place-holders only used by `:image-converter':
   %S    the image size scale ratio, which is used to adjust image size by some
         processing commands."
   :group 'org-latex
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.0")
   :type '(alist :tag "LaTeX to image backends"
 		:value-type (plist)))
@@ -4181,7 +4182,7 @@ A relative path here creates many directories relative to the
 processed org files paths.  An absolute path puts all preview
 images at the same place."
   :group 'org-latex
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "9.0")
   :type 'string)
 
@@ -4299,7 +4300,7 @@ A string will be inserted as-is in the header of the document."
   :group 'org-export-latex
   :set 'org-set-packages-alist
   :get 'org-get-packages-alist
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3")
   :type '(repeat
 	  (choice
@@ -4810,7 +4811,7 @@ Otherwise, these types are allowed:
 		 (const :tag "Only scheduled timestamps" scheduled)
 		 (const :tag "Only deadline timestamps" deadline)
 		 (const :tag "Only closed timestamps" closed))
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3")
   :group 'org-sparse-trees)
 
@@ -5658,7 +5659,7 @@ The following commands are available:
 	     '(Org ("6.21b" . "23.1")  ("6.33x" . "23.2")
 		   ("7.8.11" . "24.1") ("7.9.4" . "24.3")
 		   ("8.2.6" . "24.4") ("8.2.10" . "24.5")
-		   ("9.0" . "25.2")))
+		   ("9.0" . "26.1")))
 
 (defvar org-mode-transpose-word-syntax-table
   (let ((st (make-syntax-table text-mode-syntax-table)))
@@ -9645,31 +9646,39 @@ DPROP is the drawer property and TPROP is either the
 corresponding text property to set, or an alist with each element
 being a text property (as a symbol) and a function to apply to
 the value of the drawer property."
-  (let ((case-fold-search t)
-	(inhibit-read-only t))
+  (let* ((case-fold-search t)
+	 (inhibit-read-only t)
+	 (inherit? (org-property-inherit-p dprop))
+	 (property-re (org-re-property (concat (regexp-quote dprop) "\\+?") t))
+	 (global (and inherit? (org--property-global-value dprop nil))))
     (org-with-silent-modifications
-     (org-with-wide-buffer
-      (goto-char (point-min))
-      (while (re-search-forward (concat "^[ \t]*:" dprop ": +\\(.*\\)[ \t]*$") nil t)
-	(org-refresh-property tprop (match-string-no-properties 1)))))))
+     (org-with-point-at 1
+       ;; Set global values (e.g., values defined through
+       ;; "#+PROPERTY:" keywords) to the whole buffer.
+       (when global (put-text-property (point-min) (point-max) tprop global))
+       ;; Set local values.
+       (while (re-search-forward property-re nil t)
+	 (when (org-at-property-p)
+	   (org-refresh-property tprop (org-entry-get (point) dprop) inherit?))
+	 (outline-next-heading))))))
 
-(defun org-refresh-property (tprop p)
+(defun org-refresh-property (tprop p &optional inherit)
   "Refresh the buffer text property TPROP from the drawer property P.
-The refresh happens only for the current tree (not subtree)."
+The refresh happens only for the current headline, or the whole
+sub-tree if optional argument INHERIT is non-nil."
   (unless (org-before-first-heading-p)
     (save-excursion
       (org-back-to-heading t)
-      (if (symbolp tprop)
-	  ;; TPROP is a text property symbol
-	  (put-text-property
-	   (point) (or (outline-next-heading) (point-max)) tprop p)
-	;; TPROP is an alist with (properties . function) elements
-	(dolist (al tprop)
-	  (save-excursion
-	    (put-text-property
-	     (line-beginning-position) (or (outline-next-heading) (point-max))
-	     (car al)
-	     (funcall (cdr al) p))))))))
+      (let ((start (point))
+	    (end (save-excursion
+		   (if inherit (org-end-of-subtree t t)
+		     (or (outline-next-heading) (point-max))))))
+	(if (symbolp tprop)
+	    ;; TPROP is a text property symbol.
+	    (put-text-property start end tprop p)
+	  ;; TPROP is an alist with (property . function) elements.
+	  (pcase-dolist (`(,prop . ,f) tprop)
+	    (put-text-property start end prop (funcall f p))))))))
 
 (defun org-refresh-category-properties ()
   "Refresh category text properties in the buffer."
@@ -12365,7 +12374,7 @@ variable `org-mtags-prefer-muse-templates'."
 	  (list
 	   (string :tag "Key")
 	   (string :tag "Template")))
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3"))
 
 (defun org-try-structure-completion ()
@@ -12982,7 +12991,7 @@ statistics everywhere."
 				 (and (member kwd org-done-keywords)
 				      (member kwd (cadr org-provide-todo-statistics))))))
 	    	    (setq cnt-all (1+ cnt-all))
-	    	  (and (eq org-provide-todo-statistics t)
+		  (and (eq org-provide-todo-statistics t)
 		       kwd
 		       (setq cnt-all (1+ cnt-all))))
 		(when (or (and (member org-provide-todo-statistics '(t all-headlines))
@@ -13190,11 +13199,13 @@ on INACTIVE-OK."
   (save-match-data
     (save-excursion
       (org-back-to-heading t)
-      (and (re-search-forward (if tagline
-				  (concat tagline "\\s-*" org-repeat-re)
-				org-repeat-re)
-			      (org-entry-end-position) t)
-	   (match-string-no-properties 1)))))
+      (let ((end (org-entry-end-position))
+	    (regexp (if tagline (concat tagline "\\s-*" org-repeat-re)
+		      org-repeat-re)))
+	(catch :repeat
+	  (while (re-search-forward regexp end t)
+	    (when (org-at-timestamp-p)
+	      (throw :repeat (match-string-no-properties 1)))))))))
 
 (defvar org-last-changed-timestamp)
 (defvar org-last-inserted-timestamp)
@@ -13216,108 +13227,116 @@ This function is run automatically after each state change to a DONE state."
 	 (whata '(("h" . hour) ("d" . day) ("m" . month) ("y" . year)))
 	 (msg "Entry repeats: ")
 	 (org-log-done nil)
-	 (org-todo-log-states nil))
-    (when (and repeat (not (zerop (string-to-number (substring repeat 1)))))
-      (when (eq org-log-repeat t) (setq org-log-repeat 'state))
-      (let ((to-state (or (org-entry-get nil "REPEAT_TO_STATE" 'selective)
-			  org-todo-repeat-to-state)))
-	(unless (and to-state (member to-state org-todo-keywords-1))
-	  (setq to-state (if (eq interpret 'type) org-last-state head)))
-	(org-todo to-state))
-      (when (or org-log-repeat (org-entry-get nil "CLOCK"))
-	(org-entry-put nil "LAST_REPEAT" (format-time-string
-					  (org-time-stamp-format t t))))
-      (when org-log-repeat
-	(if (or (memq 'org-add-log-note (default-value 'post-command-hook))
-		(memq 'org-add-log-note post-command-hook))
-	    ;; We are already setup for some record.
-	    (when (eq org-log-repeat 'note)
-	      ;; Make sure we take a note, not only a time stamp.
-	      (setq org-log-note-how 'note))
-	  ;; Set up for taking a record.
-	  (org-add-log-setup 'state
-			     (or done-word (car org-done-keywords))
-			     org-last-state
-			     org-log-repeat)))
-      (org-back-to-heading t)
-      (org-add-planning-info nil nil 'closed)
-      (let ((end (save-excursion (outline-next-heading) (point)))
-	    (planning-re (regexp-opt
-			  (list org-scheduled-string org-deadline-string))))
-	(while (re-search-forward org-ts-regexp end t)
-	  (let* ((ts (match-string 0))
-		 (planning? (org-at-planning-p))
-		 (type (if (not planning?) "Plain:"
-			 (save-excursion
-			   (re-search-backward
-			    planning-re (line-beginning-position) t)
-			   (match-string 0)))))
-	    (cond
-	     ;; Ignore fake time-stamps (e.g., within comments).
-	     ((and (not planning?)
-		   (not (org-at-property-p))
-		   (not (eq 'timestamp
-			    (org-element-type (save-excursion
-						(backward-char)
-						(org-element-context)))))))
-	     ;; Time-stamps without a repeater are usually skipped.
-	     ;; However, a SCHEDULED time-stamp without one is
-	     ;; removed, as it is considered as no longer relevant.
-	     ((not (string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)" ts))
-	      (when (equal type org-scheduled-string)
-		(org-remove-timestamp-with-keyword type)))
-	     (t
-	      (let ((n (string-to-number (match-string 2 ts)))
-		    (what (match-string 3 ts)))
-		(when (equal what "w") (setq n (* n 7) what "d"))
-		(when (and (equal what "h")
-			   (not (string-match-p "[0-9]\\{1,2\\}:[0-9]\\{2\\}"
-						ts)))
-		  (user-error
-		   "Cannot repeat in Repeat in %d hour(s) because no hour \
+	 (org-todo-log-states nil)
+	 (end (copy-marker (org-entry-end-position))))
+    (unwind-protect
+	(when (and repeat (not (zerop (string-to-number (substring repeat 1)))))
+	  (when (eq org-log-repeat t) (setq org-log-repeat 'state))
+	  (let ((to-state (or (org-entry-get nil "REPEAT_TO_STATE" 'selective)
+			      org-todo-repeat-to-state)))
+	    (org-todo (cond
+		       ((and to-state (member to-state org-todo-keywords-1))
+			to-state)
+		       ((eq interpret 'type) org-last-state)
+		       (head)
+		       (t 'none))))
+	  (org-back-to-heading t)
+	  (org-add-planning-info nil nil 'closed)
+	  ;; When `org-log-repeat' is non-nil or entry contains
+	  ;; a clock, set LAST_REPEAT property.
+	  (when (or org-log-repeat
+		    (catch :clock
+		      (while (re-search-forward org-clock-line-re end t)
+			(when (org-at-clock-log-p) (throw :clock t)))))
+	    (org-entry-put nil "LAST_REPEAT" (format-time-string
+					      (org-time-stamp-format t t)
+					      (current-time))))
+	  (when org-log-repeat
+	    (if (or (memq 'org-add-log-note (default-value 'post-command-hook))
+		    (memq 'org-add-log-note post-command-hook))
+		;; We are already setup for some record.
+		(when (eq org-log-repeat 'note)
+		  ;; Make sure we take a note, not only a time stamp.
+		  (setq org-log-note-how 'note))
+	      ;; Set up for taking a record.
+	      (org-add-log-setup 'state
+				 (or done-word (car org-done-keywords))
+				 org-last-state
+				 org-log-repeat)))
+	  (let ((planning-re (regexp-opt
+			      (list org-scheduled-string org-deadline-string))))
+	    (while (re-search-forward org-ts-regexp end t)
+	      (let* ((ts (match-string 0))
+		     (planning? (org-at-planning-p))
+		     (type (if (not planning?) "Plain:"
+			     (save-excursion
+			       (re-search-backward
+				planning-re (line-beginning-position) t)
+			       (match-string 0)))))
+		(cond
+		 ;; Ignore fake time-stamps (e.g., within comments).
+		 ((not (org-at-timestamp-p t)))
+		 ;; Time-stamps without a repeater are usually
+		 ;; skipped.  However, a SCHEDULED time-stamp without
+		 ;; one is removed, as they are no longer relevant.
+		 ((not (string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)"
+				     ts))
+		  (when (equal type org-scheduled-string)
+		    (org-remove-timestamp-with-keyword type)))
+		 (t
+		  (let ((n (string-to-number (match-string 2 ts)))
+			(what (match-string 3 ts)))
+		    (when (equal what "w") (setq n (* n 7) what "d"))
+		    (when (and (equal what "h")
+			       (not (string-match-p "[0-9]\\{1,2\\}:[0-9]\\{2\\}"
+						    ts)))
+		      (user-error
+		       "Cannot repeat in Repeat in %d hour(s) because no hour \
 has been set"
-		   n))
-		;; Preparation, see if we need to modify the start
-		;; date for the change.
-		(when (match-end 1)
-		  (let ((time (save-match-data (org-time-string-to-time ts))))
-		    (cond
-		     ((equal (match-string 1 ts) ".")
-		      ;; Shift starting date to today
-		      (org-timestamp-change
-		       (- (org-today) (time-to-days time))
-		       'day))
-		     ((equal (match-string 1 ts) "+")
-		      (let ((nshiftmax 10)
-			    (nshift 0))
-			(while (or (= nshift 0)
-				   (not (time-less-p (current-time) time)))
-			  (when (= (cl-incf nshift) nshiftmax)
-			    (or (y-or-n-p
-				 (format "%d repeater intervals were not \
+		       n))
+		    ;; Preparation, see if we need to modify the start
+		    ;; date for the change.
+		    (when (match-end 1)
+		      (let ((time (save-match-data
+				    (org-time-string-to-time ts))))
+			(cond
+			 ((equal (match-string 1 ts) ".")
+			  ;; Shift starting date to today
+			  (org-timestamp-change
+			   (- (org-today) (time-to-days time))
+			   'day))
+			 ((equal (match-string 1 ts) "+")
+			  (let ((nshiftmax 10)
+				(nshift 0))
+			    (while (or (= nshift 0)
+				       (not (time-less-p (current-time) time)))
+			      (when (= (cl-incf nshift) nshiftmax)
+				(or (y-or-n-p
+				     (format "%d repeater intervals were not \
 enough to shift date past today.  Continue? "
-					 nshift))
-				(user-error "Abort")))
-			  (org-timestamp-change n (cdr (assoc what whata)))
-			  (org-at-timestamp-p t)
+					     nshift))
+				    (user-error "Abort")))
+			      (org-timestamp-change n (cdr (assoc what whata)))
+			      (org-in-regexp org-ts-regexp3)
+			      (setq ts (match-string 1))
+			      (setq time
+				    (save-match-data
+				      (org-time-string-to-time ts)))))
+			  (org-timestamp-change (- n) (cdr (assoc what whata)))
+			  ;; Rematch, so that we have everything in place
+			  ;; for the real shift.
+			  (org-in-regexp org-ts-regexp3)
 			  (setq ts (match-string 1))
-			  (setq time
-				(save-match-data
-				  (org-time-string-to-time ts)))))
-		      (org-timestamp-change (- n) (cdr (assoc what whata)))
-		      ;; Rematch, so that we have everything in place
-		      ;; for the real shift.
-		      (org-at-timestamp-p t)
-		      (setq ts (match-string 1))
-		      (string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)"
-				    ts)))))
-		(save-excursion
-		  (org-timestamp-change n (cdr (assoc what whata)) nil t))
-		(setq msg
-		      (concat
-		       msg type " " org-last-changed-timestamp " "))))))))
-      (setq org-log-post-message msg)
-      (message "%s" msg))))
+			  (string-match "\\([.+]\\)?\\(\\+[0-9]+\\)\\([hdwmy]\\)"
+					ts)))))
+		    (save-excursion
+		      (org-timestamp-change n (cdr (assoc what whata)) nil t))
+		    (setq msg
+			  (concat
+			   msg type " " org-last-changed-timestamp " "))))))))
+	  (setq org-log-post-message msg)
+	  (message "%s" msg))
+      (set-marker end nil))))
 
 (defun org-show-todo-tree (arg)
   "Make a compact tree which shows all headlines marked with TODO.
@@ -13344,6 +13363,83 @@ of `org-todo-keywords-1'."
     (message "%d TODO entries found"
 	     (org-occur (concat "^" org-outline-regexp " *" kwd-re )))))
 
+(defun org--deadline-or-schedule (arg type time)
+  "Insert DEADLINE or SCHEDULE information in current entry.
+TYPE is either `deadline' or `scheduled'.  See `org-deadline' or
+`org-schedule' for information about ARG and TIME arguments."
+  (let* ((deadline? (eq type 'deadline))
+	 (keyword (if deadline? org-deadline-string org-scheduled-string))
+	 (log (if deadline? org-log-redeadline org-log-reschedule))
+	 (old-date (org-entry-get nil (if deadline? "DEADLINE" "SCHEDULED")))
+	 (old-date-time (and old-date (org-time-string-to-time old-date)))
+	 ;; Save repeater cookie from either TIME or current scheduled
+	 ;; time stamp.  We are going to insert it back at the end of
+	 ;; the process.
+	 (repeater (or (and (org-string-nw-p time)
+			    ;; We use `org-repeat-re' because we need
+			    ;; to tell the difference between a real
+			    ;; repeater and a time delta, e.g. "+2d".
+			    (string-match org-repeat-re time)
+			    (match-string 1 time))
+		       (and (org-string-nw-p old-date)
+			    (string-match "\\([.+-]+[0-9]+[hdwmy]\
+\\(?:[/ ][-+]?[0-9]+[hdwmy]\\)?\\)"
+					  old-date)
+			    (match-string 1 old-date)))))
+    (pcase arg
+      (`(4)
+       (when (and old-date log)
+	 (org-add-log-setup (if deadline? 'deldeadline 'delschedule)
+			    nil old-date log))
+       (org-remove-timestamp-with-keyword keyword)
+       (message (if deadline? "Item no longer has a deadline."
+		  "Item is no longer scheduled.")))
+      (`(16)
+       (save-excursion
+	 (org-back-to-heading t)
+	 (let ((regexp (if deadline? org-deadline-time-regexp
+			 org-scheduled-time-regexp)))
+	   (if (not (re-search-forward regexp (line-end-position 2) t))
+	       (user-error (if deadline? "No deadline information to update"
+			     "No scheduled information to update"))
+	     (let* ((rpl0 (match-string 1))
+		    (rpl (replace-regexp-in-string " -[0-9]+[hdwmy]" "" rpl0))
+		    (msg (if deadline? "Warn starting from" "Delay until")))
+	       (replace-match
+		(concat keyword
+			" <" rpl
+			(format " -%dd"
+				(abs (- (time-to-days
+					 (save-match-data
+					   (org-read-date
+					    nil t nil msg old-date-time)))
+					(time-to-days old-date-time))))
+			">") t t))))))
+      (_
+       (org-add-planning-info type time 'closed)
+       (when (and old-date
+		  log
+		  (not (equal old-date org-last-inserted-timestamp)))
+	 (org-add-log-setup (if deadline? 'redeadline 'reschedule)
+			    org-last-inserted-timestamp
+			    old-date
+			    log))
+       (when repeater
+	 (save-excursion
+	   (org-back-to-heading t)
+	   (when (re-search-forward
+		  (concat keyword " " org-last-inserted-timestamp)
+		  (line-end-position 2)
+		  t)
+	     (goto-char (1- (match-end 0)))
+	     (insert " " repeater)
+	     (setq org-last-inserted-timestamp
+		   (concat (substring org-last-inserted-timestamp 0 -1)
+			   " " repeater
+			   (substring org-last-inserted-timestamp -1))))))
+       (message (if deadline? "Deadline on %s" "Scheduled to %s")
+		org-last-inserted-timestamp)))))
+
 (defun org-deadline (arg &optional time)
   "Insert the \"DEADLINE:\" string with a timestamp to make a deadline.
 With one universal prefix argument, remove any deadline from the item.
@@ -13352,66 +13448,14 @@ With argument TIME, set the deadline at the corresponding date.  TIME
 can either be an Org date like \"2011-07-24\" or a delta like \"+2d\"."
   (interactive "P")
   (if (and (org-region-active-p) org-loop-over-headlines-in-active-region)
-      (let ((cl (if (eq org-loop-over-headlines-in-active-region 'start-level)
-		    'region-start-level 'region))
-	    org-loop-over-headlines-in-active-region)
-	(org-map-entries
-	 `(org-deadline ',arg ,time)
-	 org-loop-over-headlines-in-active-region
-	 cl (when (outline-invisible-p) (org-end-of-subtree nil t))))
-    (let* ((old-date (org-entry-get nil "DEADLINE"))
-	   (old-date-time (when old-date (org-time-string-to-time old-date)))
-	   (repeater (and old-date
-			  (string-match
-			   "\\([.+-]+[0-9]+[hdwmy]\\(?:[/ ][-+]?[0-9]+[hdwmy]\\)?\\) ?"
-			   old-date)
-			  (match-string 1 old-date))))
-      (cond
-       ((equal arg '(4))
-	(when (and old-date org-log-redeadline)
-	  (org-add-log-setup 'deldeadline nil old-date org-log-redeadline))
-	(org-remove-timestamp-with-keyword org-deadline-string)
-	(message "Item no longer has a deadline."))
-       ((equal arg '(16))
-	(save-excursion
-	  (org-back-to-heading t)
-	  (if (re-search-forward
-	       org-deadline-time-regexp
-	       (save-excursion (outline-next-heading) (point)) t)
-	      (let* ((rpl0 (match-string 1))
-		     (rpl (replace-regexp-in-string " -[0-9]+[hdwmy]" "" rpl0)))
-		(replace-match
-		 (concat org-deadline-string
-			 " <" rpl
-			 (format " -%dd"
-				 (abs
-				  (- (time-to-days
-				      (save-match-data
-					(org-read-date nil t nil "Warn starting from" old-date-time)))
-				     (time-to-days old-date-time))))
-			 ">") t t))
-	    (user-error "No deadline information to update"))))
-       (t
-	(org-add-planning-info 'deadline time 'closed)
-	(when (and old-date
-		   org-log-redeadline
-		   (not (equal old-date org-last-inserted-timestamp)))
-	  (org-add-log-setup
-	   'redeadline org-last-inserted-timestamp old-date org-log-redeadline))
-	(when repeater
-	  (save-excursion
-	    (org-back-to-heading t)
-	    (when (re-search-forward (concat org-deadline-string " "
-					     org-last-inserted-timestamp)
-				     (save-excursion
-				       (outline-next-heading) (point)) t)
-	      (goto-char (1- (match-end 0)))
-	      (insert " " repeater)
-	      (setq org-last-inserted-timestamp
-		    (concat (substring org-last-inserted-timestamp 0 -1)
-			    " " repeater
-			    (substring org-last-inserted-timestamp -1))))))
-	(message "Deadline on %s" org-last-inserted-timestamp))))))
+      (org-map-entries
+       (lambda () (org--deadline-or-schedule arg 'deadline time))
+       nil
+       (if (eq org-loop-over-headlines-in-active-region 'start-level)
+	   'region-start-level
+	 'region)
+       (lambda () (when (outline-invisible-p) (org-end-of-subtree nil t))))
+    (org--deadline-or-schedule arg 'deadline time)))
 
 (defun org-schedule (arg &optional time)
   "Insert the SCHEDULED: string with a timestamp to schedule a TODO item.
@@ -13421,67 +13465,14 @@ With argument TIME, scheduled at the corresponding date.  TIME can
 either be an Org date like \"2011-07-24\" or a delta like \"+2d\"."
   (interactive "P")
   (if (and (org-region-active-p) org-loop-over-headlines-in-active-region)
-      (let ((cl (if (eq org-loop-over-headlines-in-active-region 'start-level)
-		    'region-start-level 'region))
-	    org-loop-over-headlines-in-active-region)
-	(org-map-entries
-	 `(org-schedule ',arg ,time)
-	 org-loop-over-headlines-in-active-region
-	 cl (when (outline-invisible-p) (org-end-of-subtree nil t))))
-    (let* ((old-date (org-entry-get nil "SCHEDULED"))
-	   (old-date-time (when old-date (org-time-string-to-time old-date)))
-	   (repeater (and old-date
-			  (string-match
-			   "\\([.+-]+[0-9]+[hdwmy]\\(?:[/ ][-+]?[0-9]+[hdwmy]\\)?\\) ?"
-			   old-date)
-			  (match-string 1 old-date))))
-      (cond
-       ((equal arg '(4))
-	(progn
-	  (when (and old-date org-log-reschedule)
-	    (org-add-log-setup 'delschedule nil old-date org-log-reschedule))
-	  (org-remove-timestamp-with-keyword org-scheduled-string)
-	  (message "Item is no longer scheduled.")))
-       ((equal arg '(16))
-	(save-excursion
-	  (org-back-to-heading t)
-	  (if (re-search-forward
-	       org-scheduled-time-regexp
-	       (save-excursion (outline-next-heading) (point)) t)
-	      (let* ((rpl0 (match-string 1))
-		     (rpl (replace-regexp-in-string " -[0-9]+[hdwmy]" "" rpl0)))
-		(replace-match
-		 (concat org-scheduled-string
-			 " <" rpl
-			 (format " -%dd"
-				 (abs
-				  (- (time-to-days
-				      (save-match-data
-					(org-read-date nil t nil "Delay until" old-date-time)))
-				     (time-to-days old-date-time))))
-			 ">") t t))
-	    (user-error "No scheduled information to update"))))
-       (t
-	(org-add-planning-info 'scheduled time 'closed)
-	(when (and old-date
-		   org-log-reschedule
-		   (not (equal old-date org-last-inserted-timestamp)))
-	  (org-add-log-setup
-	   'reschedule org-last-inserted-timestamp old-date org-log-reschedule))
-	(when repeater
-	  (save-excursion
-	    (org-back-to-heading t)
-	    (when (re-search-forward (concat org-scheduled-string " "
-					     org-last-inserted-timestamp)
-				     (save-excursion
-				       (outline-next-heading) (point)) t)
-	      (goto-char (1- (match-end 0)))
-	      (insert " " repeater)
-	      (setq org-last-inserted-timestamp
-		    (concat (substring org-last-inserted-timestamp 0 -1)
-			    " " repeater
-			    (substring org-last-inserted-timestamp -1))))))
-	(message "Scheduled to %s" org-last-inserted-timestamp))))))
+      (org-map-entries
+       (lambda () (org--deadline-or-schedule arg 'scheduled time))
+       nil
+       (if (eq org-loop-over-headlines-in-active-region 'start-level)
+	   'region-start-level
+	 'region)
+       (lambda () (when (outline-invisible-p) (org-end-of-subtree nil t))))
+    (org--deadline-or-schedule arg 'scheduled time)))
 
 (defun org-get-scheduled-time (pom &optional inherit)
   "Get the scheduled time as a time tuple, of a format suitable
@@ -15931,7 +15922,7 @@ strings."
 	  ;; Return value.
 	  props)))))
 
-(defun org-property--local-values (property literal-nil)
+(defun org--property-local-values (property literal-nil)
   "Return value for PROPERTY in current entry.
 Value is a list whose car is the base value for PROPERTY and cdr
 a list of accumulated values.  Return nil if neither is found in
@@ -15955,6 +15946,17 @@ unless LITERAL-NIL is non-nil."
 	    (push (match-string-no-properties 3) value)))
 	;; Return final values.
 	(and (not (equal value '(nil))) (nreverse value))))))
+
+(defun org--property-global-value (property literal-nil)
+  "Return value for PROPERTY in current buffer.
+Return value is a string.  Return nil if property is not set
+globally.  Also return nil when PROPERTY is set to \"nil\",
+unless LITERAL-NIL is non-nil."
+  (let ((global
+	 (cdr (or (assoc-string property org-file-properties t)
+		  (assoc-string property org-global-properties t)
+		  (assoc-string property org-global-properties-fixed t)))))
+    (if literal-nil global (org-not-nil global))))
 
 (defun org-entry-get (pom property &optional inherit literal-nil)
   "Get value of PROPERTY for entry or content at point-or-marker POM.
@@ -15983,7 +15985,7 @@ value higher up the hierarchy."
 	   (or (not (eq inherit 'selective)) (org-property-inherit-p property)))
       (org-entry-get-with-inheritance property literal-nil))
      (t
-      (let* ((local (org-property--local-values property literal-nil))
+      (let* ((local (org--property-local-values property literal-nil))
 	     (value (and local (mapconcat #'identity (delq nil local) " "))))
 	(if literal-nil value (org-not-nil value)))))))
 
@@ -16095,7 +16097,7 @@ However, if LITERAL-NIL is set, return the string value \"nil\" instead."
    (let (value)
      (catch 'exit
        (while t
-	 (let ((v (org-property--local-values property literal-nil)))
+	 (let ((v (org--property-local-values property literal-nil)))
 	   (when v
 	     (setq value
 		   (concat (mapconcat #'identity (delq nil v) " ")
@@ -16108,10 +16110,7 @@ However, if LITERAL-NIL is set, return the string value \"nil\" instead."
 	     (throw 'exit nil))
 	    ((org-up-heading-safe))
 	    (t
-	     (let ((global
-		    (cdr (or (assoc-string property org-file-properties t)
-			     (assoc-string property org-global-properties t)
-			     (assoc-string property org-global-properties-fixed t)))))
+	     (let ((global (org--property-global-value property literal-nil)))
 	       (cond ((not global))
 		     (value (setq value (concat global " " value)))
 		     (t (setq value global))))
@@ -16697,7 +16696,6 @@ Return the position where this entry starts, or nil if there is no such entry."
 (defvar org-last-changed-timestamp nil)
 (defvar org-last-inserted-timestamp nil
   "The last time stamp inserted with `org-insert-time-stamp'.")
-(defvar org-ts-what) ; dynamically scoped parameter
 
 (defun org-time-stamp (arg &optional inactive)
   "Prompt for a date/time and insert a time stamp.
@@ -17990,36 +17988,54 @@ inactive timestamps.
 
 When this function returns a non-nil value, match data is set
 according to `org-ts-regexp3' or `org-ts-regexp2', depending on
-INACTIVE-OK."
+INACTIVE-OK.
+
+Return the position of the point as a symbol among `bracket',
+`after', `year', `month', `hour', `minute', `day' or a number of
+character from the last know part of the time stamp.
+
+This function checks context and only return non-nil for valid
+time stamps.  If you need to match anything looking like a time
+stamp, or if you are sure about the context, consider using
+`org-in-regexp', e.g.,
+
+  (org-in-regexp org-ts-regexp)
+
+Unlike to `org-element-context', the function recognizes time
+stamps in properties drawers, planning lines and clocks."
   (interactive)
   (let* ((tsr (if inactive-ok org-ts-regexp3 org-ts-regexp2))
 	 (pos (point))
-	 (ans (or (looking-at tsr)
-		  (save-excursion
-		    (skip-chars-backward "^[<\n\r\t")
-		    (when (> (point) (point-min)) (backward-char 1))
-		    (and (looking-at tsr)
-			 (> (- (match-end 0) pos) -1))))))
-    (and ans
-	 (boundp 'org-ts-what)
-	 (setq org-ts-what
-	       (cond
-		((= pos (match-beginning 0))         'bracket)
-		;; Point is considered to be "on the bracket" whether
-		;; it's really on it or right after it.
-		((= pos (1- (match-end 0)))          'bracket)
-		((= pos (match-end 0))               'after)
-		((org-pos-in-match-range pos 2)      'year)
-		((org-pos-in-match-range pos 3)      'month)
-		((org-pos-in-match-range pos 7)      'hour)
-		((org-pos-in-match-range pos 8)      'minute)
-		((or (org-pos-in-match-range pos 4)
-		     (org-pos-in-match-range pos 5)) 'day)
-		((and (> pos (or (match-end 8) (match-end 5)))
-		      (< pos (match-end 0)))
-		 (- pos (or (match-end 8) (match-end 5))))
-		(t 'day))))
-    ans))
+	 (match
+	  (let ((boundaries (org-in-regexp tsr)))
+	    (save-match-data
+	      (cond ((null boundaries) nil)
+		    ((org-at-planning-p))
+		    ((org-at-property-p))
+		    ;; CLOCK lines only contain inactive time-stamps.
+		    ((and inactive-ok (org-at-clock-log-p)))
+		    (t
+		     (eq 'timestamp
+			 (save-excursion
+			   (when (= pos (cdr boundaries)) (forward-char -1))
+			   (org-element-type (org-element-context))))))))))
+    (cond
+     ((not match) nil)
+     ((= pos (match-beginning 0))         'bracket)
+     ;; Distinguish location right before the closing bracket from
+     ;; right after it.
+     ((= pos (1- (match-end 0)))          'bracket)
+     ((= pos (match-end 0))               'after)
+     ((org-pos-in-match-range pos 2)      'year)
+     ((org-pos-in-match-range pos 3)      'month)
+     ((org-pos-in-match-range pos 7)      'hour)
+     ((org-pos-in-match-range pos 8)      'minute)
+     ((or (org-pos-in-match-range pos 4)
+	  (org-pos-in-match-range pos 5)) 'day)
+     ((and (> pos (or (match-end 8) (match-end 5)))
+	   (< pos (match-end 0)))
+      (- pos (or (match-end 8) (match-end 5))))
+     (t 'day))))
 
 (defun org-toggle-timestamp-type ()
   "Toggle the type (<active> or [inactive]) of a time stamp."
@@ -18035,11 +18051,10 @@ INACTIVE-OK."
       (message "Timestamp is now %sactive"
 	       (if (equal (char-after beg) ?<) "" "in")))))
 
-(defun org-at-clock-log-p nil
-  "Is the cursor on the clock log line?"
-  (save-excursion
-    (beginning-of-line)
-    (looking-at org-clock-line-re)))
+(defun org-at-clock-log-p ()
+  "Non-nil if point is on a clock log line."
+  (and (org-match-line org-clock-line-re)
+       (eq (org-element-type (save-match-data (org-element-at-point))) 'clock)))
 
 (defvar org-clock-history)                     ; defined in org-clock.el
 (defvar org-clock-adjust-closest nil)          ; defined in org-clock.el
@@ -18049,26 +18064,26 @@ The date will be changed by N times WHAT.  WHAT can be `day', `month',
 `year', `minute', `second'.  If WHAT is not given, the cursor position
 in the timestamp determines what will be changed.
 When SUPPRESS-TMP-DELAY is non-nil, suppress delays like \"--2d\"."
-  (let ((origin (point)) origin-cat
+  (let ((origin (point))
+	(timestamp? (org-at-timestamp-p t))
+	origin-cat
 	with-hm inactive
 	(dm (max (nth 1 org-time-stamp-rounding-minutes) 1))
-	org-ts-what
 	extra rem
 	ts time time0 fixnext clrgx)
-    (unless (org-at-timestamp-p t)
-      (user-error "Not at a timestamp"))
-    (if (and (not what) (eq org-ts-what 'bracket))
+    (unless timestamp? (user-error "Not at a timestamp"))
+    (if (and (not what) (eq timestamp? 'bracket))
 	(org-toggle-timestamp-type)
       ;; Point isn't on brackets.  Remember the part of the time-stamp
       ;; the point was in.  Indeed, size of time-stamps may change,
       ;; but point must be kept in the same category nonetheless.
-      (setq origin-cat org-ts-what)
-      (when (and (not what) (not (eq org-ts-what 'day))
+      (setq origin-cat timestamp?)
+      (when (and (not what) (not (eq timestamp? 'day))
 		 org-display-custom-times
 		 (get-text-property (point) 'display)
 		 (not (get-text-property (1- (point)) 'display)))
-	(setq org-ts-what 'day))
-      (setq org-ts-what (or what org-ts-what)
+	(setq timestamp? 'day))
+      (setq timestamp? (or what timestamp?)
 	    inactive (= (char-after (match-beginning 0)) ?\[)
 	    ts (match-string 0))
       (replace-match "")
@@ -18082,7 +18097,7 @@ When SUPPRESS-TMP-DELAY is non-nil, suppress delays like \"--2d\"."
 	(setq with-hm t))
       (setq time0 (org-parse-time-string ts))
       (when (and updown
-		 (eq org-ts-what 'minute)
+		 (eq timestamp? 'minute)
 		 (not current-prefix-arg))
 	;; This looks like s-up and s-down.  Change by one rounding step.
 	(setq n (* dm (cond ((> n 0) 1) ((< n 0) -1) (t 0))))
@@ -18092,21 +18107,21 @@ When SUPPRESS-TMP-DELAY is non-nil, suppress delays like \"--2d\"."
       (setq time
 	    (apply #'encode-time
 		   (or (car time0) 0)
-		   (+ (if (eq org-ts-what 'minute) n 0) (nth 1 time0))
-		   (+ (if (eq org-ts-what 'hour) n 0)   (nth 2 time0))
-		   (+ (if (eq org-ts-what 'day) n 0)    (nth 3 time0))
-		   (+ (if (eq org-ts-what 'month) n 0)  (nth 4 time0))
-		   (+ (if (eq org-ts-what 'year) n 0)   (nth 5 time0))
+		   (+ (if (eq timestamp? 'minute) n 0) (nth 1 time0))
+		   (+ (if (eq timestamp? 'hour) n 0)   (nth 2 time0))
+		   (+ (if (eq timestamp? 'day) n 0)    (nth 3 time0))
+		   (+ (if (eq timestamp? 'month) n 0)  (nth 4 time0))
+		   (+ (if (eq timestamp? 'year) n 0)   (nth 5 time0))
 		   (nthcdr 6 time0)))
-      (when (and (member org-ts-what '(hour minute))
+      (when (and (memq timestamp? '(hour minute))
 		 extra
 		 (string-match "-\\([012][0-9]\\):\\([0-5][0-9]\\)" extra))
 	(setq extra (org-modify-ts-extra
 		     extra
-		     (if (eq org-ts-what 'hour) 2 5)
+		     (if (eq timestamp? 'hour) 2 5)
 		     n dm)))
-      (when (integerp org-ts-what)
-	(setq extra (org-modify-ts-extra extra org-ts-what n dm)))
+      (when (integerp timestamp?)
+	(setq extra (org-modify-ts-extra extra timestamp? n dm)))
       (when (eq what 'calendar)
 	(let ((cal-date (org-get-date-from-calendar)))
 	  (setcar (nthcdr 4 time0) (nth 0 cal-date)) ; month
@@ -18173,14 +18188,14 @@ When SUPPRESS-TMP-DELAY is non-nil, suppress delays like \"--2d\"."
 		  (when (re-search-forward clrgx nil t)
 		    (goto-char (match-beginning 1))
 		    (let (org-clock-adjust-closest)
-		      (org-timestamp-change n org-ts-what updown))
+		      (org-timestamp-change n timestamp? updown))
 		    (message "Clock adjusted in %s for heading: %s"
 			     (file-name-nondirectory (buffer-file-name))
 			     (org-get-heading t t)))))))))
       ;; Try to recenter the calendar window, if any.
       (when (and org-calendar-follow-timestamp-change
 		 (get-buffer-window "*Calendar*" t)
-		 (memq org-ts-what '(day month year)))
+		 (memq timestamp? '(day month year)))
 	(org-recenter-calendar (time-to-days time))))))
 
 (defun org-modify-ts-extra (s pos n dm)
@@ -18284,7 +18299,7 @@ minutes.
 For example, if the value of this variable is ((\"hours\" . 60)), then an
 effort string \"2hours\" is equivalent to 120 minutes."
   :group 'org-agenda
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3")
   :type '(alist :key-type (string :tag "Modifier")
 		:value-type (number :tag "Minutes")))
@@ -18446,7 +18461,7 @@ The value is a list, with zero or more of the symbols `effort', `appt',
 	      (const appt)
 	      (const stats)
 	      (const category))
-  :version "25.2"
+  :version "26.1"
   :package-version '(Org . "8.3")
   :group 'org-agenda)
 
@@ -20827,7 +20842,7 @@ Depending on context, this does one of the following:
   "Change timestamps synchronously up in CLOCK log lines.
 Optional argument N tells to change by that many units."
   (interactive "P")
-  (if (and (org-at-clock-log-p) (org-at-timestamp-p t))
+  (if (and (org-at-clock-log-p) (org-in-regexp org-ts-regexp-inactive))
       (let (org-support-shift-select)
 	(org-clock-timestamps-up n))
     (user-error "Not at a clock log")))
@@ -20836,7 +20851,7 @@ Optional argument N tells to change by that many units."
   "Change timestamps synchronously down in CLOCK log lines.
 Optional argument N tells to change by that many units."
   (interactive "P")
-  (if (and (org-at-clock-log-p) (org-at-timestamp-p t))
+  (if (and (org-at-clock-log-p) (org-in-regexp org-ts-regexp-inactive))
       (let (org-support-shift-select)
 	(org-clock-timestamps-down n))
     (user-error "Not at a clock log")))
@@ -20930,6 +20945,7 @@ When at a table, call the formula editor with `org-table-edit-formulas'.
 When in a source code block, call `org-edit-src-code'.
 When in a fixed-width region, call `org-edit-fixed-width-region'.
 When in an export block, call `org-edit-export-block'.
+When in a LaTeX environment, call `org-edit-latex-environment'.
 When at an #+INCLUDE keyword, visit the included file.
 When at a footnote reference, call `org-edit-footnote-reference'
 On a link, call `ffap' to visit the link at point.
@@ -20974,6 +20990,7 @@ Otherwise, return a user error."
       (`example-block (org-edit-src-code))
       (`export-block (org-edit-export-block))
       (`fixed-width (org-edit-fixed-width-region))
+      (`latex-environment (org-edit-latex-environment))
       (_
        ;; No notable element at point.  Though, we may be at a link or
        ;; a footnote reference, which are objects.  Thus, scan deeper.
@@ -21040,11 +21057,6 @@ This command does many different things, depending on context:
     (funcall org-finish-function))
    ((org-babel-hash-at-point))
    ((run-hook-with-args-until-success 'org-ctrl-c-ctrl-c-hook))
-   ((save-excursion (beginning-of-line) (looking-at-p "[ \t]*$"))
-    (or (run-hook-with-args-until-success 'org-ctrl-c-ctrl-c-final-hook)
-	(user-error
-	 (substitute-command-keys
-	  "`\\[org-ctrl-c-ctrl-c]' can do nothing useful here"))))
    (t
     (let* ((context
 	    (org-element-lineage
@@ -21068,7 +21080,21 @@ This command does many different things, depending on context:
 	    (setq context parent)
 	    (setq type 'item))))
       ;; Act according to type of element or object at point.
+      ;;
+      ;; Do nothing on a blank line, except if it is contained in
+      ;; a src block.  Hence, we first check if point is in such
+      ;; a block and then if it is at a blank line.
       (pcase type
+	((or `inline-src-block `src-block)
+	 (unless org-babel-no-eval-on-ctrl-c-ctrl-c
+	   (org-babel-eval-wipe-error-buffer)
+	   (org-babel-execute-src-block
+	    current-prefix-arg (org-babel-get-src-block-info nil context))))
+	((guard (org-match-line "[ \t]*$"))
+	 (or (run-hook-with-args-until-success 'org-ctrl-c-ctrl-c-final-hook)
+	     (user-error
+	      (substitute-command-keys
+	       "`\\[org-ctrl-c-ctrl-c]' can do nothing useful here"))))
 	((or `babel-call `inline-babel-call)
 	 (let ((info (org-babel-lob-get-info context)))
 	   (when info (org-babel-execute-src-block nil info))))
@@ -21084,11 +21110,6 @@ This command does many different things, depending on context:
 	((or `headline `inlinetask)
 	 (save-excursion (goto-char (org-element-property :begin context))
 			 (call-interactively #'org-set-tags)))
-	((or `inline-src-block `src-block)
-	 (unless org-babel-no-eval-on-ctrl-c-ctrl-c
-	   (org-babel-eval-wipe-error-buffer)
-	   (org-babel-execute-src-block
-	    current-prefix-arg (org-babel-get-src-block-info nil context))))
 	(`item
 	 ;; At an item: `C-u C-u' sets checkbox to "[-]"
 	 ;; unconditionally, whereas `C-u' will toggle its presence.
