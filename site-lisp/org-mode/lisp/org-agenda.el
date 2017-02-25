@@ -1263,11 +1263,16 @@ When set to the symbol `next' only the first future repeat is shown."
 (defcustom org-agenda-prefer-last-repeat nil
   "Non-nil sets date for repeated entries to their last repeat.
 
+When nil, display SCHEDULED and DEADLINE dates at their base
+date, and in today's agenda, as a reminder.  Display plain
+time-stamps, on the other hand, at every repeat date in the past
+in addition to the base date.
+
 When non-nil, show a repeated entry at its latest repeat date,
-possibly being today, instead of its base date, even if it wasn't
-marked as done.  This setting is useful if you do not always mark
-repeated entries as done and, yet, consider that reaching repeat
-date starts the task anew.
+possibly being today even if it wasn't marked as done.  This
+setting is useful if you do not always mark repeated entries as
+done and, yet, consider that reaching repeat date starts the task
+anew.
 
 When set to a list of strings, prefer last repeats only for
 entries with these TODO keywords."
@@ -5468,16 +5473,28 @@ displayed in agenda view."
 	  ;; S-exp entry doesn't match current day: skip it.
 	  (when (and sexp-entry (not (org-diary-sexp-entry sexp-entry "" date)))
 	    (throw :skip nil))
-	  ;; A repeating time stamp is shown at its base date, and at
-	  ;; every repeated date in the future.
 	  (when repeat
 	    (let* ((past
-		    (if (or (eq org-agenda-prefer-last-repeat t)
-			    (member todo-state org-agenda-prefer-last-repeat))
-			(org-agenda--timestamp-to-absolute
-			 repeat today 'past (current-buffer) pos)
-		      (org-agenda--timestamp-to-absolute repeat)))
+		    ;; A repeating time stamp is shown at its base
+		    ;; date and every repeated date up to TODAY.  If
+		    ;; `org-agenda-prefer-last-repeat' is non-nil,
+		    ;; however, only the last repeat before today
+		    ;; (inclusive) is shown.
+		    (org-agenda--timestamp-to-absolute
+		     repeat
+		     (if (or (> current today)
+			     (eq org-agenda-prefer-last-repeat t)
+			     (member todo-state org-agenda-prefer-last-repeat))
+			 today
+		       current)
+		     'past (current-buffer) pos))
 		   (future
+		    ;;  Display every repeated date past TODAY
+		    ;;  (exclusive) unless
+		    ;;  `org-agenda-show-future-repeats' is nil.  If
+		    ;;  this variable is set to `next', only display
+		    ;;  the first repeated date after TODAY
+		    ;;  (exclusive).
 		    (cond
 		     ((<= current today) past)
 		     ((not org-agenda-show-future-repeats) past)
@@ -5746,8 +5763,7 @@ then those holidays will be skipped."
   "Add overlays, showing issues with clocking.
 See also the user option `org-agenda-clock-consistency-checks'."
   (interactive)
-  (let* ((org-time-clocksum-use-effort-durations nil)
-	 (pl org-agenda-clock-consistency-checks)
+  (let* ((pl org-agenda-clock-consistency-checks)
 	 (re (concat "^[ \t]*"
 		     org-clock-string
 		     "[ \t]+"
@@ -5755,14 +5771,14 @@ See also the user option `org-agenda-clock-consistency-checks'."
 		     "\\(-\\{1,3\\}\\(\\[.*?\\]\\)\\)?")) ; group 3 is second
 	 (tlstart 0.)
 	 (tlend 0.)
-	 (maxtime (org-hh:mm-string-to-minutes
+	 (maxtime (org-duration-to-minutes
 		   (or (plist-get pl :max-duration) "24:00")))
-	 (mintime (org-hh:mm-string-to-minutes
+	 (mintime (org-duration-to-minutes
 		   (or (plist-get pl :min-duration) 0)))
-	 (maxgap  (org-hh:mm-string-to-minutes
+	 (maxgap  (org-duration-to-minutes
 		   ;; default 30:00 means never complain
 		   (or (plist-get pl :max-gap) "30:00")))
-	 (gapok (mapcar 'org-hh:mm-string-to-minutes
+	 (gapok (mapcar #'org-duration-to-minutes
 			(plist-get pl :gap-ok-around)))
 	 (def-face (or (plist-get pl :default-face)
 		       '((:background "DarkRed") (:foreground "white"))))
@@ -5796,14 +5812,12 @@ See also the user option `org-agenda-clock-consistency-checks'."
 	 ((> dt (* 60 maxtime))
 	  ;; a very long clocking chunk
 	  (setq issue (format "Clocking interval is very long: %s"
-			      (org-minutes-to-clocksum-string
-			       (floor (/ (float dt) 60.))))
+			      (org-duration-from-minutes (floor (/ dt 60.))))
 		face (or (plist-get pl :long-face) face)))
 	 ((< dt (* 60 mintime))
 	  ;; a very short clocking chunk
 	  (setq issue (format "Clocking interval is very short: %s"
-			      (org-minutes-to-clocksum-string
-			       (floor (/ (float dt) 60.))))
+			      (org-duration-from-minutes (floor (/ dt 60.))))
 		face (or (plist-get pl :short-face) face)))
 	 ((and (> tlend 0) (< ts tlend))
 	  ;; Two clock entries are overlapping
@@ -6405,18 +6419,19 @@ Any match of REMOVE-RE will be removed from TXT."
 	  (if s1 (setq s1 (org-get-time-of-day s1 'string t)))
 	  (if s2 (setq s2 (org-get-time-of-day s2 'string t)))
 
-	  ;; Try to set s2 if s1 and `org-agenda-default-appointment-duration' are set
-	  (let (org-time-clocksum-use-effort-durations)
-	    (when (and s1 (not s2) org-agenda-default-appointment-duration)
-	      (setq s2
-		    (org-minutes-to-clocksum-string
-		     (+ (org-hh:mm-string-to-minutes s1)
-			org-agenda-default-appointment-duration)))))
+	  ;; Try to set s2 if s1 and
+	  ;; `org-agenda-default-appointment-duration' are set
+	  (when (and s1 (not s2) org-agenda-default-appointment-duration)
+	    (setq s2
+		  (org-duration-from-minutes
+		   (+ (org-duration-to-minutes s1 t)
+		      org-agenda-default-appointment-duration)
+		   nil t)))
 
 	  ;; Compute the duration
 	  (when s2
-	    (setq duration (- (org-hh:mm-string-to-minutes s2)
-			      (org-hh:mm-string-to-minutes s1)))))
+	    (setq duration (- (org-duration-to-minutes s2)
+			      (org-duration-to-minutes s1)))))
 
 	(when (string-match "\\([ \t]+\\)\\(:[[:alnum:]_@#%:]+:\\)[ \t]*$" txt)
 	  ;; Tags are in the string
@@ -7548,7 +7563,7 @@ E looks like \"+<2:25\"."
 		   ((equal op ??) op)
 		   (t '=)))
     (list 'org-agenda-compare-effort (list 'quote op)
-	  (org-duration-string-to-minutes e))))
+	  (org-duration-to-minutes e))))
 
 (defun org-agenda-compare-effort (op value)
   "Compare the effort of the current line with VALUE, using OP.

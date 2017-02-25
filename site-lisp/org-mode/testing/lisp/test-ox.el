@@ -747,6 +747,15 @@ Paragraph <2012-03-29 Thu>[2012-03-29 Thu]"
 			     (paragraph . (lambda (p c i) c))
 			     (section . (lambda (s c i) c))))
 	     nil nil nil '(:with-emphasize nil)))))
+  (should
+   (equal "/simple/ /example/\n"
+	  (org-test-with-temp-text "/simple/ /example/"
+	    (org-export-as
+	     (org-export-create-backend
+	      :transcoders '((bold . (lambda (b c i) "dummy"))
+			     (paragraph . (lambda (p c i) c))
+			     (section . (lambda (s c i) c))))
+	     nil nil nil '(:with-emphasize nil)))))
   ;; LaTeX environment.
   (should
    (equal "dummy\n"
@@ -839,7 +848,7 @@ Paragraph <2012-03-29 Thu>[2012-03-29 Thu]"
 	      :transcoders
 	      '((subscript . (lambda (s c i) "dummy"))
 		(template . (lambda (c i) (org-export-data
-				      (plist-get i :title) i)))
+					   (plist-get i :title) i)))
 		(section . (lambda (s c i) c))))
 	     nil nil nil '(:with-sub-superscript nil)))))
   ;; Handle uninterpreted objects in captions.
@@ -3301,8 +3310,9 @@ Another text. (ref:text)
   "Test `org-export-file-uri' specifications."
   ;; Preserve relative filenames.
   (should (equal "relative.org" (org-export-file-uri "relative.org")))
-  ;; Local files start with "file:///"
-  (should (equal "file:///local.org" (org-export-file-uri "/local.org")))
+  ;; Local files start with "file://"
+  (should (equal (concat (if (memq system-type '(windows-nt cygwin)) "file:///" "file://") (expand-file-name "/local.org"))
+		 (org-export-file-uri "/local.org")))
   ;; Remote files start with "file://"
   (should (equal "file://myself@some.where:papers/last.pdf"
 		 (org-export-file-uri "/myself@some.where:papers/last.pdf")))
@@ -3310,7 +3320,7 @@ Another text. (ref:text)
 		 (org-export-file-uri "//localhost/etc/fstab")))
   ;; Expand filename starting with "~".
   (should (equal (org-export-file-uri "~/file.org")
-		 (concat "file://" (expand-file-name "~/file.org")))))
+		 (concat (if (memq system-type '(windows-nt cygwin)) "file:///" "file://") (expand-file-name "~/file.org")))))
 
 (ert-deftest test-org-export/get-reference ()
   "Test `org-export-get-reference' specifications."

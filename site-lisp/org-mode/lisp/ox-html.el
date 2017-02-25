@@ -2557,21 +2557,22 @@ holding contextual information."
 	     (cdr ids) "")))
       (if (org-export-low-level-p headline info)
           ;; This is a deep sub-tree: export it as a list item.
-          (let* ((type (if numberedp 'ordered 'unordered))
-                 (itemized-body
-                  (org-html-format-list-item
-                   contents type nil info nil
+          (let* ((html-type (if numberedp "ol" "ul")))
+	    (concat
+	     (and (org-export-first-sibling-p headline info)
+		  (apply #'format "<%s class=\"org-%s\">\n"
+			 (make-list 2 html-type)))
+	     (org-html-format-list-item
+                   contents (if numberedp 'ordered 'unordered)
+		   nil info nil
                    (concat (org-html--anchor preferred-id nil nil info)
                            extra-ids
-                           full-text))))
-            (concat (and (org-export-first-sibling-p headline info)
-                         (org-html-begin-plain-list type))
-                    itemized-body
-                    (and (org-export-last-sibling-p headline info)
-                         (org-html-end-plain-list type))))
+                           full-text)) "\n"
+	     (and (org-export-last-sibling-p headline info)
+		  (format "</%s>\n" html-type))))
+	;; Standard headline.  Export it as a section.
         (let ((extra-class (org-element-property :HTML_CONTAINER_CLASS headline))
               (first-content (car (org-element-contents headline))))
-          ;; Standard headline.  Export it as a section.
           (format "<%s id=\"%s\" class=\"%s\">%s%s</%s>\n"
                   (org-html--container headline info)
                   (concat "outline-container-"
@@ -2695,7 +2696,8 @@ INFO is a plist holding contextual information.  See
 			   (symbol-name checkbox)) ""))
 	(checkbox (concat (org-html-checkbox checkbox info)
 			  (and checkbox " ")))
-	(br (org-html-close-tag "br" nil info)))
+	(br (org-html-close-tag "br" nil info))
+	(extra-newline (if (and (org-string-nw-p contents) headline) "\n" "")))
     (concat
      (pcase type
        (`ordered
@@ -2718,7 +2720,9 @@ INFO is a plist holding contextual information.  See
 			  class (concat checkbox term))
 		  "<dd>"))))
      (unless (eq type 'descriptive) checkbox)
-     (and contents (org-trim contents))
+     extra-newline
+     (and (org-string-nw-p contents) (org-trim contents))
+     extra-newline
      (pcase type
        (`ordered "</li>")
        (`unordered "</li>")
@@ -3138,34 +3142,27 @@ the plist used as a communication channel."
 
 ;;;; Plain List
 
-;; FIXME Maybe arg1 is not needed because <li value="20"> already sets
-;; the correct value for the item counter
-(defun org-html-begin-plain-list (type &optional arg1)
-  "Insert the beginning of the HTML list depending on TYPE.
-When ARG1 is a string, use it as the start parameter for ordered
-lists."
-  (pcase type
-    (`ordered
-     (format "<ol class=\"org-ol\"%s>"
-	     (if arg1 (format " start=\"%d\"" arg1) "")))
-    (`unordered "<ul class=\"org-ul\">")
-    (`descriptive "<dl class=\"org-dl\">")))
-
-(defun org-html-end-plain-list (type)
-  "Insert the end of the HTML list depending on TYPE."
-  (pcase type
-    (`ordered "</ol>")
-    (`unordered "</ul>")
-    (`descriptive "</dl>")))
-
 (defun org-html-plain-list (plain-list contents _info)
   "Transcode a PLAIN-LIST element from Org to HTML.
 CONTENTS is the contents of the list.  INFO is a plist holding
 contextual information."
-  (let ((type (org-element-property :type plain-list)))
-    (format "%s\n%s%s"
-	    (org-html-begin-plain-list type)
-	    contents (org-html-end-plain-list type))))
+  (let* ((type (pcase (org-element-property :type plain-list)
+		 (`ordered "ol")
+		 (`unordered "ul")
+		 (`descriptive "dl")
+		 (other (error "Unknown HTML list type: %s" other))))
+	 (class (format "org-%s" type))
+	 (attributes (org-export-read-attribute :attr_html plain-list)))
+    (format "<%s %s>\n%s</%s>"
+	    type
+	    (org-html--make-attribute-string
+	     (plist-put attributes :class
+			(org-trim
+			 (mapconcat #'identity
+				    (list class (plist-get attributes :class))
+				    " "))))
+	    contents
+	    type)))
 
 ;;;; Plain Text
 
@@ -3273,7 +3270,7 @@ holding contextual information."
 		    #'number-to-string
 		    (org-export-get-headline-number parent info) "-"))))
         ;; Build return value.
-	(format "<div class=\"outline-text-%d\" id=\"text-%s\">\n%s</div>"
+	(format "<div class=\"outline-text-%d\" id=\"text-%s\">\n%s</div>\n"
 		class-num
 		(or (org-element-property :CUSTOM_ID parent)
 		    section-number

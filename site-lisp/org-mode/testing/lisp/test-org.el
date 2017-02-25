@@ -718,35 +718,35 @@
   ;; `org-adapt-indentation' is nil.
   (should
    (= 2
-      (org-test-with-temp-text "* H\nA"
-	(forward-line)
+      (org-test-with-temp-text "* H\n<point>A"
 	(let ((org-adapt-indentation t)) (org-indent-line))
 	(org-get-indentation))))
   (should
    (= 2
-      (org-test-with-temp-text "* H\n\nA"
-	(forward-line)
+      (org-test-with-temp-text "* H\n<point>\nA"
 	(let ((org-adapt-indentation t)) (org-indent-line))
 	(org-get-indentation))))
   (should
    (zerop
-    (org-test-with-temp-text "* H\nA"
-      (forward-line)
+    (org-test-with-temp-text "* H\n<point>A"
       (let ((org-adapt-indentation nil)) (org-indent-line))
       (org-get-indentation))))
   ;; Indenting preserves point position.
   (should
-   (org-test-with-temp-text "* H\nAB"
-     (forward-line)
-     (forward-char)
+   (org-test-with-temp-text "* H\nA<point>B"
      (let ((org-adapt-indentation t)) (org-indent-line))
      (looking-at "B")))
-  ;; Do not change indentation at an item.
+  ;; Do not change indentation at an item or a LaTeX environment.
   (should
    (= 1
-      (org-test-with-temp-text "* H\n - A"
-	(forward-line)
+      (org-test-with-temp-text "* H\n<point> - A"
 	(let ((org-adapt-indentation t)) (org-indent-line))
+	(org-get-indentation))))
+  (should
+   (= 1
+      (org-test-with-temp-text
+	  "\\begin{equation}\n <point>1+1=2\n\\end{equation}"
+	(org-indent-line)
 	(org-get-indentation))))
   ;; On blank lines at the end of a list, indent like last element
   ;; within it if the line is still in the list.  If the last element
@@ -887,15 +887,52 @@
 	  (org-test-with-temp-text "#+BEGIN_CENTER\n A\n  B\n#+END_CENTER"
 	    (org-indent-region (point-min) (point-max))
 	    (buffer-string))))
-  ;; Ignore contents of verse blocks and example blocks.
+  ;; Ignore contents of verse blocks.  Only indent block delimiters.
   (should
    (equal "#+BEGIN_VERSE\n A\n  B\n#+END_VERSE"
 	  (org-test-with-temp-text "#+BEGIN_VERSE\n A\n  B\n#+END_VERSE"
 	    (org-indent-region (point-min) (point-max))
 	    (buffer-string))))
   (should
+   (equal "#+BEGIN_VERSE\n  A\n   B\n#+END_VERSE"
+	  (org-test-with-temp-text " #+BEGIN_VERSE\n  A\n   B\n #+END_VERSE"
+	    (org-indent-region (point-min) (point-max))
+	    (buffer-string))))
+  ;; Indent example blocks as a single block, unless indentation
+  ;; should be preserved.  In this case only indent the block markers.
+  (should
    (equal "#+BEGIN_EXAMPLE\n A\n  B\n#+END_EXAMPLE"
 	  (org-test-with-temp-text "#+BEGIN_EXAMPLE\n A\n  B\n#+END_EXAMPLE"
+	    (org-indent-region (point-min) (point-max))
+	    (buffer-string))))
+  (should
+   (equal "#+BEGIN_EXAMPLE\n A\n  B\n#+END_EXAMPLE"
+	  (org-test-with-temp-text " #+BEGIN_EXAMPLE\n  A\n   B\n #+END_EXAMPLE"
+	    (org-indent-region (point-min) (point-max))
+	    (buffer-string))))
+  (should
+   (equal "#+BEGIN_EXAMPLE -i\n  A\n   B\n#+END_EXAMPLE"
+	  (org-test-with-temp-text
+	      " #+BEGIN_EXAMPLE -i\n  A\n   B\n #+END_EXAMPLE"
+	    (org-indent-region (point-min) (point-max))
+	    (buffer-string))))
+  (should
+   (equal "#+BEGIN_EXAMPLE\n  A\n   B\n#+END_EXAMPLE"
+	  (org-test-with-temp-text
+	      " #+BEGIN_EXAMPLE\n  A\n   B\n #+END_EXAMPLE"
+	    (let ((org-src-preserve-indentation t))
+	      (org-indent-region (point-min) (point-max)))
+	    (buffer-string))))
+  ;; Treat export blocks as a whole.
+  (should
+   (equal "#+BEGIN_EXPORT latex\n A\n  B\n#+END_EXPORT"
+	  (org-test-with-temp-text "#+BEGIN_EXPORT latex\n A\n  B\n#+END_EXPORT"
+	    (org-indent-region (point-min) (point-max))
+	    (buffer-string))))
+  (should
+   (equal "#+BEGIN_EXPORT latex\n A\n  B\n#+END_EXPORT"
+	  (org-test-with-temp-text
+	      " #+BEGIN_EXPORT latex\n  A\n   B\n #+END_EXPORT"
 	    (org-indent-region (point-min) (point-max))
 	    (buffer-string))))
   ;; Indent according to mode if `org-src-tab-acts-natively' is
@@ -1294,6 +1331,16 @@
   (should
    (equal "* \n* \n"
 	  (org-test-with-temp-text "* <point>"
+	    (org-insert-heading)
+	    (buffer-string))))
+  (should
+   (org-test-with-temp-text "* <point>\n"
+     (org-insert-heading)
+     (looking-at-p "\n\\'")))
+  ;; Do not insert spurious headlines when inserting a new headline.
+  (should
+   (equal "* H1\n* H2\n* \n"
+	  (org-test-with-temp-text "* H1\n* H2<point>\n"
 	    (org-insert-heading)
 	    (buffer-string)))))
 
@@ -5557,6 +5604,36 @@ Paragraph<point>"
   (should-not
    (org-test-with-temp-text "<2012-03-29 Thu>"
      (org-timestamp-has-time-p (org-element-context)))))
+
+(ert-deftest test-org/get-repeat ()
+  "Test `org-get-repeat' specifications."
+  (should
+   (org-test-with-temp-text "* H\n<2012-03-29 Thu 16:40 +2y>"
+     (org-get-repeat)))
+  (should-not
+   (org-test-with-temp-text "* H\n<2012-03-29 Thu 16:40>"
+     (org-get-repeat)))
+  ;; Return proper repeat string.
+  (should
+   (equal "+2y"
+	  (org-test-with-temp-text "* H\n<2014-03-04 Tue 16:40 +2y>"
+	    (org-get-repeat))))
+  ;; Prevent false positive (commented or verbatim time stamps)
+  (should-not
+   (org-test-with-temp-text "* H\n# <2012-03-29 Thu 16:40>"
+     (org-get-repeat)))
+  (should-not
+   (org-test-with-temp-text
+       "* H\n#+BEGIN_EXAMPLE\n<2012-03-29 Thu 16:40>\n#+END_EXAMPLE"
+     (org-get-repeat)))
+  ;; Return nil when called before first heading.
+  (should-not
+   (org-test-with-temp-text "<2012-03-29 Thu 16:40 +2y>"
+     (org-get-repeat)))
+  ;; When called with an optional argument, extract repeater from that
+  ;; string instead.
+  (should (equal "+2y" (org-get-repeat "<2012-03-29 Thu 16:40 +2y>")))
+  (should-not (org-get-repeat "<2012-03-29 Thu 16:40>")))
 
 (ert-deftest test-org/timestamp-format ()
   "Test `org-timestamp-format' specifications."

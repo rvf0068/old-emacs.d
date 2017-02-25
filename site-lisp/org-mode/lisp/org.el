@@ -173,7 +173,7 @@ Stars are put in group 1 and the trimmed body in group 2.")
 (declare-function orgtbl-mode "org-table" (&optional arg))
 (declare-function org-export-get-backend "ox" (name))
 (declare-function org-export-get-environment "ox" (&optional backend subtreep ext-plist))
-(declare-function org-latex-make-preamble "ox-latex" (info &optional template))
+(declare-function org-latex-make-preamble "ox-latex" (info &optional template snippet?))
 
 (defsubst org-uniquify (list)
   "Non-destructively remove duplicate elements from LIST."
@@ -3250,135 +3250,6 @@ commands, if custom time display is turned on at the time of export."
 	(concat "[" (substring f 1 -1) "]")
       f)))
 
-(defcustom org-time-clocksum-format
-  '(:days "%dd " :hours "%d" :require-hours t :minutes ":%02d" :require-minutes t)
-  "The format string used when creating CLOCKSUM lines.
-This is also used when Org mode generates a time duration.
-
-The value can be a single format string containing two
-%-sequences, which will be filled with the number of hours and
-minutes in that order.
-
-Alternatively, the value can be a plist associating any of the
-keys :years, :months, :weeks, :days, :hours or :minutes with
-format strings.  The time duration is formatted using only the
-time components that are needed and concatenating the results.
-If a time unit in absent, it falls back to the next smallest
-unit.
-
-The keys :require-years, :require-months, :require-days,
-:require-weeks, :require-hours, :require-minutes are also
-meaningful.  A non-nil value for these keys indicates that the
-corresponding time component should always be included, even if
-its value is 0.
-
-
-For example,
-
-   (:days \"%dd\" :hours \"%d\" :require-hours t :minutes \":%02d\"
-    :require-minutes t)
-
-means durations longer than a day will be expressed in days,
-hours and minutes, and durations less than a day will always be
-expressed in hours and minutes (even for durations less than an
-hour).
-
-The value
-
-  (:days \"%dd\" :minutes \"%dm\")
-
-means durations longer than a day will be expressed in days and
-minutes, and durations less than a day will be expressed entirely
-in minutes (even for durations longer than an hour)."
-  :group 'org-time
-  :group 'org-clock
-  :version "24.4"
-  :package-version '(Org . "8.0")
-  :type '(choice (string :tag "Format string")
-		 (set :tag "Plist"
-		      (group :inline t (const :tag "Years" :years)
-			     (string :tag "Format string"))
-		      (group :inline t
-			     (const :tag "Always show years" :require-years)
-			     (const t))
-		      (group :inline t (const :tag "Months" :months)
-			     (string :tag "Format string"))
-		      (group :inline t
-			     (const :tag "Always show months" :require-months)
-			     (const t))
-		      (group :inline t (const :tag "Weeks" :weeks)
-			     (string :tag "Format string"))
-		      (group :inline t
-			     (const :tag "Always show weeks" :require-weeks)
-			     (const t))
-		      (group :inline t (const :tag "Days" :days)
-			     (string :tag "Format string"))
-		      (group :inline t
-			     (const :tag "Always show days" :require-days)
-			     (const t))
-		      (group :inline t (const :tag "Hours" :hours)
-			     (string :tag "Format string"))
-		      (group :inline t
-			     (const :tag "Always show hours" :require-hours)
-			     (const t))
-		      (group :inline t (const :tag "Minutes" :minutes)
-			     (string :tag "Format string"))
-		      (group :inline t
-			     (const :tag "Always show minutes" :require-minutes)
-			     (const t)))))
-
-(defcustom org-time-clocksum-use-fractional nil
-  "When non-nil, `\\[org-clock-display]' uses fractional times.
-See `org-time-clocksum-format' for more on time clock formats."
-  :group 'org-time
-  :group 'org-clock
-  :version "24.3"
-  :type 'boolean)
-
-(defcustom org-time-clocksum-use-effort-durations nil
-  "When non-nil, `\\[org-clock-display]' uses effort durations.
-E.g. by default, one day is considered to be a 8 hours effort,
-so a task that has been clocked for 16 hours will be displayed
-as during 2 days in the clock display or in the clocktable.
-
-See `org-effort-durations' on how to set effort durations
-and `org-time-clocksum-format' for more on time clock formats."
-  :group 'org-time
-  :group 'org-clock
-  :version "24.4"
-  :package-version '(Org . "8.0")
-  :type 'boolean)
-
-(defcustom org-time-clocksum-fractional-format "%.2f"
-  "The format string used when creating CLOCKSUM lines,
-or when Org mode generates a time duration, if
-`org-time-clocksum-use-fractional' is enabled.
-
-The value can be a single format string containing one
-%-sequence, which will be filled with the number of hours as
-a float.
-
-Alternatively, the value can be a plist associating any of the
-keys :years, :months, :weeks, :days, :hours or :minutes with
-a format string.  The time duration is formatted using the
-largest time unit which gives a non-zero integer part.  If all
-specified formats have zero integer part, the smallest time unit
-is used."
-  :group 'org-time
-  :type '(choice (string :tag "Format string")
-		 (set (group :inline t (const :tag "Years" :years)
-			     (string :tag "Format string"))
-		      (group :inline t (const :tag "Months" :months)
-			     (string :tag "Format string"))
-		      (group :inline t (const :tag "Weeks" :weeks)
-			     (string :tag "Format string"))
-		      (group :inline t (const :tag "Days" :days)
-			     (string :tag "Format string"))
-		      (group :inline t (const :tag "Hours" :hours)
-			     (string :tag "Format string"))
-		      (group :inline t (const :tag "Minutes" :minutes)
-			     (string :tag "Format string")))))
-
 (defcustom org-deadline-warning-days 14
   "Number of days before expiration during which a deadline becomes active.
 This variable governs the display in sparse trees and in the agenda.
@@ -3789,7 +3660,7 @@ and the clock summary:
 
  ((\"Remaining\" (lambda(value)
                    (let ((clocksum (org-clock-sum-current-item))
-                         (effort (org-duration-string-to-minutes
+                         (effort (org-duration-to-minutes
                                    (org-entry-get (point) \"Effort\"))))
                      (org-minutes-to-clocksum-string (- effort clocksum))))))"
   :group 'org-properties
@@ -6063,9 +5934,11 @@ by a #."
 							 '(org-block))))))) ; end of source block
 	     ((not org-fontify-quote-and-verse-blocks))
 	     ((string= block-type "quote")
-	      (add-text-properties beg1 (min (point-max) (1+ end1)) '(face org-quote)))
+	      (add-face-text-property
+	       beg1 (min (point-max) (1+ end1)) 'org-quote t))
 	     ((string= block-type "verse")
-	      (add-text-properties beg1 (min (point-max) (1+ end1)) '(face org-verse))))
+	      (add-face-text-property
+	       beg1 (min (point-max) (1+ end1)) 'org-verse t)))
 	    (add-text-properties beg beg1 '(face org-block-begin-line))
 	    (add-text-properties (min (point-max) (1+ end)) (min (point-max) (1+ end1))
 				 '(face org-block-end-line))
@@ -7984,13 +7857,12 @@ unconditionally."
 	       (when blank? (insert "\n"))
 	       (insert "\n" stars " ")
 	       (when (org-string-nw-p split) (insert split))
-	       (insert "\n")
-	       (forward-char -1)))
+	       (when (eobp) (save-excursion (insert "\n")))))
 	    (t
 	     (end-of-line)
 	     (when blank? (insert "\n"))
-	     (insert "\n" stars " \n")
-	     (forward-char -1))))
+	     (insert "\n" stars " ")
+	     (when (eobp) (save-excursion (insert "\n"))))))
      ;; On regular text, turn line into a headline or split, if
      ;; appropriate.
      ((bolp)
@@ -9744,7 +9616,7 @@ sub-tree if optional argument INHERIT is non-nil."
   (org-refresh-properties
    org-effort-property
    '((effort . identity)
-     (effort-minutes . org-duration-string-to-minutes))))
+     (effort-minutes . org-duration-to-minutes))))
 
 ;;;; Link Stuff
 
@@ -13194,18 +13066,27 @@ on INACTIVE-OK."
 	     (throw 'exit t)))
       nil)))
 
-(defun org-get-repeat (&optional tagline)
-  "Check if there is a deadline/schedule with repeater in this entry."
+(defun org-get-repeat (&optional timestamp)
+  "Check if there is a time-stamp with repeater in this entry.
+
+Return the repeater, as a string, or nil.  Also return nil when
+this function is called before first heading.
+
+When optional argument TIMESTAMP is a string, extract the
+repeater from there instead."
   (save-match-data
-    (save-excursion
-      (org-back-to-heading t)
-      (let ((end (org-entry-end-position))
-	    (regexp (if tagline (concat tagline "\\s-*" org-repeat-re)
-		      org-repeat-re)))
-	(catch :repeat
-	  (while (re-search-forward regexp end t)
-	    (when (org-at-timestamp-p)
-	      (throw :repeat (match-string-no-properties 1)))))))))
+    (cond (timestamp
+	   (and (string-match org-repeat-re timestamp)
+		(match-string-no-properties 1 timestamp)))
+	  ((org-before-first-heading-p) nil)
+	  (t
+	   (save-excursion
+	     (org-back-to-heading t)
+	     (let ((end (org-entry-end-position)))
+	       (catch :repeat
+		 (while (re-search-forward org-repeat-re end t)
+		   (when (save-match-data (org-at-timestamp-p))
+		     (throw :repeat (match-string-no-properties 1)))))))))))
 
 (defvar org-last-changed-timestamp)
 (defvar org-last-inserted-timestamp)
@@ -13815,7 +13696,10 @@ EXTRA is additional text that will be inserted into the notes buffer."
 	 ;; Find location for the new note.
 	 (goto-char org-log-note-marker)
 	 (set-marker org-log-note-marker nil)
-	 (goto-char (org-log-beginning t))
+	 ;; Note associated to a clock is to be located right after
+	 ;; the clock.  Do not move point.
+	 (unless (eq org-log-note-purpose 'clock-out)
+	   (goto-char (org-log-beginning t)))
 	 ;; Make sure point is at the beginning of an empty line.
 	 (cond ((not (bolp)) (let ((inhibit-read-only t)) (insert "\n")))
 	       ((looking-at "[ \t]*\\S-") (save-excursion (insert "\n"))))
@@ -15713,7 +15597,7 @@ When INCREMENT is non-nil, set the property to the next allowed value."
       (org-entry-put nil prop val))
     (org-refresh-property
      '((effort . identity)
-       (effort-minutes . org-duration-string-to-minutes))
+       (effort-minutes . org-duration-to-minutes))
      val)
     (when (equal heading (bound-and-true-p org-clock-current-task))
       (setq org-clock-effort (get-text-property (point-at-bol) 'effort))
@@ -15751,8 +15635,7 @@ strings."
 	    (when (or (not specific) (string= specific "CLOCKSUM"))
 	      (let ((clocksum (get-text-property (point) :org-clock-minutes)))
 		(when clocksum
-		  (push (cons "CLOCKSUM"
-			      (org-minutes-to-clocksum-string clocksum))
+		  (push (cons "CLOCKSUM" (org-duration-from-minutes clocksum))
 			props)))
 	      (when specific (throw 'exit props)))
 	    (when (or (not specific) (string= specific "CLOCKSUM_T"))
@@ -15760,7 +15643,7 @@ strings."
 						  :org-clock-minutes-today)))
 		(when clocksumt
 		  (push (cons "CLOCKSUM_T"
-			      (org-minutes-to-clocksum-string clocksumt))
+			      (org-duration-from-minutes clocksumt))
 			props)))
 	      (when specific (throw 'exit props)))
 	    (when (or (not specific) (string= specific "ITEM"))
@@ -16595,7 +16478,7 @@ completion."
     (when (equal prop org-effort-property)
       (org-refresh-property
        '((effort . identity)
-	 (effort-minutes . org-duration-string-to-minutes))
+	 (effort-minutes . org-duration-to-minutes))
        nval)
       (when (string= org-clock-current-task heading)
 	(setq org-clock-effort nval)
@@ -18304,113 +18187,6 @@ effort string \"2hours\" is equivalent to 120 minutes."
   :type '(alist :key-type (string :tag "Modifier")
 		:value-type (number :tag "Minutes")))
 
-(defun org-minutes-to-clocksum-string (m)
-  "Format number of minutes as a clocksum string.
-The format is determined by `org-time-clocksum-format',
-`org-time-clocksum-use-fractional' and
-`org-time-clocksum-fractional-format' and
-`org-time-clocksum-use-effort-durations'."
-  (let ((clocksum "")
-	(m (round m)) ; Don't allow fractions of minutes
-	h d w mo y fmt n)
-    (setq h (if org-time-clocksum-use-effort-durations
-		(cdr (assoc "h" org-effort-durations)) 60)
-	  d (if org-time-clocksum-use-effort-durations
-		(/ (cdr (assoc "d" org-effort-durations)) h) 24)
-	  w (if org-time-clocksum-use-effort-durations
-		(/ (cdr (assoc "w" org-effort-durations)) (* d h)) 7)
-	  mo (if org-time-clocksum-use-effort-durations
-		 (/ (cdr (assoc "m" org-effort-durations)) (* d h)) 30)
-	  y (if org-time-clocksum-use-effort-durations
-		(/ (cdr (assoc "y" org-effort-durations)) (* d h)) 365))
-    ;; fractional format
-    (if org-time-clocksum-use-fractional
-	(cond
-	 ;; single format string
-	 ((stringp org-time-clocksum-fractional-format)
-	  (format org-time-clocksum-fractional-format (/ m (float h))))
-	 ;; choice of fractional formats for different time units
-	 ((and (setq fmt (plist-get org-time-clocksum-fractional-format :years))
-	       (> (/ (truncate m) (* y d h)) 0))
-	  (format fmt (/ m (* y d (float h)))))
-	 ((and (setq fmt (plist-get org-time-clocksum-fractional-format :months))
-	       (> (/ (truncate m) (* mo d h)) 0))
-	  (format fmt (/ m (* mo d (float h)))))
-	 ((and (setq fmt (plist-get org-time-clocksum-fractional-format :weeks))
-	       (> (/ (truncate m) (* w d h)) 0))
-	  (format fmt (/ m (* w d (float h)))))
-	 ((and (setq fmt (plist-get org-time-clocksum-fractional-format :days))
-	       (> (/ (truncate m) (* d h)) 0))
-	  (format fmt (/ m (* d (float h)))))
-	 ((and (setq fmt (plist-get org-time-clocksum-fractional-format :hours))
-	       (> (/ (truncate m) h) 0))
-	  (format fmt (/ m (float h))))
-	 ((setq fmt (plist-get org-time-clocksum-fractional-format :minutes))
-	  (format fmt m))
-	 ;; fall back to smallest time unit with a format
-	 ((setq fmt (plist-get org-time-clocksum-fractional-format :hours))
-	  (format fmt (/ m (float h))))
-	 ((setq fmt (plist-get org-time-clocksum-fractional-format :days))
-	  (format fmt (/ m (* d (float h)))))
-	 ((setq fmt (plist-get org-time-clocksum-fractional-format :weeks))
-	  (format fmt (/ m (* w d (float h)))))
-	 ((setq fmt (plist-get org-time-clocksum-fractional-format :months))
-	  (format fmt (/ m (* mo d (float h)))))
-	 ((setq fmt (plist-get org-time-clocksum-fractional-format :years))
-	  (format fmt (/ m (* y d (float h))))))
-      ;; standard (non-fractional) format, with single format string
-      (if (stringp org-time-clocksum-format)
-	  (format org-time-clocksum-format (setq n (/ m h)) (- m (* h n)))
-	;; separate formats components
-	(and (setq fmt (plist-get org-time-clocksum-format :years))
-	     (or (> (setq n (/ (truncate m) (* y d h))) 0)
-		 (plist-get org-time-clocksum-format :require-years))
-	     (setq clocksum (concat clocksum (format fmt n))
-		   m (- m (* n y d h))))
-	(and (setq fmt (plist-get org-time-clocksum-format :months))
-	     (or (> (setq n (/ (truncate m) (* mo d h))) 0)
-		 (plist-get org-time-clocksum-format :require-months))
-	     (setq clocksum (concat clocksum (format fmt n))
-		   m (- m (* n mo d h))))
-	(and (setq fmt (plist-get org-time-clocksum-format :weeks))
-	     (or (> (setq n (/ (truncate m) (* w d h))) 0)
-		 (plist-get org-time-clocksum-format :require-weeks))
-	     (setq clocksum (concat clocksum (format fmt n))
-		   m (- m (* n w d h))))
-	(and (setq fmt (plist-get org-time-clocksum-format :days))
-	     (or (> (setq n (/ (truncate m) (* d h))) 0)
-		 (plist-get org-time-clocksum-format :require-days))
-	     (setq clocksum (concat clocksum (format fmt n))
-		   m (- m (* n d h))))
-	(and (setq fmt (plist-get org-time-clocksum-format :hours))
-	     (or (> (setq n (/ (truncate m) h)) 0)
-		 (plist-get org-time-clocksum-format :require-hours))
-	     (setq clocksum (concat clocksum (format fmt n))
-		   m (- m (* n h))))
-	(and (setq fmt (plist-get org-time-clocksum-format :minutes))
-	     (or (> m 0) (plist-get org-time-clocksum-format :require-minutes))
-	     (setq clocksum (concat clocksum (format fmt m))))
-	;; return formatted time duration
-	clocksum))))
-
-(defun org-hours-to-clocksum-string (n)
-  (org-minutes-to-clocksum-string (* n 60)))
-
-(defun org-hh:mm-string-to-minutes (s)
-  "Convert a string H:MM to a number of minutes.
-If the string is just a number, interpret it as minutes.
-In fact, the first hh:mm or number in the string will be taken,
-there can be extra stuff in the string.
-If no number is found, the return value is 0."
-  (cond
-   ((integerp s) s)
-   ((string-match "\\([0-9]+\\):\\([0-9]+\\)" s)
-    (+ (* (string-to-number (match-string 1 s)) 60)
-       (string-to-number (match-string 2 s))))
-   ((string-match "\\([0-9]+\\)" s)
-    (string-to-number (match-string 1 s)))
-   (t 0)))
-
 (defcustom org-image-actual-width t
   "Should we use the actual width of images when inlining them?
 
@@ -18464,26 +18240,6 @@ The value is a list, with zero or more of the symbols `effort', `appt',
   :version "26.1"
   :package-version '(Org . "8.3")
   :group 'org-agenda)
-
-(defun org-duration-string-to-minutes (s &optional output-to-string)
-  "Convert a duration string S to minutes.
-
-A bare number is interpreted as minutes, modifiers can be set by
-customizing `org-effort-durations' (which see).
-
-Entries containing a colon are interpreted as H:MM by
-`org-hh:mm-string-to-minutes'."
-  (let ((result 0)
-	(re (concat "\\([0-9.]+\\) *\\("
-		    (regexp-opt (mapcar 'car org-effort-durations))
-		    "\\)")))
-    (while (string-match re s)
-      (cl-incf result (* (cdr (assoc (match-string 2 s) org-effort-durations))
-			 (string-to-number (match-string 1 s))))
-      (setq s (replace-match "" nil t s)))
-    (setq result (floor result))
-    (cl-incf result (org-hh:mm-string-to-minutes s))
-    (if output-to-string (number-to-string result) result)))
 
 ;;;; Files
 
@@ -19406,7 +19162,8 @@ a HTML file."
 	  (or (plist-get processing-info :latex-header)
 	      (org-latex-make-preamble
 	       (org-export-get-environment (org-export-get-backend 'latex))
-	       org-format-latex-header)))
+	       org-format-latex-header
+	       'snippet)))
 	 (latex-compiler (plist-get processing-info :latex-compiler))
 	 (image-converter (plist-get processing-info :image-converter))
 	 (tmpdir temporary-file-directory)
@@ -22706,7 +22463,8 @@ it for output."
 			       (?o . ,(shell-quote-argument out-dir))
 			       (?O . ,(shell-quote-argument output))))))
 	   (dolist (command process)
-	     (shell-command (format-spec command spec) log-buf))))
+	     (shell-command (format-spec command spec) log-buf))
+	   (when log-buf (with-current-buffer log-buf (compilation-mode)))))
 	(_ (error "No valid command to process %S%s" source err-msg))))
     ;; Check for process failure.  Output file is expected to be
     ;; located in the same directory as SOURCE.
@@ -22738,7 +22496,7 @@ ELEMENT."
 	  (goto-char start)
 	  (org-get-indentation))))
       ((memq type '(headline inlinetask nil))
-       (if (save-excursion (beginning-of-line) (looking-at "[ \t]*$"))
+       (if (org-match-line "[ \t]*$")
 	   (org--get-expected-indentation element t)
 	 0))
       ((memq type '(diary-sexp footnote-definition)) 0)
@@ -22890,6 +22648,13 @@ Also align node properties according to `org-property-format'."
 		  (= (line-beginning-position)
 		     (org-element-property :post-affiliated element)))
 	     'noindent)
+	    ((and (eq type 'latex-environment)
+		  (>= (point) (org-element-property :post-affiliated element))
+		  (< (point) (org-with-wide-buffer
+			      (goto-char (org-element-property :end element))
+			      (skip-chars-backward " \r\t\n")
+			      (line-beginning-position 2))))
+	     'noindent)
 	    ((and (eq type 'src-block)
 		  org-src-tab-acts-natively
 		  (> (line-beginning-position)
@@ -22941,22 +22706,38 @@ assumed to be significant there."
 		 (element-end (copy-marker (org-element-property :end element)))
 		 (ind (org--get-expected-indentation element nil)))
 	    (cond
+	     ;; Element indented as a single block.  Example blocks
+	     ;; preserving indentation are a special case since the
+	     ;; "contents" must not be indented whereas the block
+	     ;; boundaries can.
+	     ((or (memq type '(export-block latex-environment))
+		  (and (eq type 'example-block)
+		       (not
+			(or org-src-preserve-indentation
+			    (org-element-property :preserve-indent element)))))
+	      (let ((offset (- ind (org-get-indentation))))
+		(unless (zerop offset)
+		  (indent-rigidly (org-element-property :begin element)
+				  (org-element-property :end element)
+				  offset)))
+	      (goto-char element-end))
+	     ;; Elements indented line wise.  Be sure to exclude
+	     ;; example blocks (preserving indentation) and source
+	     ;; blocks from this category as they are treated
+	     ;; specially later.
 	     ((or (memq type '(paragraph table table-row))
 		  (not (or (org-element-property :contents-begin element)
-			   (memq type
-				 '(example-block export-block src-block)))))
-	      ;; Elements here are indented as a single block.  Also
-	      ;; align node properties.
+			   (memq type '(example-block src-block)))))
 	      (when (eq type 'node-property)
 		(org--align-node-property)
 		(beginning-of-line))
 	      (funcall indent-to ind (min element-end end)))
+	     ;; Elements consisting of three parts: before the
+	     ;; contents, the contents, and after the contents.  The
+	     ;; contents are treated specially, according to the
+	     ;; element type, or not indented at all.  Other parts are
+	     ;; indented as a single block.
 	     (t
-	      ;; Elements in this category consist of three parts:
-	      ;; before the contents, the contents, and after the
-	      ;; contents.  The contents are treated specially,
-	      ;; according to the element type, or not indented at
-	      ;; all.  Other parts are indented as a single block.
 	      (let* ((post (copy-marker
 			    (org-element-property :post-affiliated element)))
 		     (cbeg
@@ -22966,8 +22747,7 @@ assumed to be significant there."
 			 ;; Fake contents for source blocks.
 			 (org-with-wide-buffer
 			  (goto-char post)
-			  (forward-line)
-			  (point)))
+			  (line-beginning-position 2)))
 			((memq type '(footnote-definition item plain-list))
 			 ;; Contents in these elements could start on
 			 ;; the same line as the beginning of the
@@ -23001,7 +22781,7 @@ assumed to be significant there."
 		      (t (funcall indent-to ind (min cbeg end))))
 		(when (< (point) end)
 		  (cl-case type
-		    ((example-block export-block verse-block))
+		    ((example-block verse-block))
 		    (src-block
 		     ;; In a source block, indent source code
 		     ;; according to language major mode, but only if

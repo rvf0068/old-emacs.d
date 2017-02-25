@@ -593,16 +593,15 @@ Parse tree is modified by side effect."
 	 (specialp (and (not property)
 			(eq siblings parent)
 			(eq (car parent) location))))
-    ;; Install ELEMENT at the appropriate POSITION within SIBLINGS.
+    ;; Install ELEMENT at the appropriate LOCATION within SIBLINGS.
     (cond (specialp)
 	  ((or (null siblings) (eq (car siblings) location))
 	   (push element siblings))
 	  ((null location) (nconc siblings (list element)))
-	  (t (let ((previous (cadr (memq location (reverse siblings)))))
-	       (if (not previous)
-		   (error "No location found to insert element")
-		 (let ((next (memq previous siblings)))
-		   (setcdr next (cons element (cdr next))))))))
+	  (t
+	   (let ((index (cl-position location siblings)))
+	     (unless index (error "No location found to insert element"))
+	     (push element (cdr (nthcdr (1- index) siblings))))))
     ;; Store SIBLINGS at appropriate place in parse tree.
     (cond
      (specialp (setcdr parent (copy-sequence parent)) (setcar parent element))
@@ -3196,7 +3195,7 @@ Assume point is at the beginning of the link."
 	(when (string-match "::\\(.*\\)\\'" path)
 	  (setq search-option (match-string 1 path))
 	  (setq path (replace-match "" nil nil path)))
-	(setq path (replace-regexp-in-string "\\`///+" "/" path)))
+	(setq path (replace-regexp-in-string "\\`///*\\(.:\\)?/" "\\1/" path)))
       ;; Translate link, if `org-link-translation-function' is set.
       (let ((trans (and (functionp org-link-translation-function)
 			(funcall org-link-translation-function type path))))

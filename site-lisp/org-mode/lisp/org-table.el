@@ -1486,7 +1486,9 @@ non-nil, the one above is used."
        (unless (org-at-table-hline-p)
 	 (org-table-goto-column col1 t)
 	 (when (looking-at "|\\([^|\n]+\\)|\\([^|\n]+\\)|")
-	   (replace-match "|\\2|\\1|")))
+           (transpose-regions
+            (match-beginning 1) (match-end 1)
+            (match-beginning 2) (match-end 2))))
        (forward-line)))
     (set-marker end nil)
     (org-table-goto-column colpos)
@@ -1720,7 +1722,7 @@ numeric compare based on the type of the first key in the table."
 			  (float-time
 			   (org-time-string-to-time (match-string 0 f))))
 			 ((string-match "[0-9]\\{1,2\\}:[0-9]\\{2\\}" f)
-			  (org-hh:mm-string-to-minutes f))
+			  (org-duration-to-minutes (match-string 0 f)))
 			 (t 0))))
 		((?f ?F)
 		 (or getkey-func
