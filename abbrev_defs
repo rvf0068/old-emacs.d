@@ -152,6 +152,8 @@
 
 (define-abbrev-table 'google-maps-static-mode-abbrev-table '())
 
+(define-abbrev-table 'graphviz-dot-mode-abbrev-table '())
+
 (define-abbrev-table 'grep-mode-abbrev-table '())
 
 (define-abbrev-table 'helm-grep-mode-abbrev-table '())
@@ -218,6 +220,8 @@
 
 (define-abbrev-table 'magit-refs-mode-abbrev-table '())
 
+(define-abbrev-table 'magit-repolist-mode-abbrev-table '())
+
 (define-abbrev-table 'magit-revision-mode-abbrev-table '())
 
 (define-abbrev-table 'magit-stash-mode-abbrev-table '())
@@ -267,12 +271,13 @@
     ("lt" "left transversal" nil 3)
     ("mcd" "máximo común divisor" nil 3)
     ("orb" "\\mathrm{Orb}_{G}(x)" nil 2)
+    ("pd" "positive definite" nil 3)
     ("pda" "punto de acumulación" nil 2)
     ("pg" "permutation group" nil 1)
     ("pm" "polinomio mínimo" nil 6)
     ("ssi" "si y solo si" nil 9)
     ("ssr" "Schreier-Sims representation" nil 1)
-    ("st" "such that" nil 4)
+    ("st" "such that" nil 9)
     ("tos" "totally ordered set" nil 1)
     ("ts" "topological space" nil 1)
    ))
@@ -299,11 +304,23 @@
 
 (define-abbrev-table 'python-mode-abbrev-table '())
 
-(define-abbrev-table 'python-mode-skeleton-abbrev-table '())
+(define-abbrev-table 'python-mode-skeleton-abbrev-table
+  '(
+   ))
 
 (define-abbrev-table 'reftex-select-bib-mode-abbrev-table '())
 
 (define-abbrev-table 'reftex-select-label-mode-abbrev-table '())
+
+(define-abbrev-table 'sage-shell-mode-abbrev-table '())
+
+(define-abbrev-table 'sage-shell-sagetex:error-mode-abbrev-table '())
+
+(define-abbrev-table 'sage-shell:help-mode-abbrev-table '())
+
+(define-abbrev-table 'sage-shell:list-outputs-mode-abbrev-table '())
+
+(define-abbrev-table 'sage-shell:sage-mode-abbrev-table '())
 
 (define-abbrev-table 'sgml-mode-abbrev-table '())
 
