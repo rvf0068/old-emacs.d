@@ -65,13 +65,14 @@
 		 ("\\subsection{%s}" . "\\subsection*{%s}")
 		 ("\\subsubsection{%s}" . "\\subsubsection*{%s}")))
 
+;; from http://lists.gnu.org/archive/html/emacs-orgmode/2017-03/msg00190.html
 (add-to-list 'org-latex-classes
-	     '("tesis" "\\documentclass[12pt]{report}"
-	       ("\\chapter{%s}" . "\\chapter*{%s}")
-	       ("\\section{%s}" . "\\section*{%s}")
-	       ("\\subsection{%s}" . "\\subsection*{%s}")
-	       ("\\subsubsection{%s}" . "\\subsubsection*{%s}"))
-)
+	     '("exam" "\\documentclass[12pt, addpoints, answers]{exam}"
+	       ("\\begin{questions}%%%s" "\\end{questions}" "\\begin{questions}%%%s" "\\end{questions}")
+	       ("\\begin{question}%%%s" "\\end{question}" "\\begin{question*}%%%s" "\\end{question*}")
+	       ("\\begin{parts}%%%s" "\\end{parts}" "\\begin{parts}%%%s" "\\end{parts}")
+	       ("\\begin{part}[%s]" "\\end{part}" "\\begin{part*}[%s]" "\\end{part*}")
+	       ("\\begin{solution}[%s]" "\\end{solution}" "\\begin{solution}[%s]" "\\end{solution}")))
 
 ;; from http://lists.gnu.org/archive/html/emacs-orgmode/2013-10/msg00322.html
 (setq org-beamer-environments-extra
