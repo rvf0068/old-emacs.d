@@ -17,7 +17,7 @@
 
 (setq org-latex-default-packages-alist
       (nconc org-latex-default-packages-alist
-	     '(("colorlinks=true, linkcolor=blue" "hyperref" t)
+	     '(("colorlinks=true, linkcolor=black, citecolor=black, urlcolor=black" "hyperref" t)
 	       )))
 
 (add-to-list 'org-latex-classes
