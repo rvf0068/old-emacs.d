@@ -1,0 +1,17 @@
+# -*- mode: snippet -*-
+# name: pythonc
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: pythonc
+# --
+#+call: inicio-mp(diam="$1")
+
+#+name: $2
+#+BEGIN_SRC ipython :session :file ./$2.png :exports both
+$0
+#+END_SRC
+
+#+call: enmedio-mp(ndiam="$3")
+
+#+RESULTS: $2
+
+#+call: final-mp(labl="$2", capt="$4")
