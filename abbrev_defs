@@ -43,6 +43,8 @@
 
 (define-abbrev-table 'TeX-output-mode-abbrev-table '())
 
+(define-abbrev-table 'apropos-mode-abbrev-table '())
+
 (define-abbrev-table 'awk-mode-abbrev-table '())
 
 (define-abbrev-table 'bbdb-mode-abbrev-table '())
@@ -82,6 +84,8 @@
 (define-abbrev-table 'conf-windows-mode-abbrev-table '())
 
 (define-abbrev-table 'conf-xdefaults-mode-abbrev-table '())
+
+(define-abbrev-table 'debugger-mode-abbrev-table '())
 
 (define-abbrev-table 'diary-fancy-display-mode-abbrev-table '())
 
@@ -266,6 +270,7 @@
   '(
     ("cd" "campo de descomposición" nil 2)
     ("ev" "espacio vectorial" nil 0)
+    ("gdv" "gráfica de visibilidad" nil 1)
     ("iff" "if and only if" nil 0)
     ("li" "linearly independent" nil 0)
     ("lt" "left transversal" nil 3)
@@ -275,6 +280,7 @@
     ("pda" "punto de acumulación" nil 2)
     ("pg" "permutation group" nil 1)
     ("pm" "polinomio mínimo" nil 6)
+    ("sdt" "serie de tiempo" nil 4)
     ("ssi" "si y solo si" nil 9)
     ("ssr" "Schreier-Sims representation" nil 1)
     ("st" "such that" nil 9)
