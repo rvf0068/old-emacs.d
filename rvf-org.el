@@ -34,6 +34,16 @@
 	       ))
 
 (add-to-list 'org-latex-classes
+	     '("padi"
+	       "\\documentclass{padi}
+               \\usepackage[AUTO]{inputenc}
+               \\usepackage[AUTO]{babel}"
+	       ("\\section{%s}" . "\\section*{%s}")
+	       ("\\subsection{%s}" . "\\subsection*{%s}")
+	       ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+	       ))
+
+(add-to-list 'org-latex-classes
 	     '("two-column"
 	       "\\documentclass[twocolumn]{article}
                \\usepackage[AUTO]{inputenc}
