@@ -1,0 +1,111 @@
+#+begin_src emacs-lisp 
+(rc-current-date)
+#+end_src
+
+#+RESULTS:
+| 7 | 13 | 2017 |
+
+#+begin_src emacs-lisp
+(rc-absolute-current-date)
+#+end_src
+
+#+RESULTS:
+: 736523
+
+#+begin_src emacs-lisp
+(rc-seasonal-variable-name (rc-current-date))
+#+end_src
+
+#+RESULTS:
+: ordinarytime-096
+
+#+begin_src emacs-lisp
+(rc-sanctoral-variable-name (rc-current-date))
+#+end_src
+
+#+RESULTS:
+: rc-07-13
+
+#+begin_src emacs-lisp
+(rc-date-of-advent (rc-current-date))
+#+end_src
+
+#+RESULTS:
+| 12 | 3 | 2017 |
+
+#+begin_src emacs-lisp
+(rc-date-of-christmas (rc-current-date))
+#+end_src
+
+#+RESULTS:
+| 12 | 25 | 2017 |
+
+#+begin_src emacs-lisp
+(rc-date-of-epiphany (rc-current-date))
+#+end_src
+
+#+RESULTS:
+| 1 | 8 | 2017 |
+
+#+begin_src emacs-lisp
+(rc-absolute-date-of-epiphany (rc-current-date))
+#+end_src
+
+#+RESULTS:
+: 736337
+
+#+begin_src emacs-lisp
+(rc-date-of-ordinary-time-1 (rc-current-date))
+#+end_src
+
+#+RESULTS:
+| 1 | 10 | 2017 |
+
+#+begin_src emacs-lisp
+(rc-absolute-date-of-ordinary-time-1 (rc-current-date))
+#+end_src
+
+#+RESULTS:
+: 736339
+
+#+begin_src emacs-lisp
+(rc-absolute-real-date-of-ordinary-time-1 (rc-current-date))
+#+end_src
+
+#+RESULTS:
+: 736337
+
+#+begin_src emacs-lisp
+(rc-real-date-of-ordinary-time-1 (rc-current-date))
+#+end_src
+
+#+RESULTS:
+| 1 | 8 | 2017 |
+
+#+begin_src emacs-lisp
+(rc-absolute-date-of-easter (rc-current-date))
+#+end_src
+
+#+RESULTS:
+: 736435
+
+#+begin_src emacs-lisp
+(rc-date-of-holy-week (rc-current-date))
+#+end_src
+
+#+RESULTS:
+| 4 | 9 | 2017 |
+
+
+#+begin_src emacs-lisp
+(rc-print-seasonal-day-info (rc-current-date))
+#+end_src
+
+#+RESULTS:
+: Celebration: Weekday: Monday of the Twenty-sixth Week of Ordinary Time
+: Color of vestments: Green
+: Rank: 13
+
+# Local Variables:
+# org-confirm-babel-evaluate: nil
+# End:

@@ -77,9 +77,9 @@ are not celebrated on the same date every year. This includes Trinity,
 Body and Blood of Christ, Sacred Heart of Jesus, Immaculate Heart of
 Mary, Christ the King, and Holy Family."
   (let ((absolute-date (calendar-absolute-from-gregorian date))
-        (year (extract-calendar-year date))
-        (month (extract-calendar-month date))
-        (day (extract-calendar-day date)))
+        (year (calendar-extract-year date))
+        (month (calendar-extract-month date))
+        (day (calendar-extract-day date)))
     (cond
 ; season of Chrismas, after January 1
      ((< absolute-date (rc-absolute-date-of-ordinary-time-1 date))
@@ -203,8 +203,8 @@ Mary, Christ the King, and Holy Family."
 calling function should check via intern-soft whether such a variable
 actually exists."
   (format "rc-%02d-%02d" 
-          (extract-calendar-month date) 
-          (extract-calendar-day date)))
+          (calendar-extract-month date)
+          (calendar-extract-day date)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -217,8 +217,8 @@ actually exists."
 
 (defun rc-date-of-advent (date)
   "Date of first day of Advent for year in date = (mon day year)"
-  (let ((year (extract-calendar-year date))
-        (month (extract-calendar-month date)))
+  (let ((year (calendar-extract-year date))
+        (month (calendar-extract-month date)))
     (let ((rc-advent-date (calendar-gregorian-from-absolute
                    (calendar-dayname-on-or-before 0
                     (calendar-absolute-from-gregorian
@@ -233,7 +233,7 @@ actually exists."
 
 (defun rc-date-of-christmas (date)
   "Date of first day of Christmas for year in date = (mon day year)"
-  (let ((year (extract-calendar-year date)))
+  (let ((year (calendar-extract-year date)))
     (let ((rc-christmas-date (list 12 25 year)))
       rc-christmas-date)))
 
@@ -245,7 +245,7 @@ actually exists."
 
 (defun rc-date-of-epiphany (date)
   "Date of Epiphany."
-  (let ((year (extract-calendar-year date))
+  (let* ((year (calendar-extract-year date))
         (rc-epiphany-date 
          (calendar-dayname-on-or-before 
           0 (calendar-absolute-from-gregorian 
@@ -263,7 +263,7 @@ actually exists."
   "Returns the date (as a list (mm dd yyyy) of first day of Ordinary
 Time for year in date = (mon day year). This is a Monday or a Tuesday,
 the day after the Feast of the Baptism of the Lord."
-  (let* ((year (extract-calendar-year date))
+  (let* ((year (calendar-extract-year date))
          (rc-ordinary-time-1-date
           (cond
            ((or
@@ -301,7 +301,7 @@ the day after the Feast of the Baptism of the Lord."
   "The first actual day in Ordinary Time is Tuesday when the Feast of
 the Baptism of the Lord falls on the Monday after Epiphany. When that
 happens, juggle the numbers so Ordinary Time works out right."
-  (let* ((year (extract-calendar-year date))
+  (let* ((year (calendar-extract-year date))
          (rc-real-ot-date
           (cond
            ((or
@@ -319,7 +319,7 @@ happens, juggle the numbers so Ordinary Time works out right."
 (defun rc-absolute-date-of-easter (date)
   "Return absolute date of Easter for year in date = (mon day
 year). Borrowed from Ed Reingold's calendar code."
-  (let* ((year (extract-calendar-year date))
+  (let* ((year (calendar-extract-year date))
          (century (1+ (/ year 100)))
          (shifted-epact        ;; Age of moon for April 5...
           (% (+ 14 (* 11 (% year 19));;     ...by Nicaean rule
@@ -520,9 +520,9 @@ year). Borrowed from Ed Reingold's calendar code."
   "String of Catholic liturgical date of Gregorian DATE.  Defaults to
 today's date if DATE is not given."
   (let* ((absolute-date (calendar-absolute-from-gregorian date))
-         (year (extract-calendar-year date))
-         (month (extract-calendar-month date))
-         (day (extract-calendar-day date))
+         (year (calendar-extract-year date))
+         (month (calendar-extract-month date))
+         (day (calendar-extract-day date))
          (seasonal-variable  (symbol-name  (intern-soft (rc-seasonal-variable-name date))))
          (sanctoral-variable (symbol-name  (intern-soft (rc-sanctoral-variable-name date))))
          (seasonal-data      (symbol-value (intern-soft seasonal-variable)))
@@ -633,9 +633,9 @@ today's date if DATE is not given."
   "Variable name containing DATE's lit data. of Gregorian DATE.  Defaults to
 today's date if DATE is not given."
   (let* ((absolute-date (calendar-absolute-from-gregorian date))
-         (year (extract-calendar-year date))
-         (month (extract-calendar-month date))
-         (day (extract-calendar-day date))
+         (year (calendar-extract-year date))
+         (month (calendar-extract-month date))
+         (day (calendar-extract-day date))
          (seasonal-variable  (symbol-name  (intern-soft (rc-seasonal-variable-name date))))
          (sanctoral-variable (symbol-name  (intern-soft (rc-sanctoral-variable-name date))))
          (seasonal-data      (symbol-value (intern-soft seasonal-variable)))
@@ -712,9 +712,9 @@ today's date if DATE is not given."
   "Variable name containing DATE's lit data. of Gregorian DATE.  Defaults to
 today's date if DATE is not given."
   (let* ((absolute-date (calendar-absolute-from-gregorian date))
-         (year (extract-calendar-year date))
-         (month (extract-calendar-month date))
-         (day (extract-calendar-day date))
+         (year (calendar-extract-year date))
+         (month (calendar-extract-month date))
+         (day (calendar-extract-day date))
          (seasonal-variable  (symbol-name  (intern-soft (rc-seasonal-variable-name date))))
          (sanctoral-variable (symbol-name  (intern-soft (rc-sanctoral-variable-name date))))
          (seasonal-data      (symbol-value (intern-soft seasonal-variable)))
