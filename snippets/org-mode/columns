@@ -1,0 +1,16 @@
+# -*- mode: snippet -*-
+# name: columns
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: cols
+# --
+*** $0                                                         :B_column:BMCOL:
+    :PROPERTIES:
+    :BEAMER_env: column
+    :BEAMER_col: 0.5
+    :END:
+***                                                          :B_column:BMCOL:
+    :PROPERTIES:
+    :BEAMER_env: column
+    :BEAMER_col: 0.5
+    :END:
+

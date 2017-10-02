@@ -1,0 +1,8 @@
+# -*- mode: snippet -*-
+# name: ipython
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: ipy
+# --
+#+BEGIN_SRC ipython :session :exports code
+$0
+#+END_SRC
