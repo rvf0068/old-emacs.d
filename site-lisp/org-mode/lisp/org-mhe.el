@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;; Commentary:
@@ -203,7 +203,7 @@ folders."
 	  (mh-search folder (list "--message-id" article))
 	  (when (and org-mhe-search-all-folders
 		     (not (org-mhe-get-message-real-folder)))
-	    (kill-this-buffer)
+	    (kill-buffer)
 	    (mh-search "+" (list "--message-id" article))))
       (if mh-search-regexp-builder
 	  (mh-search "+" (funcall mh-search-regexp-builder
@@ -211,7 +211,7 @@ folders."
 	(mh-search "+" article)))
     (if (org-mhe-get-message-real-folder)
 	(mh-show-msg 1)
-      (kill-this-buffer)
+      (kill-buffer)
       (error "Message not found"))))
 
 (provide 'org-mhe)

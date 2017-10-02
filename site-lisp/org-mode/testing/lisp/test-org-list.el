@@ -528,8 +528,10 @@
     (search-forward "sub-body 1")
     (should (org-invisible-p2))
     (search-backward "sub-body 2")
-    (should (org-invisible-p2)))
-  ;; Preserve contents visibility.
+    (should (org-invisible-p2))))
+
+(ert-deftest test-org-list/move-item-down-contents-visibility ()
+  "Preserve contents visibility."
   (org-test-with-temp-text "
 - item 1
   #+BEGIN_CENTER
@@ -540,12 +542,21 @@
   Text2
   #+END_CENTER"
     (org-hide-block-all)
-    (search-forward "- item 1")
-    (org-move-item-down)
-    (search-forward "Text1")
-    (should (org-invisible-p2))
-    (search-backward "Text2")
-    (should (org-invisible-p2))))
+    (let ((invisible-property-1
+	   (progn
+	     (search-forward "Text1")
+	     (get-char-property (point) 'invisible)))
+	  (invisible-property-2
+	   (progn
+	     (search-forward "Text2")
+	     (get-char-property (point) 'invisible))))
+      (goto-char (point-min))
+      (search-forward "- item 1")
+      (org-move-item-down)
+      (search-forward "Text1")
+      (should (eq invisible-property-1 (get-char-property (point) 'invisible)))
+      (search-backward "Text2")
+      (should (eq invisible-property-2 (get-char-property (point) 'invisible))))))
 
 (ert-deftest test-org-list/move-item-up ()
   "Test `org-move-item-up' specifications."
@@ -613,8 +624,9 @@
     (search-forward "sub-body 2")
     (should (org-invisible-p2))
     (search-forward "sub-body 1")
-    (should (org-invisible-p2)))
-  ;; Preserve contents visibility.
+    (should (org-invisible-p2))))
+
+(ert-deftest test-org-list/move-item-up-contents-visibility ()
   (org-test-with-temp-text "
 - item 1
   #+BEGIN_CENTER
@@ -625,12 +637,21 @@
   Text2
   #+END_CENTER"
     (org-hide-block-all)
-    (search-forward "- item 2")
-    (org-move-item-up)
-    (search-forward "Text2")
-    (should (org-invisible-p2))
-    (search-forward "Text1")
-    (should (org-invisible-p2))))
+    (let ((invisible-property-1
+	   (progn
+	     (search-forward "Text1")
+	     (get-char-property (point) 'invisible)))
+          (invisible-property-2
+	   (progn
+	     (search-forward "Text2")
+	     (get-char-property (point) 'invisible))))
+      (goto-char (point-min))
+      (search-forward "- item 2")
+      (org-move-item-up)
+      (search-forward "Text2")
+      (should (eq invisible-property-2 (get-char-property (point) 'invisible)))
+      (search-forward "Text1")
+      (should (eq invisible-property-1 (get-char-property (point) 'invisible))))))
 
 (ert-deftest test-org-list/insert-item ()
   "Test item insertion."
@@ -989,6 +1010,74 @@
 	    (push-mark (point) t t)
 	    (goto-char (point-max))
 	    (org-toggle-item t)
+	    (buffer-string)))))
+
+(ert-deftest test-org-list/sort ()
+  "Test `org-sort-list'."
+  ;; Sort alphabetically.
+  (should
+   (equal "- abc\n- def\n- xyz\n"
+	  (org-test-with-temp-text "- def\n- xyz\n- abc\n"
+	    (org-sort-list nil ?a)
+	    (buffer-string))))
+  (should
+   (equal "- xyz\n- def\n- abc\n"
+	  (org-test-with-temp-text "- def\n- xyz\n- abc\n"
+	    (org-sort-list nil ?A)
+	    (buffer-string))))
+  ;; Sort numerically.
+  (should
+   (equal "- 1\n- 2\n- 10\n"
+	  (org-test-with-temp-text "- 10\n- 1\n- 2\n"
+	    (org-sort-list nil ?n)
+	    (buffer-string))))
+  (should
+   (equal "- 10\n- 2\n- 1\n"
+	  (org-test-with-temp-text "- 10\n- 1\n- 2\n"
+	    (org-sort-list nil ?N)
+	    (buffer-string))))
+  ;; Sort by checked status.
+  (should
+   (equal "- [ ] xyz\n- [ ] def\n- [X] abc\n"
+	  (org-test-with-temp-text "- [X] abc\n- [ ] xyz\n- [ ] def\n"
+	    (org-sort-list nil ?x)
+	    (buffer-string))))
+  (should
+   (equal "- [X] abc\n- [ ] xyz\n- [ ] def\n"
+	  (org-test-with-temp-text "- [X] abc\n- [ ] xyz\n- [ ] def\n"
+	    (org-sort-list nil ?X)
+	    (buffer-string))))
+  ;; Sort by time stamp.
+  (should
+   (equal "- <2017-05-08 Mon>\n- <2017-05-09 Tue>\n- <2018-05-09 Wed>\n"
+	  (org-test-with-temp-text
+	      "- <2018-05-09 Wed>\n- <2017-05-09 Tue>\n- <2017-05-08 Mon>\n"
+	    (org-sort-list nil ?t)
+	    (buffer-string))))
+  (should
+   (equal "- <2018-05-09 Wed>\n- <2017-05-09 Tue>\n- <2017-05-08 Mon>\n"
+	  (org-test-with-temp-text
+	      "- <2018-05-09 Wed>\n- <2017-05-09 Tue>\n- <2017-05-08 Mon>\n"
+	    (org-sort-list nil ?T)
+	    (buffer-string))))
+  ;; Sort by custom function.
+  (should
+   (equal "- b\n- aa\n- ccc\n"
+	  (org-test-with-temp-text "- ccc\n- b\n- aa\n"
+	    (org-sort-list nil ?f
+			   (lambda ()
+			     (length (buffer-substring (point-at-bol)
+						       (point-at-eol))))
+			   #'<)
+	    (buffer-string))))
+  (should
+   (equal "- ccc\n- aa\n- b\n"
+	  (org-test-with-temp-text "- ccc\n- b\n- aa\n"
+	    (org-sort-list nil ?F
+			   (lambda ()
+			     (length (buffer-substring (point-at-bol)
+						       (point-at-eol))))
+			   #'<)
 	    (buffer-string)))))
 
 

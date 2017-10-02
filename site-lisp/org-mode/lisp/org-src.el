@@ -21,7 +21,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;; Commentary:
@@ -240,6 +240,12 @@ issued in the language major mode buffer."
 (defvar org-src--preserve-indentation nil)
 (defvar org-src--remote nil)
 (defvar org-src--saved-temp-window-config nil)
+(defvar org-src--source-type nil
+  "Type of element being edited, as a symbol.")
+(defvar org-src--tab-width nil
+  "Contains `tab-width' value from Org source buffer.
+However, if `indent-tabs-mode' is nil in that buffer, its value
+is 0.")
 
 (defun org-src--construct-edit-buffer-name (org-buffer-name lang)
   "Construct the buffer name for a source editing buffer."
@@ -387,28 +393,41 @@ spaces after it as being outside."
 (defun org-src--contents-for-write-back ()
   "Return buffer contents in a format appropriate for write back.
 Assume point is in the corresponding edit buffer."
-  (let ((indentation (or org-src--block-indentation 0))
-	(preserve-indentation org-src--preserve-indentation)
+  (let ((indentation-offset
+	 (if org-src--preserve-indentation 0
+	   (+ (or org-src--block-indentation 0)
+	      (if (memq org-src--source-type '(example-block src-block))
+		  org-edit-src-content-indentation
+		0))))
+	(use-tabs? (and (> org-src--tab-width 0) t))
+	(source-tab-width org-src--tab-width)
 	(contents (org-with-wide-buffer (buffer-string)))
 	(write-back org-src--allow-write-back))
     (with-temp-buffer
+      ;; Reproduce indentation parameters from source buffer.
+      (setq-local indent-tabs-mode use-tabs?)
+      (when (> source-tab-width 0) (setq-local tab-width source-tab-width))
+      ;; Apply WRITE-BACK function on edit buffer contents.
       (insert (org-no-properties contents))
       (goto-char (point-min))
-      (when (functionp write-back) (funcall write-back))
-      (unless (or preserve-indentation (= indentation 0))
-	(let ((ind (make-string indentation ?\s)))
-	  (goto-char (point-min))
-	  (while (not (eobp))
-	    (when (looking-at-p "[ \t]*\\S-") (insert ind))
-	    (forward-line))))
+      (when (functionp write-back) (save-excursion (funcall write-back)))
+      ;; Add INDENTATION-OFFSET to every non-empty line in buffer,
+      ;; unless indentation is meant to be preserved.
+      (when (> indentation-offset 0)
+	(while (not (eobp))
+	  (skip-chars-forward " \t")
+	  (unless (eolp)		;ignore blank lines
+	    (let ((i (current-column)))
+	      (delete-region (line-beginning-position) (point))
+	      (indent-to (+ i indentation-offset))))
+	  (forward-line)))
       (buffer-string))))
 
 (defun org-src--edit-element
-    (datum name &optional major write-back contents remote)
+    (datum name &optional initialize write-back contents remote)
   "Edit DATUM contents in a dedicated buffer NAME.
 
-MAJOR is the major mode used in the edit buffer.  A nil value is
-equivalent to `fundamental-mode'.
+INITIALIZE is a function to call upon creating the buffer.
 
 When WRITE-BACK is non-nil, assume contents will replace original
 region.  Moreover, if it is a function, apply it in the edit
@@ -438,6 +457,7 @@ Leave point in edit buffer."
 	(with-current-buffer old-edit-buffer (org-src--remove-overlay))
 	(kill-buffer old-edit-buffer))
       (let* ((org-mode-p (derived-mode-p 'org-mode))
+	     (source-tab-width (if indent-tabs-mode tab-width 0))
 	     (type (org-element-type datum))
 	     (ind (org-with-wide-buffer
 		   (goto-char (org-element-property :begin datum))
@@ -468,19 +488,22 @@ Leave point in edit buffer."
 	(unless preserve-ind (org-do-remove-indentation))
 	(set-buffer-modified-p nil)
 	(setq buffer-file-name nil)
-	;; Start major mode.
-	(if (not major) (fundamental-mode)
+	;; Initialize buffer.
+	(when (functionp initialize)
 	  (let ((org-inhibit-startup t))
-	    (condition-case e (funcall major)
-	      (error (message "Language mode `%s' fails with: %S"
-			      major (nth 1 e))))))
+	    (condition-case e
+		(funcall initialize)
+	      (error (message "Initialization fails with: %S"
+			      (error-message-string e))))))
 	;; Transmit buffer-local variables for exit function.  It must
 	;; be done after initializing major mode, as this operation
 	;; may reset them otherwise.
+	(setq-local org-src--tab-width source-tab-width)
 	(setq-local org-src--from-org-mode org-mode-p)
 	(setq-local org-src--beg-marker beg)
 	(setq-local org-src--end-marker end)
 	(setq-local org-src--remote remote)
+	(setq-local org-src--source-type type)
 	(setq-local org-src--block-indentation ind)
 	(setq-local org-src--preserve-indentation preserve-ind)
 	(setq-local org-src--overlay overlay)
@@ -525,19 +548,19 @@ as `org-src-fontify-natively' is non-nil."
 	  (let ((inhibit-modification-hooks nil))
 	    (erase-buffer)
 	    ;; Add string and a final space to ensure property change.
-	    (insert string " ")
-	    (unless (eq major-mode lang-mode) (funcall lang-mode))
-	    (org-font-lock-ensure)
-	    (let ((pos (point-min)) next)
-	      (while (setq next (next-property-change pos))
-		;; Handle additional properties from font-lock, so as to
-		;; preserve, e.g., composition.
-		(dolist (prop (cons 'face font-lock-extra-managed-props))
-		  (let ((new-prop (get-text-property pos prop)))
-		    (put-text-property
-		     (+ start (1- pos)) (1- (+ start next)) prop new-prop
-		     org-buffer)))
-		(setq pos next)))))
+	    (insert string " "))
+	  (unless (eq major-mode lang-mode) (funcall lang-mode))
+	  (org-font-lock-ensure)
+	  (let ((pos (point-min)) next)
+	    (while (setq next (next-property-change pos))
+	      ;; Handle additional properties from font-lock, so as to
+	      ;; preserve, e.g., composition.
+	      (dolist (prop (cons 'face font-lock-extra-managed-props))
+		(let ((new-prop (get-text-property pos prop)))
+		  (put-text-property
+		   (+ start (1- pos)) (1- (+ start next)) prop new-prop
+		   org-buffer)))
+	      (setq pos next))))
 	;; Add Org faces.
 	(let ((src-face (nth 1 (assoc-string lang org-src-block-faces t))))
           (when (or (facep src-face) (listp src-face))
@@ -787,45 +810,49 @@ A coderef format regexp can only match at the end of a line."
 			(org-footnote-goto-definition label)
 			(backward-char)
 			(org-element-context)))
-	   (inline (eq (org-element-type definition) 'footnote-reference))
+	   (inline? (eq 'footnote-reference (org-element-type definition)))
 	   (contents
-	    (let ((c (org-with-wide-buffer
-		      (org-trim (buffer-substring-no-properties
-				 (org-element-property :begin definition)
-				 (org-element-property :end definition))))))
-	      (add-text-properties
-	       0
-	       (progn (string-match (if inline "\\`\\[fn:.*?:" "\\`.*?\\]") c)
-		      (match-end 0))
-	       '(read-only "Cannot edit footnote label" front-sticky t
-			   rear-nonsticky t)
-	       c)
-	      (when inline
-		(let ((l (length c)))
-		  (add-text-properties
-		   (1- l) l
-		   '(read-only "Cannot edit past footnote reference"
-			       front-sticky nil rear-nonsticky nil)
-		   c)))
-	      c)))
+	    (org-with-wide-buffer
+	     (buffer-substring-no-properties
+	      (or (org-element-property :post-affiliated definition)
+		  (org-element-property :begin definition))
+	      (cond
+	       (inline? (1+ (org-element-property :contents-end definition)))
+	       ((org-element-property :contents-end definition))
+	       (t (goto-char (org-element-property :post-affiliated definition))
+		  (line-end-position)))))))
+      (add-text-properties
+       0
+       (progn (string-match (if inline? "\\`\\[fn:.*?:" "\\`.*?\\]") contents)
+	      (match-end 0))
+       '(read-only "Cannot edit footnote label" front-sticky t rear-nonsticky t)
+       contents)
+      (when inline?
+	(let ((l (length contents)))
+	  (add-text-properties
+	   (1- l) l
+	   '(read-only "Cannot edit past footnote reference"
+		       front-sticky nil rear-nonsticky nil)
+	   contents)))
       (org-src--edit-element
        definition
        (format "*Edit footnote [%s]*" label)
-       #'org-mode
-       `(lambda ()
-	  (if ,(not inline) (delete-region (point) (search-forward "]"))
-	    (delete-region (point) (search-forward ":" nil t 2))
-	    (delete-region (1- (point-max)) (point-max))
-	    (when (re-search-forward "\n[ \t]*\n" nil t)
-	      (user-error "Inline definitions cannot contain blank lines"))
-	    ;; If footnote reference belongs to a table, make sure to
-	    ;; remove any newline characters in order to preserve
-	    ;; table's structure.
-	    (when ,(org-element-lineage definition '(table-cell))
-	      (while (search-forward "\n" nil t) (delete-char -1)))))
-       (concat contents
-	       (and (not (org-element-property :contents-begin definition))
-		    " "))
+       (let ((source (current-buffer)))
+	 (lambda ()
+	   (org-mode)
+	   (org-clone-local-variables source)))
+       (lambda ()
+	 (if (not inline?) (delete-region (point) (search-forward "]"))
+	   (delete-region (point) (search-forward ":" nil t 2))
+	   (delete-region (1- (point-max)) (point-max))
+	   (when (re-search-forward "\n[ \t]*\n" nil t)
+	     (user-error "Inline definitions cannot contain blank lines"))
+	   ;; If footnote reference belongs to a table, make sure to
+	   ;; remove any newline characters in order to preserve
+	   ;; table's structure.
+	   (when (org-element-lineage definition '(table-cell))
+	     (while (search-forward "\n" nil t) (replace-match "")))))
+       contents
        'remote))
     ;; Report success.
     t))
@@ -893,7 +920,10 @@ Throw an error when not at an export block."
     (unless (and (eq (org-element-type element) 'export-block)
 		 (org-src--on-datum-p element))
       (user-error "Not in an export block"))
-    (let* ((type (downcase (org-element-property :type element)))
+    (let* ((type (downcase (or (org-element-property :type element)
+			       ;; Missing export-block type.  Fallback
+			       ;; to default mode.
+			       "fundamental")))
 	   (mode (org-src--get-lang-mode type)))
       (unless (functionp mode) (error "No such language mode: %s" mode))
       (org-src--edit-element
@@ -939,16 +969,7 @@ name of the sub-editing buffer."
 	   (org-src--construct-edit-buffer-name (buffer-name) lang))
        lang-f
        (and (null code)
-	    `(lambda ()
-	       (unless ,(or org-src-preserve-indentation
-			    (org-element-property :preserve-indent element))
-		 (when (> org-edit-src-content-indentation 0)
-		   (while (not (eobp))
-		     (unless (looking-at "[ \t]*$")
-		       (indent-line-to (+ (org-get-indentation)
-					  org-edit-src-content-indentation)))
-		     (forward-line))))
-	       (org-escape-code-in-region (point-min) (point-max))))
+	    (lambda () (org-escape-code-in-region (point-min) (point-max))))
        (and code (org-unescape-code-in-string code)))
       ;; Finalize buffer.
       (setq-local org-coderef-label-format
@@ -1073,8 +1094,10 @@ Throw an error if there is no such buffer."
 	 (code (and write-back (org-src--contents-for-write-back))))
     (set-buffer-modified-p nil)
     ;; Switch to source buffer.  Kill sub-editing buffer.
-    (let ((edit-buffer (current-buffer)))
-      (org-src-switch-to-buffer (marker-buffer beg) 'exit)
+    (let ((edit-buffer (current-buffer))
+	  (source-buffer (marker-buffer beg)))
+      (unless source-buffer (error "Source buffer disappeared.  Aborting"))
+      (org-src-switch-to-buffer source-buffer 'exit)
       (kill-buffer edit-buffer))
     ;; Insert modified code.  Ensure it ends with a newline character.
     (org-with-wide-buffer
@@ -1093,7 +1116,7 @@ Throw an error if there is no such buffer."
       (cond
        ;; Block is hidden; move at start of block.
        ((cl-some (lambda (o) (eq (overlay-get o 'invisible) 'org-hide-block))
-		  (overlays-at (point)))
+		 (overlays-at (point)))
 	(beginning-of-line 0))
        (write-back (org-src--goto-coordinates coordinates beg end))))
     ;; Clean up left-over markers and restore window configuration.

@@ -1,6 +1,6 @@
 ;;; test-org-capture.el --- Tests for org-capture.el -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2015  Nicolas Goaziou
+;; Copyright (C) 2015, 2017  Nicolas Goaziou
 
 ;; Author: Nicolas Goaziou <mail@nicolasgoaziou.fr>
 
@@ -35,6 +35,13 @@
   (should
    (equal "success!\n"
 	  (org-capture-fill-template "%(concat \"success\" \"!\")")))
+  ;; It is possible to include other place holders in %(sexp).  In
+  ;; that case properly escape \ and " characters.
+  (should
+   (equal "Nested string \"\\\"\\\"\"\n"
+	  (let ((org-store-link-plist nil))
+	    (org-capture-fill-template "%(concat \"%i\")"
+				       "Nested string \"\\\"\\\"\""))))
   ;; %<...> placeholder.
   (should
    (equal (concat (format-time-string "%Y") "\n")
@@ -66,6 +73,12 @@
 	  (let ((org-store-link-plist nil))
 	    (org-capture-fill-template
 	     "%i" "%(concat \"no \" \"evaluation\")"))))
+  ;; When %i contents span over multiple line, repeat initial leading
+  ;; characters over each line.
+  (should
+   (equal "> line 1\n> line 2\n"
+	  (let ((org-store-link-plist nil))
+	    (org-capture-fill-template "> %i" "line 1\nline 2"))))
   ;; Test %-escaping with \ character.
   (should
    (equal "%i\n"
@@ -114,7 +127,23 @@
 			    (buffer-substring-no-properties
 			     (line-beginning-position)
 			     (line-end-position))))))
-	  (catch :return (org-capture-refile))))))))
+	  (catch :return (org-capture-refile)))))))
+  ;; When the entry is refiled, `:jump-to-captured' moves point to the
+  ;; refile location, not the initial capture target.
+  (should
+   (org-test-with-temp-text-in-file "* Refile target"
+     (let ((file1 (buffer-file-name)))
+       (org-test-with-temp-text-in-file "* A"
+	 (let* ((file2 (buffer-file-name))
+		(org-capture-templates
+		 `(("t" "Todo" entry (file+headline ,file2 "A")
+		    "** H1 %?" :jump-to-captured t))))
+	   (org-capture nil "t")
+	   (cl-letf (((symbol-function 'org-refile-get-location)
+		      (lambda (&rest args)
+			(list (file-name-nondirectory file1) file1 nil nil))))
+	     (org-capture-refile)
+	     (list file1 file2 (buffer-file-name)))))))))
 
 
 (provide 'test-org-capture)

@@ -1,4 +1,6 @@
-ORG NEWS -- history of user-visible changes.           -*- org -*-
+ORG NEWS -- history of user-visible changes.   -*- mode: org; coding: utf-8 -*-
+
+#+STARTUP: overview
 
 #+LINK: doc http://orgmode.org/worg/doc.html#%s
 #+LINK: git http://orgmode.org/cgit.cgi/org-mode.git/commit/?id=%s
@@ -7,6 +9,111 @@ Copyright (C) 2012-2017 Free Software Foundation, Inc.
 See the end of the file for license conditions.
 
 Please send Org bug reports to mailto:emacs-orgmode@gnu.org.
+
+* Version 9.2
+** Incompatible changes
+*** =align= STARTUP value no longer narrow table columns
+
+Columns narrowing (or shrinking) is now dynamic. See [[*Dynamically
+narrow table columns]] for details. In particular, it is decoupled from
+aligning.
+
+If you need to automatically shrink columns upon opening an Org
+document, use =shrink= value instead, or in addition to align:
+
+#+BEGIN_EXAMPLE
+,#+STARTUP: align shrink
+#+END_EXAMPLE
+
+** New features
+*** ~org-archive~ functions update status cookies
+
+Archiving headers through ~org-archive-subtree~ and
+~org-archive-to-archive-sibling~ such as the ones listed below:
+
+#+BEGIN_SRC org
+  ,* Top [1/2]
+  ,** DONE Completed
+  ,** TODO Working
+#+END_SRC
+
+Will update the status cookie in the top level header.
+
+*** Disable =org-agenda-overriding-header= by setting to empty string
+
+The ~org-agenda-overriding-header~ inserted into agenda views can now
+be disabled by setting it to an empty string.
+
+*** Dynamically narrow table columns
+
+With ~C-c TAB~, it is now possible to narrow a column to the width
+specified by a width cookie in the column, or to 1 character if there
+is no such cookie.  The same keybinding expands a narrowed column to
+its previous state.
+
+Editing the column automatically expands the whole column to its full
+size.
+
+*** =org-columns-summary-types= entries can take an optional COLLECT function
+
+You can use this to make collection of a property from an entry
+conditional on another entry. E.g. given this configuration:
+
+#+BEGIN_SRC emacs-lisp
+  (defun custom/org-collect-confirmed (property)
+    "Return `PROPERTY' for `CONFIRMED' entries"
+    (let ((prop (org-entry-get nil property))
+	  (confirmed (org-entry-get nil "CONFIRMED")))
+      (if (and prop (string= "[X]" confirmed))
+	  prop
+	"0")))
+
+  (setq org-columns-summary-types
+	'(("X+" org-columns--summary-sum
+	   custom/org-collect-confirmed)))
+#+END_SRC
+
+You can have a file =bananas.org= containing:
+
+#+BEGIN_SRC org
+  ,#+columns: %ITEM %CONFIRMED %Bananas{+} %Bananas(Confirmed Bananas){X+}
+
+  ,* All shipments
+  ,** Shipment 1
+     :PROPERTIES:
+     :CONFIRMED: [X]
+     :Bananas:  4
+     :END:
+
+  ,** Shipment 2
+     :PROPERTIES:
+     :CONFIRMED: [ ]
+     :BANANAS:  7
+     :END:
+#+END_SRC
+
+... and when going to the top of that file and entering column view
+you should expect to see something like:
+
+| ITEM            | CONFIRMED | Bananas | Confirmed Bananas |
+|-----------------+-----------+---------+-------------------|
+| All shipments   |           |      11 |                 4 |
+| Shipment 1      | [X]       |       4 |                 4 |
+| Shipment 2      | [ ]       |       7 |                 7 |
+
+#+BEGIN_EXAMPLE
+  ,#+STARTUP: shrink
+#+END_EXAMPLE
+
+** Miscellaneous
+
+*** ~org-publish-resolve-external-link~ accepts a new optional argument.
+*** ~org-irc.el~ now supports exporting =irc:= links properly
+
+Previously, irc links were exported by ~ox-md~ and ~ox-html~ as normal
+file links, which lead to them being broken in web browsers. Now both
+of these exporters will properly export to =irc:= links, which will
+open properly in irc clients from web browsers.
 
 * Version 9.1
 
@@ -20,6 +127,12 @@ them, consider modifying ~org-duration-format~ instead.
 
 Variable ~org-time-clocksum-use-effort-durations~ is also obsolete.
 Consider setting ~org-duration-units~ instead.
+
+*** ~org-at-timestamp-p~ optional argument accepts different values
+
+See docstrings for the allowed values.  For backward compatibility,
+~(org-at-timestamp-p t)~ is still supported, but should be updated
+accordingly.
 
 *** ~org-capture-templates~ no longer accepts S-expressions as file names
 
@@ -43,6 +156,10 @@ You can now find them here :
 - https://github.com/sabof/org-bullets
 - https://github.com/org-mime/org-mime
 
+*** Change ~org-texinfo-classes~ value
+The value cannot support functions to create sectionning commands
+anymore.  Also, the sectionning commands should include commands for
+appendices.  See the docstring for more information.
 *** Removal of ~:sitemap-sans-extension~
 
 The publishing property is no longer recognized, as a consequence of
@@ -75,7 +192,40 @@ list as their first argument.
 The optional argument is now a string to extract the repeater from.
 See docstring for details.
 
+*** Change signature for ~org-time-string-to-time~
+See docstring for changes.
+
+*** Change order of items in ~org-agenda-time-grid~
+~org-agenda-time-grid~ gained an extra item to allow users to customize
+the string displayed after times in the agenda. See docstring for
+details.
+
+*** ~tags-todo~ custom searches now include DONE keywords
+
+Use "/!" markup when filtering TODO keywords to get only not-done TODO
+keywords.
+
+*** ~org-split-string~ returns ~("")~ when called on an empty string
+It used to return nil.
+*** Removal of =ob-scala.el=
+
+See [[https://github.com/ensime/emacs-scala-mode/issues/114][this github issue]].
+
+You can use =ob-scala.el= as packaged in scala-mode, available from the
+MELPA repository.
+
 ** New features
+*** iCalendar export uses inheritance for TIMEZONE and LOCATION properties
+Both these properties can be inherited during iCalendar export,
+depending on the value of ~org-use-property-inheritance~.
+*** iCalendar export respects a TIMEZONE property
+Set the TIMEZONE property on an entry to specify a time zone for that
+entry only during iCalendar export.  The property value should be
+specified as in "Europe/London".
+*** ~org-attach~ can move directory contents
+When setting a new directory for an entry, org-attach offers to move
+files over from the old directory.  Using a prefix arg will reset the
+directory to old, ID based one.
 *** New Org duration library
 This new library implements tools to read and print time durations in
 various formats (e.g., "H:MM", or "1d 2h 3min"...).
@@ -86,7 +236,14 @@ docstrings.
 *** Agenda
 **** New variable : ~org-agenda-show-future-repeats~
 **** New variable : ~org-agenda-prefer-last-repeat~
+**** New variable : ~org-deadline-past-days~
+See docstring for details.
 **** Binding C-c C-x < for ~org-agenda-set-restriction-lock-from-agenda~
+**** New auto-align default setting for =org-agenda-tags-column=
+
+=org-agenda-tags-column= can now be set to =auto=, which will
+automatically align tags to the right edge of the window.  This is now
+the default setting.
 *** New value for ~org-publish-sitemap-sort-folders~
 
 The new ~ignore~ value effectively allows toggling inclusion of
@@ -94,6 +251,25 @@ directories in published site-maps.
 
 *** Babel
 
+**** Scheme: support for tables
+**** Scheme: new variable: ~org-babel-scheme-null-to~
+
+This new custom option allows to use a empty list or null symbol to
+format the table output, initially assigned to ~hlines~.
+
+**** Scheme: new header ~:prologue~
+
+A new block code header has been created for Org Babel that enables
+developers to prepend code to the scheme block being processed.
+
+Multiple ~:prologue~ headers can be added each of them using a string
+with the content to be added.
+
+The scheme blocks are prepared by surronding the code in the block
+with a let form. The content of the ~:prologue~ headers are prepended
+before this let form.
+
+**** Support for hledger accounting reports added
 **** Clojure: new setting ~org-babel-clojure-sync-nrepl-timeout~
 
 Creation of a new setting to specify the Cider timeout.  By setting
@@ -159,21 +335,80 @@ Select * From Users
 Where clue > 0
 ,#+END_SRC
 #+end_example
+
+**** SQL: new engine added =vertica=
+
+A new engine was added to support vsql command line utility for use
+against HP Vertica.
+
+More information on =vsql= can be found here: [[https://my.vertica.com/docs/7.2.x/HTML/index.htm#Authoring/ConnectingToHPVertica/vsql/UsingVsql.htm][my.vertica.com]]
+
+To use =vertica= in an sql =SRC_BLK= set the =:engine= like this:
+
+#+BEGIN_EXAMPLE
+  ,#+BEGIN_SRC sql :engine vertica :dbhost my_host :dbuser dbadmin :dbpassword pw :database vmart
+  SELECT * FROM nodes;
+  ,#+END_SRC
+#+END_EXAMPLE
+**** C++: New header ~:namespaces~
+
+The new ~:namespaces~ export option can be used to specify namespaces
+to be used within a C++ org source block.  Its usage is similar to
+~:includes~, in that it can accept multiple, space-separated
+namespaces to use.  This header is equivalent to adding ~using
+namespace <name>;~ in the source block. Here is a "Hello World" in C++
+using ~:namespaces~:
+
+#+begin_example
+  ,#+BEGIN_SRC C++ :results output :namespaces std :includes <iostream>
+    cout << "Hello World" << endl;
+  ,#+END_SRC
+#+end_example
+
+**** Support for Vala language
+
+[[https://wiki.gnome.org/Projects/Vala][Vala]] language blocks support two special header arguments:
+
+- ~:flags~ passes arguments to the compiler
+- ~:cmdline~ passes commandline arguments to the generated executable
+
+Support for [[http://orgmode.org/manual/var.html#var][~:var~]] does not exist yet, also there is no [[http://orgmode.org/manual/session.html#session][~:session~]]
+support because Vala is a compiled language.
+
+The Vala compiler binary can be changed via the ~defcustom~
+~org-babel-vala-compiler~.
+
+*** New ~function~ scope argument for the Clock Table
+Added a nullary function that returns a list of files as a possible
+argument for the scope of the clock table.
 *** Export
+**** Implement vernacular table of contents in Markdown exporter
+Global table of contents are generated using vanilla Markdown syntax
+instead of HTML.  Also #+TOC keyword, including local table of
+contents, are now supported.
 **** Add Slovanian translations
 **** Implement ~org-export-insert-image-links~
 This new function is meant to be used in back-ends supporting images
 as descriptions of links, a.k.a. image links.  See its docstring for
 details.
+**** New macro : ~{{{n}}}~
+This macro creates and increment multiple counters in a document.  See
+manual for details.
 **** Add global macros through ~org-export-global-macros~
 With this variable, one can define macros available for all documents.
 **** New keyword ~#+EXPORT_FILE_NAME~
-Simiralry to ~:EXPORT_FILE_NAME:~ property, this keyword allows the
+Similarly to ~:EXPORT_FILE_NAME:~ property, this keyword allows the
 user to specify the name of the output file upon exporting the
 document.  This also has an effect on publishing.
 **** Horizontal rules are no longer ignored in LaTeX table math mode
 **** Use ~compilation-mode~ for compilation output
+**** Plain lists accept a new ~:separator~ attribute in Texinfo
 
+The new ~:separator~ attribute splits a tag from a description list
+item into multiple parts.  This allows to have two-column tables with
+multiple entries in the first column.  See manual for more details.
+
+**** ~latex-environment~ elements support ~caption~ keywords for LaTeX export
 *** ~org-edit-special~ can edit LaTeX environments
 
 Using ~C-c '~ on a LaTeX environment opens a sub-editing buffer.  By
@@ -187,6 +422,33 @@ changed by configuring ~org-src-lang-modes~.
 
 *** New variable : ~org-bibtex-headline-format-function~
 This allow to use a different title than entry title.
+
+*** ~org-attach~ supports attaching files from URLs
+
+Using ~C-c C-a u~ prompts for a URL pointing to a file to be attached
+to the document.
+
+*** New option for ~org-refile-use-outline-path~
+~org-refile-use-outline-path~ now supports the setting ~buffer-name~,
+which causes refile targets to be prefixed with the buffer’s
+name. This is particularly useful when used in conjunction with
+~uniquify.el~.
+
+*** ~org-file-contents~ now allows the FILE argument to be a URL.
+This allows ~#+SETUPFILE:~ to accept a URL instead of a local file
+path.  The URL contents are auto-downloaded and saved to a temporary
+cache ~org--file-cache~.  A new optional argument ~NOCACHE~ is added
+to ~org-file-contents~.
+
+*** ~org-mode-restart~ now resets the newly added ~org--file-cache~.
+Using ~C-c C-c~ on any keyword (like ~#+SETUPFILE~) will reset the
+that file cache.
+
+*** New option : ~org-table-duration-hour-zero-padding~
+This variable allow computed durations in tables to be zero-padded.
+
+*** New mode switch for table formulas : =U=
+This mode omits seconds in durations.
 
 ** Removed functions
 
@@ -219,6 +481,11 @@ Use ~org-duration-to-minutes~ instead.
 
 Use ~org-duration-to-minutes~ instead.
 
+*** ~org-gnus-nnimap-cached-article-number~ is removed.
+
+This function relied on ~nnimap-group-overview-filename~, which was
+removed from Gnus circa September 2010.
+
 ** Removed options
 
 *** ~org-agenda-repeating-timestamp-show-all~ is removed.
@@ -227,10 +494,32 @@ For an equivalent to a ~nil~ value, set
 ~org-agenda-show-future-repeats~ to nil and
 ~org-agenda-prefer-last-repeat~ to ~t~.
 
+*** ~org-gnus-nnimap-query-article-no-from-file~ is removed.
+
+This variable has no effect, as it was relying on a function that was
+removed from Gnus circa September 2010.
+
+*** ~org-usenet-links-prefer-google~ is obsolete.
+
+Use ~org-gnus-prefer-web-links~ instead.
+
 *** ~org-publish-sitemap-file-entry-format~ is deprecated
 
 One can provide new ~:sitemap-format-entry~ property for a function
 equivalent to the removed format string.
+
+*** ~org-enable-table-editor~ is removed.
+
+Setting it to a ~nil~ value broke some other features (e.g., speed
+keys).
+
+*** ~org-export-use-babel~ cannot be set to ~inline-only~
+
+The variable is now a boolean.
+
+*** ~org-texinfo-def-table-markup~ is obsolete
+
+Use ~org-texinfo-table-default-markup~ instead.
 
 ** New functions
 
@@ -248,6 +537,36 @@ It is the reciprocal of ~org-list-to-lisp~, which see.
 Call ~org-agenda-set-restriction-lock~ from the agenda.
 
 ** Miscellaneous
+
+*** The Library of Babel now on Worg
+
+The library-of-babel.org used to be accessible from the =doc/=
+directory, distributed with Org’s core.  It is now accessible
+from the Worg community-driven documentation [[http://orgmode.org/worg/library-of-babel.html][here]].
+
+If you want to contribute to it, please see [[http://orgmode.org/worg/org-contribute.html][how to contribute]].
+
+*** Allow multiple columns view
+
+Columns view is not limited to a single buffer anymore.
+*** Org Attach obeys ~dired-dwim-target~
+
+When a Dired buffer is opened next to the Org document being edited,
+the prompt for file to attach can start in the Dired buffer's
+directory if `dired-dwim-target' in non-nil.
+
+*** ~org-fill-paragraph~ can now fill a whole region
+*** More specific anniversary descriptions
+
+Anniversary descriptions (used in the agenda view, for instance)
+include the point in time, when the anniversary appears.  This is,
+in its most general form, just the date of the anniversary.  Or
+more specific terms, like "today", "tomorrow" or "in n days" are
+used to describe the time span.
+
+This feature allows to automatically change the description of an
+anniversary, depending on if it occurs in the next few days or
+far away in the future.
 
 *** Computed dates in tables appear as inactive time stamps
 
@@ -267,6 +586,26 @@ See docstring for details.
 This variable is a ~defcustom~ and replaces the variable
 ~org-babel-capitalize-example-region-markers~, which is a ~defvar~ and
 is now obselete.
+*** =INCLUDE= keywords in commented trees are now ignored.
+*** Default value for ~org-texinfo-text-markup-alist~ changed.
+
+Now ~=...=~ markup uses ~@samp{}~ instead of ~@verb{}~.  You can use
+~@verb{}~ again by customizing the variable.
+*** Texinfo exports example blocks as ~@example~
+*** Texinfo exports inline src blocks as ~@code{}~
+*** Texinfo default table markup is ~@asis~
+It used to be ~@samp~ but ~@asis~ is neutral and, therefore, more
+suitable as a default value.
+*** Texinfo default process includes ~--no-split~ option
+*** New entities : ~\dollar~ and ~\USD~
+*** ~org-parse-time-string~ accepts a new optional argument
+=ZONE= specifies the current time zone.
+*** ~org-time-string-to-seconds~ now accepts an optional =ZONE= argument
+*** Support for date style URLs in =org-protocol://open-source=
+    URLs like =https://cool-blog.com/2017/05/20/cool-post/= are
+    covered by rewrite rules.
+
+*** Add (C) =COMMENT= support to ~org-structure-template-alist~
 
 * Version 9.0
 
@@ -280,7 +619,7 @@ above is suggested.
 *** XEmacs support has been dropped
 
 Incomplete compatibility layer with XEmacs has been removed.  If you
-want to take over maintainance of this compatibility, please contact
+want to take over maintenance of this compatibility, please contact
 our mailing list.
 
 *** New syntax for export blocks
@@ -377,7 +716,7 @@ exists.
 *** ~org-file-apps~ no longer accepts S-expressions as commands
 
 The variable now accepts functions of two arguments instead of plain
-S-expressions.  Replacing a S-expresion with an appropriate function
+S-expressions.  Replacing an S-expression with an appropriate function
 is straightforward.  For example
 
 : ("pdf" . (foo))
@@ -417,7 +756,7 @@ should be written instead
 ,* Headline
 :PROPERTIES:
 :header-args: :exports code
-:header-args: :var a=1 b=2
+:header-args+: :var a=1 b=2
 :header-args+: :var c=3
 :END:
 #+END_EXAMPLE
@@ -458,7 +797,7 @@ entries are added to last in the date tree.
 
 *** New ~vbar~ entity
 
-~\vbar~ or ~\vbar{}~ will be exported unconditionnally as a =|=,
+~\vbar~ or ~\vbar{}~ will be exported unconditionally as a =|=,
 unlike to existing ~\vert~, which is expanded as ~&vert;~ when using
 a HTML derived export back-end.
 
@@ -839,7 +1178,7 @@ is that spaces are allowed within the path.
 *** ~:preparation-function~ called earlier during publishing
 
 Functions in this list are called before any file is associated to the
-current projet.  Thus, they can be used to generate to be published
+current project.  Thus, they can be used to generate to be published
 Org files.
 
 *** Function ~org-remove-indentation~ changes.
@@ -900,7 +1239,7 @@ where local file =emacs.html= is referenced.
 For most folks this file does not exist.
 Thus the new behavior is to generate this HTML link instead:
 
-: <a href="http://www.gnu.org/software/emacs/manual/html_mono/emacs.html#List-Buffers">emacs#List Buffers</a>
+: <a href="https://www.gnu.org/software/emacs/manual/html_mono/emacs.html#List-Buffers">emacs#List Buffers</a>
 
 All emacs related info links are similarly translated plus few other
 =gnu.org= manuals.
@@ -1246,7 +1585,7 @@ a source block.
 *** New option in ASCII export
 
 Plain lists can have an extra margin by setting ~org-ascii-list-margin~
-variable to an appopriate integer.
+variable to an appropriate integer.
 
 *** New blocks in ASCII export
 
@@ -1282,7 +1621,7 @@ more features.  See docstring for details.
 *** New filter: ~org-export-filter-body-functions~
 
 Functions in this filter are applied on the body of the exported
-document, befor wrapping it within the template.
+document, before wrapping it within the template.
 
 *** New :environment parameter when exporting example blocks to LaTeX
 
@@ -1347,7 +1686,7 @@ property is inherited by children.
 
 *** Tables can be sorted with an arbitrary function
 
-It is now possible to specify a function, both programatically,
+It is now possible to specify a function, both programmatically,
 through a new optional argument, and interactively with ~f~ or ~F~ keys,
 to sort a table.
 
@@ -1935,7 +2274,7 @@ manual for details and check [[http://orgmode.org/worg/org-8.0.html][this Worg p
 
 *** ~ox-texinfo.el~ by Jonathan Leech-Pepin
 
-    =ox-texinfo.el= allows you to export Org files to [[http://www.gnu.org/software/texinfo/][Texinfo]] files.
+    =ox-texinfo.el= allows you to export Org files to [[https://www.gnu.org/software/texinfo/][Texinfo]] files.
 
 ** New packages in contrib
 
@@ -1988,7 +2327,7 @@ manual for details and check [[http://orgmode.org/worg/org-8.0.html][this Worg p
 
 *** ~ox-groff.el~ by Luis Anaya and Nicolas Goaziou
 
-    The [[http://www.gnu.org/software/groff/][groff]] (GNU troff) software is a typesetting package which reads
+    The [[https://www.gnu.org/software/groff/][groff]] (GNU troff) software is a typesetting package which reads
     plain text mixed with formatting commands and produces formatted
     output.
 
@@ -2575,7 +2914,7 @@ instead of requiring each Babel library one by one.
 - New option [[doc:org-gnus-no-server][org-gnus-no-server]] to start Gnus with =gnus-no-server=
 - Org is now distributed with =htmlize.el= version 1.43
 - ~org-drill.el~ has been updated to version 2.3.7
-- ~org-mac-iCal.el~ now supports MacOSX version up to 10.8
+- ~org-mac-iCal.el~ now supports OS X versions up to 10.8
 - Various improvements to ~org-contacts.el~ and =orgpan.el=
 
 ** Outside Org
@@ -2668,7 +3007,7 @@ You can now add the Org ELPA repository like this:
 #+END_SRC
 
 It contains both the =org-*.tar= package (the core Org distribution, also
-available through http://elpa.gnu.org) and the =org-plus*.tar= package (the
+available through https://elpa.gnu.org) and the =org-plus*.tar= package (the
 extended Org distribution, with non-GNU packages from the =contrib/=
 directory.)
 
@@ -2696,7 +3035,7 @@ See http://orgmode.org/elpa/
 
 *** =org-eshell.el= by Konrad Hinsen is now in Org
 
-    =org-eshell.el= allows you to create links from [[http://www.gnu.org/software/emacs/manual/html_node/eshell/index.html][Eshell]].
+    =org-eshell.el= allows you to create links from [[https://www.gnu.org/software/emacs/manual/html_node/eshell/index.html][Eshell]].
 
 *** Support for execution of Scala code blocks (see ob-scala.el)
 *** Support for execution of IO code blocks (see ob-io.el)
@@ -3296,7 +3635,7 @@ that Calc formulas can operate on them.
     =org-export-html-scripts= is now a variable, so that you can adapt
     the code and the license to your needs.
 
-    See http://www.gnu.org/philosophy/javascript-trap.html for
+    See https://www.gnu.org/philosophy/javascript-trap.html for
     explanations on why these changes were necessary.
 
 * Version 7.8.11
@@ -4081,4 +4420,4 @@ that Calc formulas can operate on them.
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+  along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.

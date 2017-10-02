@@ -58,6 +58,7 @@
 		     (table-cell . org-confluence-table-cell)
 		     (table-row . org-confluence-table-row)
 		     (template . org-confluence-template)
+		     (timestamp . org-confluence-timestamp)
 		     (underline . org-confluence-underline)
 		     (verbatim . org-confluence-verbatim)))
 
@@ -82,16 +83,20 @@
   (format "_%s_" contents))
 
 (defun org-confluence-item (item contents info)
-  (let* ((plain-list (org-export-get-parent item))
-         (type (org-element-property :type plain-list))
-         (bullet (if (eq type 'ordered) ?\# ?\-)))
-    (concat (make-string (1+ (org-confluence--li-depth item)) bullet)
-            " "
-    (if (eq type 'descriptive)
- (concat "*"
- (org-export-data (org-element-property :tag item) info)
- "* - "))
-            (org-trim contents))))
+  (let ((list-type (org-element-property :type (org-export-get-parent item))))
+    (concat
+     (make-string (1+ (org-confluence--li-depth item))
+                  (if (eq list-type 'ordered) ?\# ?\-))
+     " "
+     (pcase (org-element-property :checkbox item)
+       (`on "*{{(X)}}* ")
+       (`off "*{{( )}}* ")
+       (`trans "*{{(\\-)}}* "))
+     (when (eq list-type 'descriptive)
+       (concat "*"
+	       (org-export-data (org-element-property :tag item) info)
+	       "* - "))
+     (org-trim contents))))
 
 (defun org-confluence-fixed-width (fixed-width contents info)
   (org-confluence--block
@@ -106,14 +111,18 @@
   (format "\{\{%s\}\}" (org-element-property :value code)))
 
 (defun org-confluence-headline (headline contents info)
-  (let ((low-level-rank (org-export-low-level-p headline info))
-        (text (org-export-data (org-element-property :title headline)
-                               info))
-        (level (org-export-get-relative-level headline info)))
-    ;; Else: Standard headline.
-    (format "h%s. %s\n%s" level text
-            (if (org-string-nw-p contents) contents
-              ""))))
+  (let* ((low-level-rank (org-export-low-level-p headline info))
+	 (text (org-export-data (org-element-property :title headline)
+				info))
+	 (todo (org-export-data (org-element-property :todo-keyword headline)
+				info))
+	 (level (org-export-get-relative-level headline info))
+	 (todo-text (if (or (not (plist-get info :with-todo-keywords))
+			    (string= todo ""))
+			""
+		      (format "*{{%s}}* " todo))))
+    (format "h%s. %s%s\n%s" level todo-text text
+            (if (org-string-nw-p contents) contents ""))))
 
 (defun org-confluence-link (link desc info)
   (let ((raw-link (org-element-property :raw-link link)))
@@ -164,14 +173,21 @@ a communication channel."
 
 (defun org-confluence-table-cell  (table-cell contents info)
   (let ((table-row (org-export-get-parent table-cell)))
-    (concat
-     (when (org-export-table-row-starts-header-p table-row info)
-       "|")
-     contents "|")))
+    (concat (and (org-export-table-row-starts-header-p table-row info) "|")
+	    (if (= (length contents) 0) " " contents)
+	    "|")))
 
 (defun org-confluence-template (contents info)
   (let ((depth (plist-get info :with-toc)))
     (concat (when depth "\{toc\}\n\n") contents)))
+
+(defun org-confluence-timestamp (timestamp _contents _info)
+  "Transcode a TIMESTAMP object from Org to Confluence.
+CONTENTS and INFO are ignored."
+  (let ((translated (org-trim (org-timestamp-translate timestamp))))
+    (if (string-prefix-p "[" translated)
+        (concat "(" (substring translated 1 -1) ")")
+      translated)))
 
 (defun org-confluence-underline (underline contents info)
   (format "+%s+" contents))
@@ -195,7 +211,7 @@ a communication channel."
                 (or (eq tag 'item) ; list items interleave with plain-list
                     (eq tag 'plain-list)))
       (when (eq tag 'item)
-        (incf depth))
+        (cl-incf depth))
       (setq item (org-export-get-parent item)))
     depth))
 

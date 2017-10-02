@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -423,33 +423,35 @@ used as a communication channel."
 	    ;; Options, if any.
 	    (let* ((beamer-opt (org-element-property :BEAMER_OPT headline))
 		   (options
-		    ;; Collect options from default value and headline's
-		    ;; properties.  Also add a label for links.
-		    (append
-		     (org-split-string
-		      (plist-get info :beamer-frame-default-options) ",")
-		     (and beamer-opt
-			  (org-split-string
-			   ;; Remove square brackets if user provided
-			   ;; them.
-			   (and (string-match "^\\[?\\(.*\\)\\]?$" beamer-opt)
-				(match-string 1 beamer-opt))
-			   ","))
-		     ;; Provide an automatic label for the frame
-		     ;; unless the user specified one.  Also refrain
-		     ;; from labeling `allowframebreaks' frames; this
-		     ;; is not allowed by beamer.
-		     (unless (and beamer-opt
-				  (or (string-match "\\(^\\|,\\)label=" beamer-opt)
-				      (string-match "allowframebreaks" beamer-opt)))
-		       (list
-			(let ((label (org-beamer--get-label headline info)))
-			  ;; Labels containing colons need to be
-			  ;; wrapped within braces.
-			  (format (if (string-match-p ":" label)
-				      "label={%s}"
-				    "label=%s")
-				  label)))))))
+		    ;; Collect nonempty options from default value and
+		    ;; headline's properties.  Also add a label for
+		    ;; links.
+		    (cl-remove-if-not 'org-string-nw-p
+		     (append
+		      (org-split-string
+		       (plist-get info :beamer-frame-default-options) ",")
+		      (and beamer-opt
+			   (org-split-string
+			    ;; Remove square brackets if user provided
+			    ;; them.
+			    (and (string-match "^\\[?\\(.*\\)\\]?$" beamer-opt)
+				 (match-string 1 beamer-opt))
+			    ","))
+		      ;; Provide an automatic label for the frame
+		      ;; unless the user specified one.  Also refrain
+		      ;; from labeling `allowframebreaks' frames; this
+		      ;; is not allowed by beamer.
+		      (unless (and beamer-opt
+				   (or (string-match "\\(^\\|,\\)label=" beamer-opt)
+				       (string-match "allowframebreaks" beamer-opt)))
+			(list
+			 (let ((label (org-beamer--get-label headline info)))
+			   ;; Labels containing colons need to be
+			   ;; wrapped within braces.
+			   (format (if (string-match-p ":" label)
+				       "label={%s}"
+				     "label=%s")
+				   label))))))))
 	      ;; Change options list into a string.
 	      (org-beamer--normalize-argument
 	       (mapconcat
@@ -933,9 +935,9 @@ value."
 			 org-beamer-environments-default)))
    ((and (equal property "BEAMER_col")
 	 (not (org-entry-get nil (concat property "_ALL") 'inherit)))
-    ;; If no allowed values for BEAMER_col have been defined,
-    ;; supply some
-    (org-split-string org-beamer-column-widths " "))))
+    ;; If no allowed values for BEAMER_col have been defined, supply
+    ;; some.
+    (split-string org-beamer-column-widths " "))))
 
 (add-hook 'org-property-allowed-value-functions
 	  'org-beamer-allowed-property-values)
@@ -1122,9 +1124,13 @@ Return output file name."
   ;; working directory and then moved to publishing directory.
   (org-publish-attachment
    plist
-   (org-latex-compile
-    (org-publish-org-to
-     'beamer filename ".tex" plist (file-name-directory filename)))
+   ;; Default directory could be anywhere when this function is
+   ;; called.  We ensure it is set to source file directory during
+   ;; compilation so as to not break links to external documents.
+   (let ((default-directory (file-name-directory filename)))
+     (org-latex-compile
+      (org-publish-org-to
+       'beamer filename ".tex" plist (file-name-directory filename))))
    pub-dir))
 
 

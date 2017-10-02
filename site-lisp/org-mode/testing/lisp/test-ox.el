@@ -232,6 +232,38 @@ num:2 <:active")))
 		org-test-dir)
       (org-export--get-inbuffer-options))
     '(:language "fr" :select-tags ("a" "b" "c") :title ("a b c"))))
+  ;; Options set through SETUPFILE specified using a URL.
+  (let ((buffer (generate-new-buffer "url-retrieve-output")))
+    (unwind-protect
+	;; Simulate successful retrieval of a setupfile from URL.
+	(cl-letf (((symbol-function 'url-retrieve-synchronously)
+		   (lambda (&rest_)
+		     (with-current-buffer buffer
+		       (insert "HTTP/1.1 200 OK
+
+# Contents of http://link-to-my-setupfile.org
+#+BIND: variable value
+#+DESCRIPTION: l2
+#+LANGUAGE: en
+#+SELECT_TAGS: b
+#+TITLE: b
+#+PROPERTY: a 1
+"))
+		     buffer)))
+	  (should
+	   (equal
+	    (org-test-with-temp-text
+		"#+DESCRIPTION: l1
+#+LANGUAGE: es
+#+SELECT_TAGS: a
+#+TITLE: a
+#+SETUPFILE: \"http://link-to-my-setupfile.org\"
+#+LANGUAGE: fr
+#+SELECT_TAGS: c
+#+TITLE: c"
+	      (org-export--get-inbuffer-options))
+	    '(:language "fr" :select-tags ("a" "b" "c") :title ("a b c")))))
+      (kill-buffer buffer)))
   ;; More than one property can refer to the same buffer keyword.
   (should
    (equal '(:k2 "value" :k1 "value")
@@ -839,7 +871,7 @@ Paragraph <2012-03-29 Thu>[2012-03-29 Thu]"
 			     (paragraph . (lambda (p c i) c))
 			     (section . (lambda (s c i) c))))
 	     nil nil nil '(:with-sub-superscript nil)))))
-  ;; Also handle uninterpreted objects in title.
+  ;; Handle uninterpreted objects in parsed keywords.
   (should
    (equal "a_b"
 	  (org-test-with-temp-text "#+TITLE: a_b"
@@ -847,10 +879,35 @@ Paragraph <2012-03-29 Thu>[2012-03-29 Thu]"
 	     (org-export-create-backend
 	      :transcoders
 	      '((subscript . (lambda (s c i) "dummy"))
-		(template . (lambda (c i) (org-export-data
-					   (plist-get i :title) i)))
+		(template . (lambda (c i)
+			      (org-export-data (plist-get i :title) i)))
 		(section . (lambda (s c i) c))))
 	     nil nil nil '(:with-sub-superscript nil)))))
+  (should
+   (equal "a_b"
+	  (org-test-with-temp-text "#+FOO: a_b"
+	    (org-export-as
+	     (org-export-create-backend
+	      :options
+	      '((:foo "FOO" nil nil parse))
+	      :transcoders
+	      '((subscript . (lambda (s c i) "dummy"))
+		(template . (lambda (c i)
+			      (org-export-data (plist-get i :foo) i)))
+		(section . (lambda (s c i) c))))
+	     nil nil nil '(:with-sub-superscript nil)))))
+  ;; Objects in parsed keywords are "uninterpreted" before filters are
+  ;; applied.
+  (should
+   (org-test-with-temp-text "#+TITLE: a_b"
+     (org-export-as
+      (org-export-create-backend
+       :filters
+       '((:filter-options
+	  (lambda (i _)
+	    (org-element-map (plist-get i :title) 'subscript
+	      (lambda (_) (error "There should be no subscript here")))))))
+      nil nil nil '(:with-sub-superscript nil))))
   ;; Handle uninterpreted objects in captions.
   (should
    (equal "adummy\n"
@@ -1030,6 +1087,11 @@ Text"
   (should-error
    (org-test-with-temp-text "#+INCLUDE: dummy.org"
      (org-export-expand-include-keyword)))
+  ;; Refuse to expand keywords in commented headings.
+  (should
+   (org-test-with-temp-text "* COMMENT H1\n#+INCLUDE: dummy.org"
+     (org-export-expand-include-keyword)
+     t))
   ;; Full insertion with recursive inclusion.
   (should
    (equal
@@ -1237,15 +1299,15 @@ Footnotes[fn:2], foot[fn:test] and [fn:inline:inline footnote]
   ;; Adjacent INCLUDE-keywords should have the same :minlevel if unspecified.
   (should
    (cl-every (lambda (level) (zerop (1- level)))
-	      (org-test-with-temp-text
-		  (concat
-		   (format "#+INCLUDE: \"%s/examples/include.org::#ah\"\n"
-			   org-test-dir)
-		   (format "#+INCLUDE: \"%s/examples/include.org::*Heading\""
-			   org-test-dir))
-		(org-export-expand-include-keyword)
-		(org-element-map (org-element-parse-buffer) 'headline
-		  (lambda (head) (org-element-property :level head))))))
+	     (org-test-with-temp-text
+		 (concat
+		  (format "#+INCLUDE: \"%s/examples/include.org::#ah\"\n"
+			  org-test-dir)
+		  (format "#+INCLUDE: \"%s/examples/include.org::*Heading\""
+			  org-test-dir))
+	       (org-export-expand-include-keyword)
+	       (org-element-map (org-element-parse-buffer) 'headline
+		 (lambda (head) (org-element-property :level head))))))
   ;; INCLUDE does not insert induced :minlevel for src-blocks.
   (should-not
    (equal
@@ -1369,15 +1431,6 @@ Footnotes[fn:2], foot[fn:test] and [fn:inline:inline footnote]
   ;; Throw an error when a macro definition is missing.
   (should-error
    (org-test-with-temp-text "{{{missing}}}"
-     (org-export-as (org-test-default-backend))))
-  ;; Macros defined in commented subtrees are ignored.
-  (should-error
-   (org-test-with-temp-text
-       "* COMMENT H\n#+MACRO: macro1\n* H2\nvalue\n{{{macro1}}}"
-     (org-export-as (org-test-default-backend))))
-  (should-error
-   (org-test-with-temp-text
-       "* COMMENT H\n** H2\n#+MACRO: macro1\n* H3\nvalue\n{{{macro1}}}"
      (org-export-as (org-test-default-backend)))))
 
 (ert-deftest test-org-export/before-processing-hook ()
@@ -3314,8 +3367,8 @@ Another text. (ref:text)
   (should (equal (concat (if (memq system-type '(windows-nt cygwin)) "file:///" "file://") (expand-file-name "/local.org"))
 		 (org-export-file-uri "/local.org")))
   ;; Remote files start with "file://"
-  (should (equal "file://myself@some.where:papers/last.pdf"
-		 (org-export-file-uri "/myself@some.where:papers/last.pdf")))
+  (should (equal "file://ssh:myself@some.where:papers/last.pdf"
+		 (org-export-file-uri "/ssh:myself@some.where:papers/last.pdf")))
   (should (equal "file://localhost/etc/fstab"
 		 (org-export-file-uri "//localhost/etc/fstab")))
   ;; Expand filename starting with "~".
@@ -3416,12 +3469,12 @@ Another text. (ref:text)
   "Test `org-export-unravel-code' function."
   ;; Code without reference.
   (should
-   (equal '("(+ 1 1)\n")
+   (equal '("(+ 1 1)")
 	  (org-test-with-temp-text "#+BEGIN_EXAMPLE\n(+ 1 1)\n#+END_EXAMPLE"
 	    (org-export-unravel-code (org-element-at-point)))))
   ;; Code with reference.
   (should
-   (equal '("(+ 1 1)\n" (1 . "test"))
+   (equal '("(+ 1 1)" (1 . "test"))
 	  (org-test-with-temp-text
 	      "#+BEGIN_EXAMPLE\n(+ 1 1) (ref:test)\n#+END_EXAMPLE"
 	    (let  ((org-coderef-label-format "(ref:%s)"))
@@ -3429,14 +3482,14 @@ Another text. (ref:text)
   ;; Code with user-defined reference.
   (should
    (equal
-    '("(+ 1 1)\n" (1 . "test"))
+    '("(+ 1 1)" (1 . "test"))
     (org-test-with-temp-text
 	"#+BEGIN_EXAMPLE -l \"[ref:%s]\"\n(+ 1 1) [ref:test]\n#+END_EXAMPLE"
       (let ((org-coderef-label-format "(ref:%s)"))
 	(org-export-unravel-code (org-element-at-point))))))
   ;; Code references keys are relative to the current block.
   (should
-   (equal '("(+ 2 2)\n(+ 3 3)\n" (2 . "one"))
+   (equal '("(+ 2 2)\n(+ 3 3)" (2 . "one"))
 	  (org-test-with-temp-text "
 #+BEGIN_EXAMPLE -n
 \(+ 1 1)
@@ -3447,23 +3500,43 @@ Another text. (ref:text)
 #+END_EXAMPLE"
 	    (goto-line 5)
 	    (let ((org-coderef-label-format "(ref:%s)"))
-	      (org-export-unravel-code (org-element-at-point)))))))
+	      (org-export-unravel-code (org-element-at-point)))))))
 
 (ert-deftest test-org-export/format-code-default ()
   "Test `org-export-format-code-default' specifications."
-  ;; Return the empty string when code is empty.
+  ;; Preserve blank lines, even when code is empty.
   (should
-   (equal ""
+   (equal "\n\n"
 	  (org-test-with-parsed-data "#+BEGIN_SRC emacs-lisp\n\n\n#+END_SRC"
 	    (org-export-format-code-default
-	     (org-element-map tree 'src-block 'identity info t) info))))
+	     (org-element-map tree 'src-block #'identity info t) info))))
+  ;; Likewise, preserve leading and trailing blank lines in the code.
+  (should
+   (equal "\n(+ 1 1)\n"
+	  (org-test-with-parsed-data
+	      "#+BEGIN_SRC emacs-lisp\n\n(+ 1 1)\n#+END_SRC"
+	    (org-export-format-code-default
+	     (org-element-map tree 'src-block #'identity info t) info))))
+  (should
+   (equal "(+ 1 1)\n\n"
+	  (org-test-with-parsed-data
+	      "#+BEGIN_SRC emacs-lisp\n(+ 1 1)\n\n#+END_SRC"
+	    (org-export-format-code-default
+	     (org-element-map tree 'src-block #'identity info t) info))))
   ;; Number lines, two whitespace characters before the actual loc.
   (should
    (equal "1  a\n2  b\n"
 	  (org-test-with-parsed-data
 	      "#+BEGIN_SRC emacs-lisp +n\na\nb\n#+END_SRC"
 	    (org-export-format-code-default
-	     (org-element-map tree 'src-block 'identity info t) info))))
+	     (org-element-map tree 'src-block #'identity info t) info))))
+  ;; Numbering includes blank lines.
+  (should
+   (equal "1  \n2  a\n3  \n4  b\n5  \n"
+	  (org-test-with-parsed-data
+	      "#+BEGIN_SRC emacs-lisp +n\n\na\n\nb\n\n#+END_SRC"
+	    (org-export-format-code-default
+	     (org-element-map tree 'src-block #'identity info t) info))))
   ;; Put references 6 whitespace characters after the widest line,
   ;; wrapped within parenthesis.
   (should
@@ -3472,7 +3545,7 @@ Another text. (ref:text)
 	    (org-test-with-parsed-data
 		"#+BEGIN_SRC emacs-lisp\n123 (ref:a)\n1 (ref:b)\n#+END_SRC"
 	      (org-export-format-code-default
-	       (org-element-map tree 'src-block 'identity info t) info))))))
+	       (org-element-map tree 'src-block #'identity info t) info))))))
 
 
 
@@ -4213,39 +4286,48 @@ Another text. (ref:text)
   "Test `org-export-collect-headlines' specifications."
   ;; Standard test.
   (should
-   (= 2
-      (length
-       (org-test-with-parsed-data "* H1\n** H2"
-	 (org-export-collect-headlines info)))))
+   (equal '("H1" "H2")
+	  (org-test-with-parsed-data "* H1\n** H2"
+	    (mapcar (lambda (h) (org-element-property :raw-value h))
+		    (org-export-collect-headlines info)))))
   ;; Do not collect headlines below optional argument.
   (should
-   (= 1
-      (length
-       (org-test-with-parsed-data "* H1\n** H2"
-	 (org-export-collect-headlines info 1)))))
+   (equal '("H1")
+	  (org-test-with-parsed-data "* H1\n** H2"
+	    (mapcar (lambda (h) (org-element-property :raw-value h))
+		    (org-export-collect-headlines info 1)))))
   ;; Never collect headlines below maximum headline level.
   (should
-   (= 1
-      (length
-       (org-test-with-parsed-data "#+OPTIONS: H:1\n* H1\n** H2"
-	 (org-export-collect-headlines info)))))
+   (equal '("H1")
+	  (org-test-with-parsed-data "#+OPTIONS: H:1\n* H1\n** H2"
+	    (mapcar (lambda (h) (org-element-property :raw-value h))
+		    (org-export-collect-headlines info)))))
   (should
-   (= 1
-      (length
-       (org-test-with-parsed-data "#+OPTIONS: H:1\n* H1\n** H2"
-	 (org-export-collect-headlines info 2)))))
+   (equal '("H1")
+	  (org-test-with-parsed-data "#+OPTIONS: H:1\n* H1\n** H2"
+	    (mapcar (lambda (h) (org-element-property :raw-value h))
+		    (org-export-collect-headlines info 2)))))
+  ;; Do not collect footnote section.
+  (should
+   (equal '("H1")
+	  (let ((org-footnote-section "Footnotes"))
+	    (org-test-with-parsed-data "* H1\n** Footnotes"
+	      (mapcar (lambda (h) (org-element-property :raw-value h))
+		      (org-export-collect-headlines info))))))
   ;; Collect headlines locally.
   (should
-   (= 2
-      (org-test-with-parsed-data "* H1\n** H2\n** H3"
-	(let ((scope (org-element-map tree 'headline #'identity info t)))
-	  (length (org-export-collect-headlines info nil scope))))))
+   (equal '("H2" "H3")
+	  (org-test-with-parsed-data "* H1\n** H2\n** H3"
+	    (let ((scope (org-element-map tree 'headline #'identity info t)))
+	      (mapcar (lambda (h) (org-element-property :raw-value h))
+		      (org-export-collect-headlines info nil scope))))))
   ;; When collecting locally, optional level is relative.
   (should
-   (= 1
-      (org-test-with-parsed-data "* H1\n** H2\n*** H3"
-	(let ((scope (org-element-map tree 'headline #'identity info t)))
-	  (length (org-export-collect-headlines info 1 scope)))))))
+   (equal '("H2")
+	  (org-test-with-parsed-data "* H1\n** H2\n*** H3"
+	    (let ((scope (org-element-map tree 'headline #'identity info t)))
+	      (mapcar (lambda (h) (org-element-property :raw-value h))
+		      (org-export-collect-headlines info 1 scope)))))))
 
 
 

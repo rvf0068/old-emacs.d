@@ -20,7 +20,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;; Code:
@@ -34,8 +34,7 @@
 (declare-function org-make-org-heading-search-string "org" (&optional string))
 (declare-function org-get-buffer-tags "org" ())
 (declare-function org-get-tags "org" ())
-(declare-function org-buffer-property-keys "org"
-		  (&optional specials defaults columns ignore-malformed))
+(declare-function org-buffer-property-keys "org" (&optional specials defaults columns))
 (declare-function org-entry-properties "org" (&optional pom which))
 (declare-function org-tag-alist-to-string "org" (alist &optional skip-key))
 
@@ -345,8 +344,7 @@ This needs more work, to handle headings with lots of spaces in them."
    (mapcar (lambda (x)
 	     (concat x ": "))
 	   (let ((lst (pcomplete-uniqify-list
-		       (copy-sequence
-			(org-buffer-property-keys nil t t t)))))
+		       (copy-sequence (org-buffer-property-keys nil t t)))))
 	     (dolist (prop (org-entry-properties))
 	       (setq lst (delete (car prop) lst)))
 	     lst))

@@ -19,7 +19,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 ;;
@@ -590,7 +590,7 @@ CONTENTS is nil.  INFO is a plist holding contextual information."
 (defun org-man-line-break (_line-break _contents _info)
   "Transcode a LINE-BREAK object from Org to Man.
 CONTENTS is nil.  INFO is a plist holding contextual information."
-  ".br\n")
+  "\n.br\n")
 
 
 ;;; Link
@@ -1014,7 +1014,7 @@ information."
 
 (defun org-man-timestamp (_timestamp _contents _info)
   "Transcode a TIMESTAMP object from Org to Man.
-ONTENTS is nil.  INFO is a plist holding contextual information."
+CONTENTS is nil.  INFO is a plist holding contextual information."
   "")
 
 

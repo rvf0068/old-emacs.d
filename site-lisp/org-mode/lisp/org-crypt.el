@@ -23,7 +23,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -176,7 +176,7 @@ See `org-crypt-disable-auto-save'."
    (let ((start-heading (point)))
      (org-end-of-meta-data)
      (unless (looking-at-p "-----BEGIN PGP MESSAGE-----")
-       (let ((folded (outline-invisible-p))
+       (let ((folded (org-invisible-p))
 	     (crypt-key (org-crypt-key-for-heading))
 	     (beg (point)))
 	 (goto-char start-heading)
@@ -204,7 +204,7 @@ See `org-crypt-disable-auto-save'."
 	   (heading-was-invisible-p
 	    (save-excursion
 	      (outline-end-of-heading)
-	      (outline-invisible-p))))
+	      (org-invisible-p))))
        (org-end-of-meta-data)
        (when (looking-at "-----BEGIN PGP MESSAGE-----")
 	 (org-crypt-check-auto-save)

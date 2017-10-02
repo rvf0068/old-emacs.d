@@ -701,11 +701,31 @@ x
     (should (= 2 (length (org-babel-ref-split-args
 			  "a=\"this, no work\", b=1"))))))
 
-(ert-deftest test-ob/org-babel-balanced-split ()
+(ert-deftest test-ob/balanced-split ()
+  "Test `org-babel-balanced-split' specifications."
   (should (equal
 	   '(":a 1" "b [2 3]" "c (4 :d (5 6))")
 	   (org-babel-balanced-split ":a 1 :b [2 3] :c (4 :d (5 6))"
-				     '((32 9) . 58)))))
+				     '((32 9) . 58))))
+  ;; Handle un-balanced parens.
+  (should
+   (equal '(":foo ((6)" "bar 1")
+	  (org-babel-balanced-split ":foo ((6) :bar 1" '((32 9) . 58))))
+  (should
+   (equal '(":foo \"(foo\"" "bar 2")
+	  (org-babel-balanced-split ":foo \"(foo\" :bar 2" '((32 9) . 58))))
+  ;; Handle un-balanced quotes.
+  (should
+   (equal '(":foo \"1" "bar 3")
+	  (org-babel-balanced-split ":foo \"1 :bar 3" '((32 9) . 58))))
+  ;; Handle empty string.
+  (should
+   (equal '(":foo \"\"")
+	  (org-babel-balanced-split ":foo \"\"" '((32 9) . 58))))
+  ;; Handle control characters within double quotes.
+  (should
+   (equal '(":foo \"\\n\"")
+	  (org-babel-balanced-split ":foo \"\\n\"" '((32 9) . 58)))))
 
 (ert-deftest test-ob/commented-last-block-line-no-var ()
   (org-test-with-temp-text-in-file "
@@ -757,8 +777,8 @@ x
 	     ": 2"
 	     (buffer-substring-no-properties (point-at-bol) (point-at-eol))))))
 
-(ert-deftest test-ob/org-babel-insert-result--improper-lists ()
-  "Test `org-babel-insert-result' with improper lists."
+(ert-deftest test-ob/org-babel-insert-result ()
+  "Test `org-babel-insert-result' specifications."
   ;; Do not error when output is an improper list.
   (should
    (org-test-with-temp-text
@@ -767,7 +787,66 @@ x
 '((1 . nil) (2 . 3))
 #+END_SRC
 "
-     (org-babel-execute-maybe) t)))
+     (org-babel-execute-maybe) t))
+  ;; Escape headlines when producing an example block.
+  (should
+   (string-match-p
+    ",\\* Not an headline"
+    (org-test-with-temp-text
+	"
+<point>#+BEGIN_SRC emacs-lisp
+\"* Not an headline\"
+#+END_SRC
+"
+      (let ((org-babel-min-lines-for-block-output 1)) (org-babel-execute-maybe))
+      (buffer-string))))
+  ;; Escape special syntax in example blocks.
+  (should
+   (string-match-p
+    ",#\\+END_SRC"
+    (org-test-with-temp-text
+	"
+<point>#+BEGIN_SRC emacs-lisp
+\"#+END_SRC\"
+#+END_SRC
+"
+      (let ((org-babel-min-lines-for-block-output 1)) (org-babel-execute-maybe))
+      (buffer-string))))
+  ;; No escaping is done with other blocks or raw type.
+  (should-not
+   (string-match-p
+    ",\\* Not an headline"
+    (org-test-with-temp-text
+	"
+<point>#+BEGIN_SRC emacs-lisp
+\"* Not an headline\"
+#+END_SRC
+"
+      (let ((org-babel-min-lines-for-block-output 10))
+	(org-babel-execute-maybe))
+      (buffer-string))))
+  (should-not
+   (string-match-p
+    ",\\* Not an headline"
+    (org-test-with-temp-text
+	"
+<point>#+BEGIN_SRC emacs-lisp :results raw
+\"* Not an headline\"
+#+END_SRC
+"
+      (org-babel-execute-maybe)
+      (buffer-string))))
+  (should-not
+   (string-match-p
+    ",\\* Not an headline"
+    (org-test-with-temp-text
+	"
+<point>#+BEGIN_SRC emacs-lisp :results drawer
+\"* Not an headline\"
+#+END_SRC
+"
+      (org-babel-execute-maybe)
+      (buffer-string)))))
 
 (ert-deftest test-ob/remove-inline-result ()
   "Test `org-babel-remove-inline-result' honors whitespace."
@@ -844,21 +923,6 @@ replacement happens correctly."
 * next heading")))
 	  '("sh" "emacs-lisp")))
 
-(ert-deftest test-ob/org-babel-remove-result--results-list ()
-  "Test `org-babel-remove-result' with :results list."
-  (test-ob-verify-result-and-removed-result
-   "- 1
-- 2
-- 3
-- (quote (4 5))"
-
-   "* org-babel-remove-result
-#+begin_src emacs-lisp :results list
-'(1 2 3 '(4 5))
-#+end_src
-
-* next heading"))
-
 (ert-deftest test-ob/org-babel-results-indented-wrap ()
   "Ensure that wrapped results are inserted correction when indented.
 If not inserted correctly then the second evaluation will fail
@@ -887,18 +951,6 @@ trying to find the :END: marker."
     (goto-char (point-min))
     (should (search-forward "[[file:foo][bar]]" nil t))
     (should (search-forward "[[file:foo][foo]]" nil t))))
-
-(ert-deftest test-ob/org-babel-remove-result--results-pp ()
-  "Test `org-babel-remove-result' with :results pp."
-  (test-ob-verify-result-and-removed-result
-   ": \"I /am/ working!\""
-
-   "* org-babel-remove-result
-#+begin_src emacs-lisp :results pp
-\"I /am/ working!\")
-#+end_src
-
-* next heading"))
 
 (ert-deftest test-ob/inline-src_blk-preceded-punct-preceded-by-point ()
   (let ((test-line ".src_emacs-lisp[ :results verbatim ]{ \"x\"  }")
@@ -954,19 +1006,6 @@ replacement happens correctly."
     (should (string= buffer-text
 		     (buffer-substring-no-properties
 		      (point-min) (point-max))))))
-
-(ert-deftest test-ob/org-babel-remove-result--results-default ()
-  "Test `org-babel-remove-result' with default :results."
-  (mapcar (lambda (language)
-	    (test-ob-verify-result-and-removed-result
-	     "\n"
-	     (concat
-	      "* org-babel-remove-result
-#+begin_src " language "
-#+end_src
-
-* next heading")))
-	  '("sh" "emacs-lisp")))
 
 (ert-deftest test-ob/org-babel-remove-result--results-list ()
   "Test `org-babel-remove-result' with :results list."
@@ -1326,7 +1365,57 @@ echo \"$data\"
       (org-babel-execute-src-block)
       (let ((case-fold-search t)) (search-forward "RESULTS"))
       (list (org-get-indentation)
-	    (progn (forward-line) (org-get-indentation)))))))
+	    (progn (forward-line) (org-get-indentation))))))
+  ;; Properly indent examplified blocks.
+  (should
+   (equal
+    "   #+begin_example
+   0
+   1
+   2
+   3
+   4
+   5
+   6
+   7
+   8
+   9
+   #+end_example
+"
+    (org-test-with-temp-text
+	"   #+begin_src emacs-lisp :results output
+   (dotimes (i 10) (princ i) (princ \"\\n\"))
+   #+end_src"
+      (org-babel-execute-src-block)
+      (search-forward "begin_example")
+      (downcase
+       (buffer-substring-no-properties (line-beginning-position)
+				       (point-max))))))
+  ;; Properly indent "org" blocks.
+  (should
+   (equal
+    "   #+begin_src org
+   0
+   1
+   2
+   3
+   4
+   5
+   6
+   7
+   8
+   9
+   #+end_src
+"
+    (org-test-with-temp-text
+	"   #+begin_src emacs-lisp :results output org
+   (dotimes (i 10) (princ i) (princ \"\\n\"))
+   #+end_src"
+      (org-babel-execute-src-block)
+      (search-forward "begin_src org")
+      (downcase
+       (buffer-substring-no-properties (line-beginning-position)
+				       (point-max)))))))
 
 (ert-deftest test-ob/safe-header-args ()
   "Detect safe and unsafe header args."

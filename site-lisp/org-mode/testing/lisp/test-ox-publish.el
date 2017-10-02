@@ -94,7 +94,6 @@ Unless set otherwise in PROPERTIES, `:base-directory' is set to
 		      (cl-remove-if #'file-directory-p
 				    (directory-files dir))))))))
 
-
 
 ;;; Site-map
 
@@ -328,85 +327,189 @@ Unless set otherwise in PROPERTIES, `:base-directory' is set to
 		(buffer-string)))))))
 
 
+;;; Cross references
+
+(ert-deftest test-org-publish/resolve-external-link ()
+  "Test `org-publish-resolve-external-link' specifications."
+  ;; Function should preserve internal reference when used between
+  ;; published files.
+  (should
+   (apply
+    #'equal
+    (let* ((ids nil)
+	   (backend
+	    (org-export-create-backend
+	     :transcoders
+	     '((headline . (lambda (h c i)
+			     (concat (org-export-get-reference h i) " " c)))
+	       (paragraph . (lambda (p c i) c))
+	       (section . (lambda (s c i) c))
+	       (link . (lambda (l c i)
+			 (let ((option (org-element-property :search-option l))
+			       (path (org-element-property :path l)))
+			   (and option
+				(org-publish-resolve-external-link
+				 option path))))))))
+	   (publish
+	    (lambda (plist filename pub-dir)
+	      (org-publish-org-to backend filename ".test" plist pub-dir))))
+      (org-test-publish
+	  (list :publishing-function (list publish))
+	(lambda (dir)
+	  (cl-subseq
+	   (split-string
+	    (mapconcat (lambda (f) (org-file-contents (expand-file-name f dir)))
+		       (directory-files dir nil "\\.test\\'")
+		       " "))
+	   1 3))))))
+  ;; When optional argument PREFER-CUSTOM is non-nil, use custom ID
+  ;; instead of internal reference, whenever possible.
+  (should
+   (equal
+    "a1"
+    (let* ((ids nil)
+	   (backend
+	    (org-export-create-backend
+	     :transcoders
+	     '((headline . (lambda (h c i) c))
+	       (paragraph . (lambda (p c i) c))
+	       (section . (lambda (s c i) c))
+	       (link . (lambda (l c i)
+			 (let ((option (org-element-property :search-option l))
+			       (path (org-element-property :path l)))
+			   (when option
+			     (throw :exit (org-publish-resolve-external-link
+					   option path t)))))))))
+	   (publish
+	    (lambda (plist filename pub-dir)
+	      (push (catch :exit
+		      (org-publish-org-to backend filename ".test" plist pub-dir))
+		    ids))))
+      (org-test-publish (list :publishing-function (list publish)) #'ignore)
+      (car ids)))))
+
+
 ;;; Tools
 
 (ert-deftest test-org-publish/get-project-from-filename ()
   "Test `org-publish-get-project-from-filename' specifications."
   ;; Check base directory.
   (should
-   (let ((org-publish-project-alist '(("p" :base-directory "/base/"))))
-     (org-publish-get-project-from-filename "/base/file.org")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "a.org" base))
+	  (org-publish-project-alist `(("p" :base-directory ,base))))
+     (org-publish-get-project-from-filename file)))
   ;; Return nil if no appropriate project is found.
   (should-not
-   (let ((org-publish-project-alist '(("p" :base-directory "/base/"))))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "a.org" base))
+	  (org-publish-project-alist `(("p" :base-directory ,base))))
      (org-publish-get-project-from-filename "/other/file.org")))
   ;; Return the first project effectively publishing the provided
   ;; file.
   (should
    (equal "p2"
-	  (let ((org-publish-project-alist
-		 '(("p1" :base-directory "/other/")
-		   ("p2" :base-directory "/base/"))))
-	    (car (org-publish-get-project-from-filename "/base/file.org")))))
+	  (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+		 (file (expand-file-name "a.org" base))
+		 (org-publish-project-alist
+		  `(("p1" :base-directory "/other/")
+		    ("p2" :base-directory ,base))))
+	    (car (org-publish-get-project-from-filename file)))))
   ;; When :recursive in non-nil, allow files in sub-directories.
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :recursive t))))
-     (org-publish-get-project-from-filename "/base/sub/file.org")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "sub/c.org" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :recursive t))))
+     (org-publish-get-project-from-filename file)))
   (should-not
-   (let ((org-publish-project-alist '(("p" :base-directory "/base/"))))
-     (org-publish-get-project-from-filename "/base/sub/file.org")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "sub/c.org" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :recursive nil))))
+     (org-publish-get-project-from-filename file)))
   ;; Check :base-extension.
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :base-extension "txt"))))
-     (org-publish-get-project-from-filename "/base/file.txt")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "file.txt" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :base-extension "txt"))))
+     (org-publish-get-project-from-filename file)))
   (should-not
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :base-extension "org"))))
-     (org-publish-get-project-from-filename "/base/file.txt")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "file.txt" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :base-extension "org"))))
+     (org-publish-get-project-from-filename file)))
   ;; When :base-extension has the special value `any', allow any
   ;; extension, including none.
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :base-extension any))))
-     (org-publish-get-project-from-filename "/base/file.txt")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "file.txt" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :base-extension any))))
+     (org-publish-get-project-from-filename file)))
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :base-extension any))))
-     (org-publish-get-project-from-filename "/base/file")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "noextension" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :base-extension any))))
+     (org-publish-get-project-from-filename file)))
+  ;; Pathological case: Handle both :extension any and :recursive t.
+  (should
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "sub/c.org" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :recursive t :base-extension any))))
+     (org-publish-get-base-files (org-publish-get-project-from-filename file))))
+
   ;; Check :exclude property.
   (should-not
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :exclude "file"))))
-     (org-publish-get-project-from-filename "/base/file.org")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "a.org" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :exclude "a"))))
+     (org-publish-get-project-from-filename file)))
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :exclude "other"))))
-     (org-publish-get-project-from-filename "/base/file.org")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "a.org" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :exclude "other"))))
+     (org-publish-get-project-from-filename file)))
   ;; The regexp matches against relative file name, not absolute one.
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :exclude "base"))))
-     (org-publish-get-project-from-filename "/base/file.org")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "a.org" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :exclude "examples/pub"))))
+     (org-publish-get-project-from-filename file)))
   ;; Check :include property.
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :include ("file.txt")))))
-     (org-publish-get-project-from-filename "/base/file.txt")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "file.txt" base))
+	  (org-publish-project-alist
+	   `(("p" :base-directory ,base :include (,file)))))
+     (org-publish-get-project-from-filename file)))
   ;; :include property has precedence over :exclude one.
   (should
-   (let ((org-publish-project-alist
-	  '(("p" :base-directory "/base/" :include ("f.txt") :exclude "f"))))
-     (org-publish-get-project-from-filename "/base/f.txt")))
+   (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+	  (file (expand-file-name "a.org" base))
+	  (org-publish-project-alist
+	   `(("p"
+	      :base-directory ,base
+	      :include (,(file-name-nondirectory file))
+	      :exclude "a"))))
+     (org-publish-get-project-from-filename file)))
   ;; With optional argument, return a meta-project publishing provided
   ;; file.
   (should
    (equal "meta"
-	  (let ((org-publish-project-alist
-		 '(("meta" :components ("p"))
-		   ("p" :base-directory "/base/"))))
-	    (car (org-publish-get-project-from-filename "/base/file.org" t))))))
+	  (let* ((base (expand-file-name "examples/pub/" org-test-dir))
+		 (file (expand-file-name "a.org" base))
+		 (org-publish-project-alist
+		  `(("meta" :components ("p"))
+		    ("p" :base-directory ,base))))
+	    (car (org-publish-get-project-from-filename file t))))))
 
 
 (provide 'test-ox-publish)

@@ -18,7 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -71,7 +71,10 @@
 
 ;; Generic functions/config (extend these for other clients)
 
-(org-link-set-parameters "irc" :follow #'org-irc-visit :store #'org-irc-store-link)
+(org-link-set-parameters "irc"
+			 :follow #'org-irc-visit
+			 :store #'org-irc-store-link
+			 :export #'org-irc-export)
 
 (defun org-irc-visit (link)
   "Parse LINK and dispatch to the correct function based on the client found."
@@ -205,7 +208,8 @@ default."
   (require 'erc)
   (require 'erc-log)
   (let* ((server (car (car link)))
-	 (port (or (string-to-number (cadr (pop link))) erc-default-port))
+	 (port (let ((p (cadr (pop link))))
+		 (if p (string-to-number p) erc-default-port)))
 	 (server-buffer)
 	 (buffer-list
 	  (erc-buffer-filter
@@ -243,6 +247,16 @@ default."
 	    (pop-to-buffer-same-window server-buffer)))
       ;; no server match, make new connection
       (erc-select :server server :port port))))
+
+(defun org-irc-export (link description format)
+  "Export an IRC link.
+See `org-link-parameters' for details about LINK, DESCRIPTION and
+FORMAT."
+  (let ((desc (or description link)))
+    (pcase format
+      (`html (format "<a href=\"irc:%s\">%s</a>" link desc))
+      (`md (format "[%s](irc:%s)" desc link))
+      (_ nil))))
 
 (provide 'org-irc)
 
