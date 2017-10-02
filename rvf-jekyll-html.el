@@ -23,9 +23,12 @@ channel."
         (format
          "<div class=\"sage\"><script type=\"text/x-sage\">\n%s</script></div>\n"
          value)
+      ;; (format
+      ;;  "``` %s %s\n%s```"
+      ;;  lang name value)
       (format
-       "``` %s %s\n%s```"
-       lang name value)
+       "{%% highlight %s %%}\n %s{%% endhighlight %%}"
+       lang value)
       )))
 
 (defun org-jekyll-html-latex-environment (latex-environment contents info)
@@ -87,11 +90,11 @@ channel."
 		   ""
 		   columns))
 	 (morecols (replace-regexp-in-string
-		   ":B<sub>column</sub><br  />"
+		   ":B<sub>column</sub><br />"
 		   ""
 		   blocks))
 	 (ignoreh (replace-regexp-in-string
-		    ":B<sub>ignoreheading</sub>:<br  />"
+		    ":B<sub>ignoreheading</sub>:<br />"
 		    ""
 		    morecols))
 	 (lists (replace-regexp-in-string
