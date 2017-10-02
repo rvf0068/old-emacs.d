@@ -35,9 +35,9 @@
 
 (add-to-list 'org-latex-classes
 	     '("padi"
-	       "\\documentclass{padi}
-               \\usepackage[AUTO]{inputenc}
-               \\usepackage[AUTO]{babel}"
+	       "\\documentclass[5p,times,authoryear]{elsarticle}
+\\usepackage[AUTO]{inputenc}
+\\usepackage[AUTO]{babel}"
 	       ("\\section{%s}" . "\\section*{%s}")
 	       ("\\subsection{%s}" . "\\subsection*{%s}")
 	       ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
@@ -342,6 +342,13 @@ When called twice, replace the previously inserted \\(\\) by one $."
 ;; see http://stackoverflow.com/a/19818134/577007
 (put 'org-beamer-verbatim-elements 'safe-local-variable (lambda (xx) t))
 
+;; see https://lists.gnu.org/archive/html/emacs-orgmode/2017-06/msg00110.html
+(define-key org-mode-map (kbd "s-j") #'org-babel-next-src-block)
+(define-key org-mode-map (kbd "s-k") #'org-babel-previous-src-block)
+(define-key org-mode-map (kbd "s-l") #'org-edit-src-code)
+(define-key org-src-mode-map (kbd "s-l") #'org-edit-src-exit)
+
+
 ;; configuration to use org-mime to send subtrees
 ;; see https://lists.gnu.org/archive/html/emacs-orgmode/2016-10/msg00477.html
 ;; or http://kitchingroup.cheme.cmu.edu/blog/2016/10/29/Sending-html-emails-from-org-mode-with-org-mime/
@@ -409,3 +416,14 @@ When called twice, replace the previously inserted \\(\\) by one $."
 ;; 		 html)
 ;; 		(mapconcat 'identity images "\n")))))
 ;;     (mapc #'mml-attach-file files)))
+
+;; Ob-sagemath supports only evaluating with a session.
+(setq org-babel-default-header-args:sage '((:session . t)
+                                           (:results . "output")))
+
+;; C-c c for asynchronous evaluating (only for SageMath code blocks).
+;; (with-eval-after-load "org"
+;;   (define-key org-mode-map (kbd "C-c c") 'ob-sagemath-execute-async))
+
+(setq org-latex-to-mathml-convert-command
+                "/usr/bin/latexmlmath \"%i\" --presentationmathml=%o")
