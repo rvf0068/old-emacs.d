@@ -40,6 +40,7 @@
 (global-set-key [(meta f3)] 'replace-regexp)
 (global-set-key [(f6)] 'other-window)
 (global-set-key [(meta f6)] 'emacs-lisp-byte-compile-and-load)
+(global-set-key [(f7)] 'helm-bibtex)
 (global-set-key [(shift f7)] 'toggle-debug-on-error)
 (global-set-key [(f8)] 'ispell-word)
 (global-set-key [(f9)] 'org-capture)

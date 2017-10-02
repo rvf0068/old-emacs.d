@@ -322,12 +322,7 @@
 (global-set-key
  (kbd "<f12> d")
  (lambda nil (interactive)
-   (dired "~/Dropbox/paginas/discretas/source/org/")
-   ))
-(global-set-key
- (kbd "<f12> g")
- (lambda nil (interactive)
-   (dired "~/Dropbox/paginas/galois/source/org/")
+   (dired "~/Dropbox/TeXfiles/ClasesPachuca/2017cAlgoritmosLIMA/")
    ))
 (global-set-key
  (kbd "<f12> i")
@@ -345,15 +340,15 @@
    (find-file "~/Dropbox/org/math/lit.org")
    ))
 (global-set-key
+ (kbd "<f12> m")
+ (lambda nil (interactive)
+   (dired "~/Dropbox/TeXfiles/ClasesPachuca/2017dModelosMatematicosDiscretos/")
+   ))
+(global-set-key
  (kbd "<f12> r")
  (lambda nil (interactive)
    (find-file "~/Dropbox/org/remember.org")
    ))
-;; (global-set-key
-;;  (kbd "<f12> s")
-;;  (lambda nil (interactive)
-;;    (find-file "~/Dropbox/emacs/site-lisp/scratch.el")
-;;    ))
 (global-set-key
  (kbd "<f12> s")
  (lambda nil (interactive)
@@ -362,20 +357,8 @@
 (global-set-key
  (kbd "<f12> t")
  (lambda nil (interactive)
-   (dired "~/Dropbox/paginas/grad-topology/source/org/")
+   (find-file "~/Dropbox/texmf/tex/latex/uaeh/titulacion.org")
    ))
-
-(global-set-key
- (kbd "<f12> v")
- (lambda nil (interactive)
-   (dired "~/Dropbox/paginas/variable/source/org/")
-   ))
-
-;; (global-set-key
-;;  (kbd "<f12> t")
-;;  (lambda nil (interactive)
-;;    (find-file "~/Dropbox/texmf/tex/latex/uaeh/titulacion.org")
-;;    ))
 
 ;; anything-books
 ;; the entry point is M-x helm-books-command
