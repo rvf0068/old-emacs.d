@@ -33,7 +33,7 @@
 
 ;; org-ref
 (require 'org-ref)
-(setq org-ref-default-bibliography '("~/Dropbox/texmf/bibtex/bib/misc/rvf.bib"))
+;(setq org-ref-default-bibliography '("~/Dropbox/texmf/bibtex/bib/misc/rvf.bib"))
 (setq org-ref-pdf-directory "~/Dropbox/References/")
 
 (setq org-publish-project-alist
@@ -123,6 +123,58 @@
         ;; static articles
         ,@(my-static-components))))
 ))
+
+(defun my-jekyll-projects (my-pair)
+  (let ((code (car my-pair))
+	(default-directory (nth 1 my-pair)))
+  (setq org-publish-project-alist
+	(nconc org-publish-project-alist
+	       `((,code . (:components (,(concat code "-clases")
+					,(concat code "-inicio")
+					,(concat code "-pdf")
+					,(concat code "-extra"))))
+		 (,(concat code "-clases")
+		  :base-directory ,(concat "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/"
+					   default-directory
+					   "/clases")
+		  :publishing-directory ,(concat "/home/rafael/Dropbox/paginas/"
+						 code
+						 "/_posts")
+		  :publishing-function org-jekyll-html-publish-to-jekyll
+		  :body-only t
+		  :base-extension "org"
+		  :exclude "options.org" )
+		 (,(concat code "-inicio")
+		  :base-directory ,(concat "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/"
+					   default-directory
+					   "/inicio")
+		  :publishing-directory ,(concat "/home/rafael/Dropbox/paginas/"
+						 code)
+		  :publishing-function org-jekyll-html-publish-to-jekyll
+		  :body-only t
+		  :base-extension "org")
+		 (,(concat code "-pdf")
+		  :base-directory ,(concat "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/"
+					   default-directory
+					   "/clases")
+		  :publishing-directory ,(concat "/home/rafael/Dropbox/paginas/"
+						 code
+						 "/pdfs")
+		  :publishing-function org-beamer-publish-to-pdf
+		  :base-extension "org"
+		  :exclude "options.org")
+		 (,(concat code "-extra")
+		  :base-directory ,(concat "/home/rafael/Dropbox/TeXfiles/ClasesPachuca/"
+					   default-directory
+					   "/clases")
+		  :publishing-directory ,(concat "/home/rafael/Dropbox/paginas/"
+						 code
+						 "/images")
+		  :publishing-function org-publish-attachment
+		  :base-extension "png\\|jpg\\|jpeg" ))))))
+
+(my-jekyll-projects '("algoritmos" "2017cAlgoritmosLIMA"))
+(my-jekyll-projects '("modelos" "2017dModelosMatematicosDiscretos"))
 
 (setq my-base-directories '(
 			    ("sd" "sistemas-dinamicos")
@@ -352,6 +404,10 @@
 
 ;; do not show holidays in diary
 (setq diary-show-holidays-flag nil)
+
+;; ox-ipynb until it is released as a package
+(load "/home/rafael/Downloads/scratch/ox-ipynb/ox-ipynb.el")
+
 
 ;; ltx-help
 
