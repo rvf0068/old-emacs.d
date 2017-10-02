@@ -22,6 +22,7 @@
     bibretrieve
     bibslurp
     calfw
+    calfw-org
     cdlatex
     chess
     concurrent
@@ -29,6 +30,7 @@
     deferred
     ess
     gap-mode
+    gnuplot
     google-this
     helm
     helm-bibtex
@@ -46,6 +48,7 @@
     orgbox
     pandoc-mode
     pdf-tools
+    python-info
     sage-shell-mode
     smart-mode-line
     smartparens
