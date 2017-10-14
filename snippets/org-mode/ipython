@@ -3,6 +3,6 @@
 # contributor: Rafael Villarroel <rvf0068@gmail.com>
 # key: ipy
 # --
-#+BEGIN_SRC ipython :session :exports code
+#+BEGIN_SRC ipython :session :exports code :results raw
 $0
 #+END_SRC
