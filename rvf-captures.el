@@ -1,4 +1,13 @@
+;; from https://stackoverflow.com/a/46685539/577007
+(defun transform-square-brackets-to-round-ones(string-to-transform)
+  "Transforms [ into ( and ] into ), other chars left unchanged."
+  (concat
+  (mapcar #'(lambda (c) (if (equal c ?[) ?\( (if (equal c ?]) ?\) c))) string-to-transform))
+  )
+
+
 ;; code by Adam Porter, see https://lists.gnu.org/archive/html/emacs-orgmode/2016-09/msg00205.html
+
 (defun url-to-org-with-readability (url)
   "Get page content of URL with python-readability, convert to
 Org with Pandoc, and display in buffer."
@@ -95,13 +104,13 @@ Org with Pandoc, and display in buffer."
   "Using protocols. Tags"
   `(,keys ,description entry
           (file ,file)
-"* %c %^g\n   %U\n%?" :empty-lines 0))
+"* [[%:link][%(transform-square-brackets-to-round-ones \"%:description\")]] %^g\n   %U\n%?" :empty-lines 0))
 
 (defun rvf/org-capture-protocol-tags-immediate (keys description file)
   "Using protocols, immediate, tags"
   `(,keys ,description entry
           (file ,file)
-"* %c %^g\n   %U\n%?" :immediate-finish t :empty-lines 0))
+"* [[%:link][%:description]] %^g\n   %U\n%?" :immediate-finish t :empty-lines 0))
 
 (defun rvf/org-capture-misc (keys description file)
   "Misc capture, asking for title."
@@ -123,7 +132,7 @@ Org with Pandoc, and display in buffer."
      "* %:subject\n\n%U\n%a\n%:group\n\n%i" :empty-lines 0)
     (,(concat key "w") ,(concat project " in web") entry
      (file ,(concat "~/Dropbox/org/" filename))
-     "* %c\n   %U\n%?" :immediate-finish t :empty-lines 0)
+     "* [[%:link][%:description]]\n  %U\n%?" :immediate-finish t :empty-lines 0)
     (,(concat key "z") ,(concat project " misc") entry
      (file ,(concat "~/Dropbox/org/" filename))
      "* %^{Title}\n%u\n\n%?" :empty-lines 0)
@@ -134,6 +143,10 @@ Org with Pandoc, and display in buffer."
         ("a" "Email" entry
          (file "~/Dropbox/org/misc.org") 
          "* TODO Respond to [[%l][%:fromname]] %^g:email\n\n%?")
+	("c" "Web site"
+	 entry
+	 (file "~/Dropbox/org/misc.org")
+	 "* [[%:link][%:description]] :website:\n%U %?%:initial")
         ,(rvf/org-capture-protocol-tags-immediate
           "b" "Bookmark" "~/Dropbox/org/bookmarks.org")
         ,(rvf/org-capture-protocol-tags-immediate
@@ -151,9 +164,12 @@ Org with Pandoc, and display in buffer."
           "v" "Misc" "~/Dropbox/org/misc.org")  
         ,(rvf/org-capture-protocol
           "z" "Misc from web" "~/Dropbox/org/misc.org")
-	("w" "Use python-readability" entry
-	 (file "~/Dropbox/org/notes.org")
-	 "* %(org-capture-web-page-with-readability)")
+	;; ("w" "Use python-readability" entry
+	;;  (file "~/Dropbox/org/notes.org")
+	;;  "* %(org-capture-web-page-with-readability)")
+	("w" "Web site" entry
+  (file "")
+  "* %a :website:\n\n%U %?\n\n%:initial")
 	("k" "Template for org-board" entry (file "~/Dropbox/org/board.org")
 	 "* %(org-capture-template-for-org-board)")
 	))
