@@ -426,8 +426,8 @@ prevents it from hanging emacs."
   "String to be displayed in a shrunk column."
   :group 'org-table-editing
   :type 'string
-  :version "26.1"
-  :package-version '(Org . "9.1")
+  :version "27.1"
+  :package-version '(Org . "9.2")
   :safe (lambda (v) (and (stringp v) (not (equal v "")))))
 
 (defconst org-table-auto-recalculate-regexp "^[ \t]*| *# *\\(|\\|$\\)"
@@ -5430,7 +5430,7 @@ information."
 	     (column
 	      ;; Call costly `org-export-table-cell-address' only if
 	      ;; absolutely necessary, i.e., if one
-	      ;; of :fmt :efmt :hmft has a "plist type" value.
+	      ;; of :fmt :efmt :hfmt has a "plist type" value.
 	      ,(and (cl-some (lambda (v) (integerp (car-safe v)))
 			     (list efmt hfmt fmt))
 		    '(1+ (cdr (org-export-table-cell-address cell info))))))

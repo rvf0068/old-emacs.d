@@ -1028,8 +1028,8 @@ the following lines anywhere in the buffer:
    #+STARTUP: shrink"
   :group 'org-startup
   :type 'boolean
-  :version "26.1"
-  :package-version '(Org . "9.1")
+  :version "27.1"
+  :package-version '(Org . "9.2")
   :safe #'booleanp)
 
 (defcustom org-startup-with-inline-images nil
@@ -5559,7 +5559,8 @@ The following commands are available:
 		   ("8.2.7" . "24.4")
 		   ("8.3" . "26.1")
 		   ("9.0" . "26.1")
-		   ("9.1" . "26.1")))
+		   ("9.1" . "26.1")
+		   ("9.2" . "27.1")))
 
 (defvar org-mode-transpose-word-syntax-table
   (let ((st (make-syntax-table text-mode-syntax-table)))
@@ -20763,8 +20764,8 @@ This command does many different things, depending on context:
 	     '(babel-call clock dynamic-block footnote-definition
 			  footnote-reference inline-babel-call inline-src-block
 			  inlinetask item keyword node-property paragraph
-			  plain-list property-drawer radio-target src-block
-			  statistics-cookie table table-cell table-row
+			  plain-list planning property-drawer radio-target
+			  src-block statistics-cookie table table-cell table-row
 			  timestamp)
 	     t))
 	   (type (org-element-type context)))
@@ -20916,7 +20917,8 @@ Use `\\[org-edit-special]' to edit table.el tables"))
 	     (cond (arg (call-interactively #'org-table-recalculate))
 		   ((org-table-maybe-recalculate-line))
 		   (t (org-table-align))))))
-	(`timestamp (org-timestamp-change 0 'day))
+	((or `timestamp (and `planning (guard (org-at-timestamp-p 'lax))))
+	 (org-timestamp-change 0 'day))
 	((and `nil (guard (org-at-heading-p)))
 	 ;; When point is on an unsupported object type, we can miss
 	 ;; the fact that it also is at a heading.  Handle it here.
@@ -23608,7 +23610,9 @@ depending on context."
 					(skip-chars-forward " \r\t\n"))))
 	    (narrow-to-region (org-element-property :contents-begin element)
 			      contents-end))
-	  (call-interactively #'forward-sentence))))))
+	  ;; End of heading is considered as the end of a sentence.
+	  (let ((sentence-end (concat (sentence-end) "\\|^\\*+ .*$")))
+	    (call-interactively #'forward-sentence)))))))
 
 (define-key org-mode-map "\M-a" 'org-backward-sentence)
 (define-key org-mode-map "\M-e" 'org-forward-sentence)
@@ -24196,31 +24200,38 @@ convenience:
 
   - On an affiliated keyword, jump to the first one.
   - On a table or a property drawer, move to its beginning.
-  - On a verse or source block, stop before blank lines."
+  - On comment, example, export, src and verse blocks, stop
+    before blank lines."
   (interactive)
   (unless (bobp)
     (let* ((deactivate-mark nil)
 	   (element (org-element-at-point))
 	   (type (org-element-type element))
-	   (contents-begin (org-element-property :contents-begin element))
 	   (contents-end (org-element-property :contents-end element))
 	   (post-affiliated (org-element-property :post-affiliated element))
-	   (begin (org-element-property :begin element)))
+	   (begin (org-element-property :begin element))
+	   (special?			;blocks handled specially
+	    (memq type '(comment-block example-block export-block src-block
+				       verse-block)))
+	   (contents-begin
+	    (if special?
+		;; These types have no proper contents.  Fake line
+		;; below the block opening line as contents beginning.
+		(save-excursion (goto-char begin) (line-beginning-position 2))
+	      (org-element-property :contents-begin element))))
       (cond
        ((not element) (goto-char (point-min)))
        ((= (point) begin)
 	(backward-char)
 	(org-backward-paragraph))
        ((<= (point) post-affiliated) (goto-char begin))
+       ;; Special behavior: on a table or a property drawer, move to
+       ;; its beginning.
        ((memq type '(node-property table-row))
 	(goto-char (org-element-property
 		    :post-affiliated (org-element-property :parent element))))
-       ((memq type '(property-drawer table)) (goto-char begin))
-       ((memq type '(src-block verse-block))
-	(when (eq type 'src-block)
-	  (setq contents-begin
-		(save-excursion (goto-char begin) (forward-line) (point))))
-	(if (= (point) contents-begin) (goto-char post-affiliated)
+       (special?
+	(if (<= (point) contents-begin) (goto-char post-affiliated)
 	  ;; Inside a verse block, see blank lines as paragraph
 	  ;; separators.
 	  (let ((origin (point)))
@@ -24229,9 +24240,7 @@ convenience:
 	      (skip-chars-forward " \r\t\n" origin)
 	      (if (= (point) origin) (goto-char contents-begin)
 		(beginning-of-line))))))
-       ((not contents-begin) (goto-char (or post-affiliated begin)))
-       ((eq type 'paragraph)
-	(goto-char contents-begin)
+       ((eq type 'paragraph) (goto-char contents-begin)
 	;; When at first paragraph in an item or a footnote definition,
 	;; move directly to beginning of line.
 	(let ((parent-contents
@@ -24239,9 +24248,9 @@ convenience:
 		:contents-begin (org-element-property :parent element))))
 	  (when (and parent-contents (= parent-contents contents-begin))
 	    (beginning-of-line))))
-       ;; At the end of a greater element, move to the beginning of the
-       ;; last element within.
-       ((>= (point) contents-end)
+       ;; At the end of a greater element, move to the beginning of
+       ;; the last element within.
+       ((and contents-end (>= (point) contents-end))
 	(goto-char (1- contents-end))
 	(org-backward-paragraph))
        (t (goto-char (or post-affiliated begin))))
