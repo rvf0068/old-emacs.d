@@ -38,7 +38,7 @@
     magit
     markdown-mode
     move-text
-    ob-ipython
+;    ob-ipython
     org-board
     org-journal
     org-mime

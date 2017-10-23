@@ -184,3 +184,5 @@
 
 (diary)
 
+(push "~/Downloads/scratch/ob-ipython" load-path)
+(require 'ob-ipython)

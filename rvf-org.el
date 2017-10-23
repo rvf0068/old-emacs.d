@@ -4,7 +4,7 @@
 (require 'ob-latex)
 (require 'ob-org)
 (require 'ob-R)
-(require 'ob-ipython)
+;(require 'ob-ipython)
 
 (require 'ox-beamer)
 (require 'ox-bibtex)
