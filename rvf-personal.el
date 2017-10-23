@@ -378,6 +378,7 @@
   (lambda (fpath)
     (call-process "evince" nil 0 nil fpath)))
 (setq helm-bibtex-pdf-symbol "☺")
+(setq bibtex-completion-pdf-extension '(".pdf" ".djvu"))
 
 (setq org2blog/wp-blog-alist
       '(("hgomat"
