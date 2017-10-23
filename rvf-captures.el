@@ -116,26 +116,26 @@ Org with Pandoc, and display in buffer."
   "Misc capture, asking for title."
   `(,keys ,description entry
           (file ,file)
-"* %^{Title}\n%u\n\n%?" :empty-lines 0))
+"* %^{Title}\n   %u\n\n%?" :empty-lines 0))
 
 (defun rvf/org-capture-todo (keys description file)
   "Misc capture, asking for title."
   `(,keys ,description entry
           (file+headline ,file "Tasks")
-"* TODO %^{Task}\n%u\n\n%?" :empty-lines 0))
+"* TODO %^{Task}\n   %u\n\n%?" :empty-lines 0))
 
 (defun rvf/org-capture-template-project (project key filename)
   "Generic Capture"
   `((,key ,project)
     (,(concat key "g") ,(concat project " in gnus") entry
      (file ,(concat "~/Dropbox/org/" filename))
-     "* %:subject\n\n%U\n%a\n%:group\n\n%i" :empty-lines 0)
+     "* %:subject\n\n  %U\n%a\n%:group\n\n%i" :empty-lines 0)
     (,(concat key "w") ,(concat project " in web") entry
      (file ,(concat "~/Dropbox/org/" filename))
      "* [[%:link][%:description]]\n  %U\n%?" :immediate-finish t :empty-lines 0)
     (,(concat key "z") ,(concat project " misc") entry
      (file ,(concat "~/Dropbox/org/" filename))
-     "* %^{Title}\n%u\n\n%?" :empty-lines 0)
+     "* %^{Title}\n  %u\n\n%?" :empty-lines 0)
   ))
 
 (setq org-capture-templates
@@ -169,7 +169,7 @@ Org with Pandoc, and display in buffer."
 	;;  "* %(org-capture-web-page-with-readability)")
 	("w" "Web site" entry
   (file "")
-  "* %a :website:\n\n%U %?\n\n%:initial")
+  "* %a :website:\n\n  %U %?\n\n%:initial")
 	("k" "Template for org-board" entry (file "~/Dropbox/org/board.org")
 	 "* %(org-capture-template-for-org-board)")
 	))
