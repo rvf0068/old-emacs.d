@@ -1,0 +1,8 @@
+# -*- mode: snippet -*-
+# name: igap
+# contributor: Rafael Villarroel <rvf0068@gmail.com>
+# key: igap
+# --
+#+BEGIN_SRC ipython :session :kernel GAP :results output
+$0
+#+END_SRC
