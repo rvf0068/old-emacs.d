@@ -5186,7 +5186,7 @@ return nil."
       info 'first-match)))
 
 
-;;;; For Tables Of Contents
+;;;; For Tables of Contents
 ;;
 ;; `org-export-collect-headlines' builds a list of all exportable
 ;; headline elements, maybe limited to a certain depth.  One can then
@@ -5196,6 +5196,9 @@ return nil."
 ;; Once the generic function `org-export-collect-elements' is defined,
 ;; `org-export-collect-tables', `org-export-collect-figures' and
 ;; `org-export-collect-listings' can be derived from it.
+;;
+;; `org-export-toc-entry-backend' builds a special anonymous back-end
+;; useful to export table of contents' entries.
 
 (defun org-export-collect-headlines (info &optional n scope)
   "Collect headlines in order to build a table of contents.
@@ -5223,12 +5226,16 @@ Footnote sections are ignored."
 	 (n (if (not (wholenump n)) limit
 	      (min (if (eq (org-element-type scope) 'org-data) n
 		     (+ (org-export-get-relative-level scope info) n))
-		   limit))))
+		   limit)))
+	 (skipped nil))
     (org-element-map (org-element-contents scope) 'headline
-      (lambda (headline)
-	(unless (org-element-property :footnote-section-p headline)
-	  (let ((level (org-export-get-relative-level headline info)))
-	    (and (<= level n) headline))))
+      (lambda (h)
+	(if (or (org-element-property :footnote-section-p h)
+		(equal "notoc" (org-element-property :UNNUMBERED h))
+		(memq (org-element-property :parent h) skipped)
+		(< n (org-export-get-relative-level h info)))
+	    (progn (push h skipped) nil)
+	  h))
       info)))
 
 (defun org-export-collect-elements (type info &optional predicate)
@@ -5280,6 +5287,47 @@ INFO is a plist used as a communication channel.
 
 Return a list of src-block elements with a caption."
   (org-export-collect-elements 'src-block info))
+
+(defun org-export-excluded-from-toc-p (headline info)
+  "Non-nil if HEADLINE should be excluded from tables of contents.
+
+INFO is a plist used as a communication channel.
+
+Note that such headlines are already excluded from
+`org-export-collect-headlines'.  Therefore, this function is not
+necessary if you only need to list headlines in the table of
+contents.  However, it is useful if some additional processing is
+required on headlines excluded from table of contents."
+  (or (org-element-property :footnote-section-p headline)
+      (org-export-low-level-p headline info)
+      (cl-some (lambda (h) (equal "notoc" (org-element-property :UNNUMBERED h)))
+	       (org-element-lineage headline nil t))))
+
+(defun org-export-toc-entry-backend (parent &rest transcoders)
+  "Return an export back-end appropriate for table of contents entries.
+
+PARENT is an export back-end the returned back-end should inherit
+from.
+
+By default, the back-end removes footnote references and targets.
+It also changes links and radio targets into regular text.
+TRANSCODERS optional argument, when non-nil, specifies additional
+transcoders.  A transcoder follows the pattern (TYPE . FUNCTION)
+where type is an element or object type and FUNCTION the function
+transcoding it."
+  (declare (indent 1))
+  (org-export-create-backend
+   :parent parent
+   :transcoders
+   (append transcoders
+	   `((footnote-reference . ,#'ignore)
+	     (link . ,(lambda (l c i)
+			(or c
+			    (org-export-data
+			     (org-element-property :raw-link l)
+			     i))))
+	     (radio-target . ,(lambda (_r c _) c))
+	     (target . ,#'ignore)))))
 
 
 ;;;; Smart Quotes

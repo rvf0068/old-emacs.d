@@ -7382,6 +7382,7 @@ gnus                             |  %:group, @r{for messages also all email fiel
 eww, w3, w3m                     |  %:url
 info                             |  %:file %:node
 calendar                         |  %:date
+org-protocol                     |  %:link %:description %:annotation
 @end smallexample
 
 @noindent
@@ -7623,22 +7624,15 @@ javascript:location.href='org-protocol://store-link?url='+
 @cindex capture protocol
 @cindex protocol, capture
 
-@cindex capture, %:url placeholder
-@cindex %:url template expansion in capture
-@cindex capture, %:title placeholder
-@cindex %:title template expansion in capture
 Activating @code{capture} handler pops up a @samp{Capture} buffer and fills
-the capture template associated to the @samp{X} key with them.  The template
-refers to the data through @code{%:url} and @code{%:title} placeholders.
-Moreover, any selected text in the browser is appended to the body of the
-entry.
+the capture template associated to the @samp{X} key with them.
 
 @example
 emacsclient org-protocol://capture?template=X?url=URL?title=TITLE?body=BODY
 @end example
 
-To use this feature, add a bookmark with an arbitrary name, e.g.
-@samp{Org: capture} and enter this as @samp{Location}:
+To use this feature, add a bookmark with an arbitrary name, e.g.  @samp{Org:
+capture} and enter this as @samp{Location}:
 
 @example
 javascript:location.href='org-protocol://template=x'+
@@ -7651,6 +7645,21 @@ javascript:location.href='org-protocol://template=x'+
 The result depends on the capture template used, which is set in the bookmark
 itself, as in the example above, or in
 @code{org-protocol-default-template-key}.
+
+@cindex capture, %:link placeholder
+@cindex %:link template expansion in capture
+@cindex capture, %:description placeholder
+@cindex %:description template expansion in capture
+@cindex capture, %:annotation placeholder
+@cindex %:annotation template expansion in capture
+The following template placeholders are available:
+
+@example
+%:link          The URL
+%:description   The webpage title
+%:annotation    Equivalent to [[%:link][%:description]]
+%i              The selected text
+@end example
 
 @node @code{open-source} protocol
 @subsection @code{open-source} protocol
@@ -10813,7 +10822,9 @@ Toggle inclusion of inlinetasks (@code{org-export-with-inlinetasks}).
 Toggle section-numbers (@code{org-export-with-section-numbers}).  When set to
 number @samp{n}, Org numbers only those headlines at level @samp{n} or above.
 Set @code{UNNUMBERED} property to non-@code{nil} to disable numbering of
-heading and subheadings entirely.
+heading and subheadings entirely.  Moreover, when the value is @samp{notoc}
+the headline, and all its children, do not appear in the table of contents
+either (@pxref{Table of contents}).
 
 @item p:
 @vindex org-export-with-planning
@@ -10911,6 +10922,22 @@ keyword:
 #+OPTIONS: toc:nil        @r{no default TOC at all}
 @end example
 
+@cindex excluding entries from table of contents
+@cindex table of contents, exclude entries
+Org includes both numbered and unnumbered headlines in the table of
+contents@footnote{At the moment, some export back-ends do not obey this
+specification.  For example, @LaTeX{} export excludes every unnumbered
+headline from the table of contents.}.  If you need to exclude an unnumbered
+headline, along with all its children, set the @samp{UNNUMBERED} property to
+@samp{notoc} value.
+
+@example
+* Subtree not numbered, not in table of contents either
+  :PROPERTIES:
+  :UNNUMBERED: notoc
+  :END:
+@end example
+
 @cindex #+TOC
 Org normally inserts the table of contents directly before the first headline
 of the file.  To move the table of contents to a different location, first
@@ -10935,8 +10962,8 @@ compatibility issues, @code{titletoc} has to be loaded @emph{before}
 variable.
 
 @example
-* Section #+TOC: headlines 1 local @r{insert local TOC, with direct children
-only}
+* Section
+#+TOC: headlines 1 local @r{insert local TOC, with direct children only}
 @end example
 
 Use the @code{TOC} keyword to generate list of tables (resp.@: all listings)
